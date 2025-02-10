@@ -25,6 +25,7 @@ import {
   PhoneAndroid,
   Settings,
   ExitToApp,
+  AccountBalanceWallet
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../store/slices/authSlice';
@@ -49,6 +50,7 @@ const MainLayout = () => {
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
         { text: 'Clients', icon: <People />, path: '/clients' },
         { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
+        { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' }
       ];
 
   const handleDrawerToggle = () => {
@@ -135,7 +137,7 @@ const MainLayout = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            {role === 'supervisor' ? 'Gestion SFR - Superviseur' : user?.agencyName}
+            {role === 'supervisor' ? 'Superviseur' : user?.agencyName}
           </Typography>
           <IconButton color="inherit">
             <Badge badgeContent={3} color="error">

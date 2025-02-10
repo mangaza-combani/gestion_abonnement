@@ -22,6 +22,7 @@ import LinesManagement from './pages/supervisor/LinesManagement';
 import ClientsManagement from './pages/agency/ClientsManagement';
 import SimStock from './pages/agency/SimStock';
 import Settings from './pages/settings/Settings';
+import CommissionWithdrawal from './pages/agency/CommissionWithdrawal';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -69,6 +70,7 @@ const App = () => {
               {/* Routes Superviseur */}
               <Route path="agencies" element={<AgenciesManagement />} />
               <Route path="lines" element={<LinesManagement />} />
+              <Route path="commissions" element={<CommissionWithdrawal />} />
 
               {/* Routes Agence */}
               <Route path="clients" element={<ClientsManagement />} />
