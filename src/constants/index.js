@@ -21,6 +21,11 @@ import {
     { id: 'order', label: 'A COMMANDER', icon: SimCard },
     { id: 'late', label: 'RETARD', icon: Warning }
   ];
+
+  export const ORDER_FILTERS = {
+    NEW_CLIENT: 'NOUVEAU CLIENT',
+    SIM_ORDER: 'COMMANDE CARTE SIM'
+  };
   
   export const MOCK_CLIENTS = [
     { 
@@ -82,6 +87,8 @@ import {
       simCard: null // En attente de commande
     }
   ];
+
+
   
   export const getFilteredClients = (clients, currentTab) => {
     switch (currentTab) {
