@@ -17,7 +17,11 @@ const mockClients = [
     telephone: '0639666363',
     status: 'A JOUR',
     compte: 'ABDOU.CELINE',
-    email: 'celine.abdou@email.com'
+    email: 'celine.abdou@email.com',
+    red : {
+      id : "djdkjd.dkdj",
+        psw : "1574526"
+      }
   },
   { 
     id: 2,
@@ -26,7 +30,11 @@ const mockClients = [
     telephone: '0634466363',
     status: 'EN RETARD',
     compte: 'ABDOU.OMAR',
-    email: 'omar.abdou@email.com'
+    email: 'omar.abdou@email.com',
+    red : {
+    id : "djdkjd.dkdj",
+      psw : "1574526"
+    }
   },
   {
     id: 3,
@@ -34,8 +42,12 @@ const mockClients = [
     prenom: 'Marie',
     telephone: '0634466364',
     status: 'DETTE',
-    compte: 'SAID.MARIE',
-    email: 'marie.said@email.com'
+    compte: 'mohamadi.msa',
+    email: 'marie.said@email.com',
+    red : {
+      id : "mohamadi.msa",
+      psw : "1574526"
+    }
   },
   {
     id: 4,
@@ -43,8 +55,12 @@ const mockClients = [
     prenom: 'David',
     telephone: '0634466778',
     status: 'PAUSE',
-    compte: 'YASSINE.DAVID',
-    email: 'david.yassine@email.com'
+    compte: 'yassine.david',
+    email: 'david.yassine@email.com',
+    red : {
+      id : "yassine.david",
+      psw : "1234ssdhdj"
+    }
   },
   {
     id: 5,
@@ -52,9 +68,13 @@ const mockClients = [
     prenom: 'Sophie',
     telephone: '0634466999',
     status: 'RÉSILIÉ',
-    compte: 'MARTIN.SOPHIE',
+    compte: 'yassine.david',
     email: 'sophie.martin@email.com',
-    terminationDate: '2024-01-15'  // Date de résiliation ajoutée
+    terminationDate: '2024-01-15',  // Date de résiliation ajoutée
+    red : {
+      id : "yassine.david",
+      psw : "1234ssdhdj"
+    }
   }
 ];
 
@@ -71,6 +91,12 @@ const ClientManagement = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState(CLIENT_STATUSES.ALL);
   const [selectedOrderFilter, setSelectedOrderFilter] = useState(null);
+
+
+  const handleChangeTabs = (e, newValue)=>{
+    setSelectedClient(null)
+    setCurrentTab(newValue)
+  }
 
   const getFilteredClients = () => {
     return mockClients.filter(client => {
@@ -107,6 +133,7 @@ const ClientManagement = () => {
 
     switch (currentTab) {
       case TAB_TYPES.LIST:
+        
         return (
           <ListTab
             searchTerm={searchTerm}
@@ -160,7 +187,7 @@ const ClientManagement = () => {
       <Box sx={{ bgcolor: 'white', boxShadow: 1 }}>
         <Tabs 
           value={currentTab}
-          onChange={(e, newValue) => setCurrentTab(newValue)}
+          onChange={(e, newValue) => handleChangeTabs(e, newValue)}
           variant="scrollable"
           scrollButtons="auto"
           sx={{
@@ -188,7 +215,7 @@ const ClientManagement = () => {
       client={selectedClient}
       currentTab={currentTab}
     />
-    <ClientActions client={selectedClient} />
+    <ClientActions client={selectedClient}  currentTab={currentTab}/>
   </>
 )}
       </Box>

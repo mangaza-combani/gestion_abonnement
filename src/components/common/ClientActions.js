@@ -13,9 +13,7 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 
-const ClientActions = ({ client,currentTab }) => {
-
-  console.log(currentTab)
+const ClientActions = ({ client }) => {
   return (
     <Paper sx={{ width: '200px', p: 2 }}>
       <Stack spacing={2}>
@@ -27,28 +25,22 @@ const ClientActions = ({ client,currentTab }) => {
         >
           Facturer
         </Button>
-        {currentTab == "block" ?null: (
         <Button
-        fullWidth
-        variant="contained"
-        color="success"
-        startIcon={<PlayArrowIcon />}
-      >
-        débloquer
-      </Button>
-      )
-    }
-         {currentTab == "unblock" ?null: (
+          fullWidth
+          variant="contained"
+          color="success"
+          startIcon={<PlayArrowIcon />}
+        >
+          A débloquer
+        </Button>
         <Button
           fullWidth
           variant="contained"
           color="error"
           startIcon={<StopIcon />}
         >
-           bloquer
+          A bloquer
         </Button>
-           )
-          }
         <Button
           fullWidth
           variant="contained"
@@ -57,7 +49,13 @@ const ClientActions = ({ client,currentTab }) => {
         >
           Commander SIM
         </Button>
-        
+        <Button
+          fullWidth
+          variant="contained"
+          startIcon={<AddIcon />}
+        >
+          Nouveau Client
+        </Button>
       </Stack>
     </Paper>
   );

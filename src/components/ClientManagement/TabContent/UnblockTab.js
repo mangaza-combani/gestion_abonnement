@@ -1,4 +1,4 @@
-import React from 'react';
+import React,{useEffect} from 'react';
 import { Stack } from '@mui/material';
 import ClientSearch from '../ClientSearch';
 import ClientList from '../ClientList';
@@ -10,6 +10,10 @@ const UnblockTab = ({
   selectedClient,
   onClientSelect
 }) => {
+  useEffect(()=>{
+    onClientSelect(clients[0])
+  },[])
+
   return (
     <Stack spacing={2}>
       <ClientSearch 

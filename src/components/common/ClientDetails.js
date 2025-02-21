@@ -109,12 +109,12 @@ const ClientHeader = ({ client }) => (
         {client.prenom[0]}{client.nom[0]}
       </Avatar>
       <Box sx={{ flex: 1 }}>
-        <Typography variant="h5" color="white" gutterBottom>
+        <Typography variant="h5" color="primary.main" gutterBottom>
           {client.prenom} {client.nom}
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center">
           <StatusChip status={client.status} />
-          <Typography variant="body4" color="text.secondary">
+          <Typography variant="body2" color="text.secondary">
             {client.telephone}
           </Typography>
         </Stack>
@@ -159,32 +159,20 @@ const SubscriptionCard = () => (
   </Card>
 );
 
-const ClientDetails = ({ client, selectedYear, onYearChange ,currentTab}) => {
+const ClientDetails = ({ client, selectedYear, onYearChange }) => {
     if (!client) return null;
-    console.log(currentTab)
   
     return (
       <Card sx={{ width: '600px' }}>
         <Box sx={{ p: 3 }}>
           <ClientHeader client={client} />
-          {
-            currentTab == "unblock" ? (
-              <>
-
-              </>
-            ) :(
-              <>
-              <SubscriptionCard />
+          <SubscriptionCard />
           <BillingCard selectedYear={selectedYear} />
           <NotesCard />
-              </>
-            )
-          }
-          
         </Box>
       </Card>
     );
   };
-
   
-  export default ClientDetails;
+
+export default ClientDetails
