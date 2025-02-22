@@ -10,72 +10,162 @@ import ClientActions from '../../components/ClientManagement/ClientActions';
 
 // Mock data
 const mockClients = [
-  { 
+ 
+  {
     id: 1,
-    nom: 'ABDOU',
-    prenom: 'Celine',
-    telephone: '0639666363',
-    status: 'A JOUR',
-    compte: 'ABDOU.CELINE',
-    email: 'celine.abdou@email.com',
-    red : {
-      id : "djdkjd.dkdj",
-        psw : "1574526"
-      }
+    nom: "ABDOU",
+    prenom: "Céline",
+    telephone: "0612346363",
+    status: "A JOUR",
+    compte: "celine.abdou",
+    email: "celine.abdou@gmail.com",
+    red: {
+      id: "celine.id.dtct",
+      psw: "t5743L2K",
+      status: 'active',
+      lastPaymentDate: '2024-02-15',
+      basePrice: 19,
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
+    }
   },
-  { 
+  {
     id: 2,
-    nom: 'ABDOU',
-    prenom: 'Omar',
-    telephone: '0634466363',
-    status: 'EN RETARD',
-    compte: 'ABDOU.OMAR',
-    email: 'omar.abdou@email.com',
-    red : {
-    id : "djdkjd.dkdj",
-      psw : "1574526"
+    nom: "ABDOU",
+    prenom: "Omar",
+    telephone: "0644446363",
+    status: "EN RETARD",
+    compte: "ABDOU.OMAR",
+    email: "omar.abdou@gmail.com",
+    red: {
+      id: "djos.id.dtct",
+      psw: "t5743L2K",
+      status: 'late',
+      dueAmount: 38,
+      basePrice: 19,
+      lastPaymentDate: '2024-01-15',
+      unpaidMonths: [
+        { month: 'Janvier', year: 2024, amount: 19 },
+        { month: 'Février', year: 2024, amount: 19 }
+      ],
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
     }
   },
   {
     id: 3,
-    nom: 'SAID',
-    prenom: 'Marie',
-    telephone: '0634466364',
-    status: 'DETTE',
-    compte: 'mohamadi.msa',
-    email: 'marie.said@email.com',
-    red : {
-      id : "mohamadi.msa",
-      psw : "1574526"
+    nom: "SAID",
+    prenom: "Mohamed",
+    telephone: "0644466364",
+    status: "DETTE",
+    compte: "mohamed.msa",
+    email: "momo.said@gmail.com",
+    actions: [{
+      type: 'block',
+      reason: 'Nouveau client en attente de carte SIM',
+      priority: 1
+    }],
+    red: {
+      id: "mohamed.msa",
+      psw: "t5743L2K",
+      status: 'blocked',
+      dueAmount: 57,
+      basePrice: 19,
+      lastPaymentDate: '2023-12-15',
+      unpaidMonths: [
+        { month: 'Décembre', year: 2023, amount: 19 },
+        { month: 'Janvier', year: 2024, amount: 19 },
+        { month: 'Février', year: 2024, amount: 19 }
+      ],
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
     }
   },
   {
-    id: 4,
-    nom: 'YASSINE',
-    prenom: 'David',
-    telephone: '0634466778',
-    status: 'PAUSE',
-    compte: 'yassine.david',
-    email: 'david.yassine@email.com',
-    red : {
-      id : "yassine.david",
-      psw : "1234ssdhdj"
+    id: 6,
+    nom: "YASSINE",
+    prenom: "David",
+    telephone: "0644465778",
+    compte: "yassine.david",
+    status: "PAUSE",
+    email: "david.yassine@gmail.com",
+    actions: [{
+      type: 'unblock',
+      reason: 'Nouveau client en attente de carte SIM',
+      priority: 1
+    }],
+    red: {
+      id: "yassine.david",
+      psw: "t2343und1",
+      status: 'terminated',
+      basePrice: 19,
+      lastPaymentDate: '2024-02-10',
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
     }
   },
   {
     id: 5,
-    nom: 'MARTIN',
-    prenom: 'Sophie',
-    telephone: '0634466999',
-    status: 'RÉSILIÉ',
-    compte: 'yassine.david',
-    email: 'sophie.martin@email.com',
-    terminationDate: '2024-01-15',  // Date de résiliation ajoutée
-    red : {
-      id : "yassine.david",
-      psw : "1234ssdhdj"
+    nom: "MARTIN",
+    prenom: "Sophie",
+    telephone: "0644466999",
+    status: "RESILIE",
+    compte: "yassine.david",
+    email: "sophie.martin@gmail.com",
+    actions: [],
+    terminationDate: "2024-01-15", // Date de résiliation ajoutée
+    red: {
+      id: "yassine.david",
+      psw: "t2343und2",
+      status: 'terminated',
+      basePrice: 19,
+      terminationDate: '2024-01-15',
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
     }
-  }
+  },
+
+  {
+    id: 4,
+    nom: "YASSINE",
+    prenom: "David",
+    telephone: "0644465778",
+    status: "NOUVEAU",
+    compte: "yassine.david",
+    email: "david.yassine@gmail.com",
+    actions: [{
+      type: 'to_order',
+      reason: 'Nouveau client en attente de carte SIM',
+      priority: 1
+    }],
+    red: {
+      id: "yassine.david",
+      psw: "t2343und1",
+      lineStatus: 'pending',
+      paymentStatus: 'pending',
+      basePrice: 19,
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
+    }
+  },
 ];
 
 const tabs = [
@@ -194,9 +284,6 @@ const ClientManagement = () => {
             '& .MuiTab-root': {
               minHeight: 64,
               px: 4,
-              '&.Mui-selected': {
-                bgcolor: 'primary.light',
-              }
             }
           }}
         >
