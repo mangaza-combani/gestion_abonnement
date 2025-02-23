@@ -32,61 +32,8 @@ import {
   VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
+import RedAccountManagement from '../RedAccountManagement';
 
-const months = [
-  ['JANVIER', 'FEVRIER', 'MARS'],
-  ['AVRIL', 'MAI', 'JUIN'],
-  ['JUILLET', 'AOUT', 'SEPTEMBRE'],
-  ['OCTOBRE', 'NOVEMBRE', 'DECEMBRE']
-];
-
-const BillingCard = ({ selectedYear }) => (
-  <Card sx={{ mb: 3 }}>
-    <CardContent>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">FACTURATION</Typography>
-        <Button 
-          variant="outlined"
-          size="small"
-          endIcon={<CalendarIcon />}
-        >
-          {selectedYear}
-        </Button>
-      </Box>
-      <Grid container spacing={1}>
-        {months.map((row, rowIndex) => (
-          <Grid item xs={12} key={rowIndex}>
-            <Grid container spacing={1}>
-              {row.map((month) => (
-                <Grid item xs={4} key={month}>
-                  <Paper
-                    sx={{
-                      p: 1,
-                      textAlign: 'center',
-                      bgcolor: month === 'JANVIER' || month === 'FEVRIER' ? 'success.light' : 'grey.100',
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 1
-                    }}
-                  >
-                    {(month === 'JANVIER' || month === 'FEVRIER') && (
-                      <CheckCircleIcon color="success" fontSize="small" />
-                    )}
-                    <Typography variant="body2">
-                      {month}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          </Grid>
-        ))}
-      </Grid>
-    </CardContent>
-  </Card>
-);
 
 const NotesCard = () => (
   <Card>
@@ -450,28 +397,31 @@ const AccountDetails = ({ redAccount = { id: 'RED_123456', password: 'SecurePass
 
 
 
-const ClientDetails = ({ client, selectedYear, onYearChange ,currentTab}) => {
-    if (!client) return null;
-    console.log(currentTab)
-  
-    return (
-      <Card sx={{ width: '600px' }}>
-        <Box sx={{ p: 3 }}>
-          <ClientHeader client={client} />
-          {(currentTab === 'block' || currentTab === 'unblock') && (
-        <AccountDetails 
-          redAccount={client.redAccount}
-          agency={client.agency}
-        />)}
-          
-          <SubscriptionCard client={client} />
-         
-          <NotesCard />
-          
-        </Box>
-      </Card>
-    );
-  };
+const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
+  if (!client) return null;
 
-  
-  export default ClientDetails;
+  return (
+    <Card sx={{ width: '600px' }}>
+      <Box sx={{ p: 3 }}>
+        <ClientHeader client={client} />
+        
+        {currentTab === 'order' ? (
+          <RedAccountManagement client={client} />
+        ) : (
+          <>
+            {(currentTab === 'block' || currentTab === 'unblock') && (
+              <AccountDetails 
+                redAccount={client.redAccount}
+                agency={client.agency}
+              />
+            )}
+            <SubscriptionCard client={client} />
+            <NotesCard />
+          </>
+        )}
+      </Box>
+    </Card>
+  );
+};
+
+export default ClientDetails;

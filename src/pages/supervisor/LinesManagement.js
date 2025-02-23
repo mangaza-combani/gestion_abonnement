@@ -67,7 +67,7 @@ const mockClients = [
     compte: "mohamed.msa",
     email: "momo.said@gmail.com",
     actions: [{
-      type: 'block',
+      type: 'to_block',
       reason: 'Nouveau client en attente de carte SIM',
       priority: 1
     }],
@@ -99,10 +99,11 @@ const mockClients = [
     status: "PAUSE",
     email: "david.yassine@gmail.com",
     actions: [{
-      type: 'unblock',
+      type: 'to_unblock',
       reason: 'Nouveau client en attente de carte SIM',
       priority: 1
-    }],
+    },
+    ],
     red: {
       id: "yassine.david",
       psw: "t2343und1",
@@ -141,18 +142,55 @@ const mockClients = [
   },
 
   {
-    id: 4,
-    nom: "YASSINE",
-    prenom: "David",
-    telephone: "0644465778",
-    status: "NOUVEAU",
+    id: 10,
+    nom: "ISSOUF",
+    prenom: "VOLA",
+    telephone: "",
+    status: "NOUVEAU CLIENT",
+    agency: {
+      id: 'COMBANI_01',
+    },
     compte: "yassine.david",
     email: "david.yassine@gmail.com",
     actions: [{
       type: 'to_order',
-      reason: 'Nouveau client en attente de carte SIM',
-      priority: 1
-    }],
+      reason: 'NOUVEAU CLIENT',
+      iccid : undefined,
+    },
+  ],
+    red: {
+      id: "yassine.david",
+      psw: "t2343und1",
+      lineStatus: 'pending',
+      paymentStatus: 'pending',
+      basePrice: 19,
+      features: [
+        "Appels illimités en France",
+        "SMS/MMS illimités",
+        "Internet 100Go"
+      ]
+    }
+  },
+  ,
+
+  {
+    id: 4,
+    nom: "YASSINE",
+    prenom: "David",
+    telephone: "",
+    status: "NOUVEAU CLIENT",
+    agency: {
+      id: 'COMBANI_01',
+    },
+    compte: "yassine.david",
+    email: "david.yassine@gmail.com",
+    simCCID: "8933150319xxxx",
+    actions: [{
+      type: 'to_order',
+      reason: 'NOUVEAU CLIENT',
+      iccid : undefined,
+    },
+  ],
     red: {
       id: "yassine.david",
       psw: "t2343und1",
@@ -196,23 +234,26 @@ const ClientManagement = () => {
         client.telephone.includes(searchTerm);
       
       if (currentTab === TAB_TYPES.LIST) {
+        // Pour la vue liste, on garde la logique existante si nécessaire
         const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL || 
           client.status === selectedStatus;
         return matchesSearch && matchesStatus;
       }
-
-      // Filtres spécifiques pour chaque onglet
+  
+      // Vérifie si le client a des actions
+      const hasActions = Array.isArray(client.actions) && client.actions.length > 0;
+      
+      // Filtres basés sur les actions pour chaque onglet
       switch (currentTab) {
         case TAB_TYPES.TO_BLOCK:
-          return matchesSearch && client.status === CLIENT_STATUSES.LATE;
+          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_block');
         case TAB_TYPES.TO_UNBLOCK:
-          return matchesSearch && client.status === CLIENT_STATUSES.PAUSED;
+          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_unblock');
         case TAB_TYPES.TO_ORDER:
-          if (selectedOrderFilter === ORDER_FILTERS.NEW_CLIENT) {
-            return matchesSearch && !client.hasSimCard;
-          }
-          return matchesSearch && client.needsNewSim;
+          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_order');
         default:
+          // Pour l'onglet par défaut, on affiche tous les clients qui correspondent à la recherche
+          // y compris ceux qui n'ont pas d'actions
           return matchesSearch;
       }
     });

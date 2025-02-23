@@ -4,7 +4,8 @@ export const CLIENT_STATUSES = {
     LATE: 'EN RETARD',
     DEBT: 'DETTE',
     PAUSED: 'PAUSE',
-    TERMINATED: 'RÉSILIÉ'
+    TERMINATED: 'RÉSILIÉ',
+    NEW_CLIENT: "NOUVEAU CLIENT"
   };
   
   export const TAB_TYPES = {

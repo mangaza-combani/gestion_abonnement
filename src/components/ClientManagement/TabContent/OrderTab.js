@@ -1,4 +1,4 @@
-import React from 'react';
+import React ,{useEffect}from 'react';
 import { 
   Stack, 
   Chip, 
@@ -27,6 +27,11 @@ const OrderTab = ({
   selectedClient,
   onClientSelect
 }) => {
+
+    useEffect(()=>{
+      onClientSelect(clients[0])
+    },[])
+
   const getStatistics = () => {
     const newClientsCount = clients.filter(client => !client.hasSimCard).length;
     const needsNewSimCount = clients.filter(client => client.needsNewSim).length;
@@ -82,25 +87,7 @@ const OrderTab = ({
         hideFilters
       />
 
-      {/* Filtres de commande */}
-      <Stack direction="row" spacing={1}>
-        <Chip
-          label={ORDER_FILTERS.NEW_CLIENT}
-          icon={<PersonAddIcon />}
-          onClick={() => onOrderFilterChange(ORDER_FILTERS.NEW_CLIENT)}
-          variant={selectedOrderFilter === ORDER_FILTERS.NEW_CLIENT ? 'filled' : 'outlined'}
-          color="primary"
-          sx={{ px: 1 }}
-        />
-        <Chip
-          label={ORDER_FILTERS.SIM_ORDER}
-          icon={<SimCardIcon />}
-          onClick={() => onOrderFilterChange(ORDER_FILTERS.SIM_ORDER)}
-          variant={selectedOrderFilter === ORDER_FILTERS.SIM_ORDER ? 'filled' : 'outlined'}
-          color="primary"
-          sx={{ px: 1 }}
-        />
-      </Stack>
+    
 
       {/* Liste des clients */}
       <ClientList

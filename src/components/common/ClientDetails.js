@@ -168,7 +168,7 @@ const ClientDetails = ({ client, selectedYear, onYearChange }) => {
           <ClientHeader client={client} />
           <SubscriptionCard />
           <BillingCard selectedYear={selectedYear} />
-       
+          <NotesCard />
         </Box>
       </Card>
     );

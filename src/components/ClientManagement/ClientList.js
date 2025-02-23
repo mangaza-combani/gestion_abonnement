@@ -7,11 +7,13 @@ import {
   TableBody, 
   TableRow, 
   TableCell,
+  Button,
   Chip 
 } from '@mui/material';
 import StatusChip from './StatusChip';
 
-const ClientList = ({ clients, selectedClient, onClientSelect }) => {
+const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = false }) => {
+
   return (
     <Card sx={{ flex: 1 }}>
       <TableContainer>
@@ -20,8 +22,15 @@ const ClientList = ({ clients, selectedClient, onClientSelect }) => {
             <TableRow>
               <TableCell>NOM</TableCell>
               <TableCell>PRENOM</TableCell>
-              <TableCell>TELEPHONE</TableCell>
+              {isOrderView &&(
+                <TableCell>TELEPHONE</TableCell>
+              )}
+            
               <TableCell>ETAT CLIENT</TableCell>
+              {!isOrderView && (
+                <TableCell>ACTION</TableCell>
+              )}
+
             </TableRow>
           </TableHead>
           <TableBody>
@@ -35,10 +44,17 @@ const ClientList = ({ clients, selectedClient, onClientSelect }) => {
               >
                 <TableCell>{client.nom}</TableCell>
                 <TableCell>{client.prenom}</TableCell>
-                <TableCell>{client.telephone}</TableCell>
+                {isOrderView &&(
+                        <TableCell>{client.telephone}</TableCell>
+                )}
                 <TableCell>
                   <StatusChip status={client.status} />
                 </TableCell>
+                {!isOrderView &&(
+                           <TableCell>
+                          
+                         </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
