@@ -1,70 +1,128 @@
-# Getting Started with Create React App
+# Gestion d'Abonnements Téléphoniques SFR
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Une plateforme web de gestion complète pour la revente d'abonnements Red by SFR, développée avec React et Material-UI.
 
-## Available Scripts
+## 📱 Présentation
 
-In the project directory, you can run:
+Cette application permet la gestion complète du cycle de vie des abonnements téléphoniques, de la commande de cartes SIM à la facturation client, en passant par le suivi des commissions. Elle est structurée en trois niveaux d'accès :
+- Superviseur
+- Agences
+- Clients finaux
 
-### `npm start`
+## 💰 Modèle économique
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Achat : Forfaits Red by SFR à 9.99€/mois
+- Revente : 19€/mois aux clients finaux (paramétrable)
+- Répartition : 16€ superviseur / 3€ agence (paramétrable)
+- Volume : ~300 clients (maximum 5 numéros par compte Red by SFR)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🚀 Fonctionnalités principales
 
-### `npm test`
+### Gestion des Clients
+- Création et gestion des profils clients
+- Attribution des cartes SIM
+- Suivi des paiements
+- Gestion des lignes multiples par client
+- Filtrage et recherche avancée
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Gestion des Cartes SIM
+- Suivi du stock en temps réel
+- Traçabilité complète des cartes
+- Gestion des commandes et réceptions
+- Statuts multiples (stock, active, perdue/volée)
+- Tableau de bord avec statistiques
 
-### `npm run build`
+### Gestion des Commissions
+- Calcul automatique des commissions
+- Système de demande de retrait
+- Historique des transactions
+- Validation des paiements
+- Rapports détaillés
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🛠 Technologies utilisées
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- React
+- Material-UI (MUI)
+- Tailwind CSS
+- Lucide React (icônes)
+- Shadcn/ui (composants)
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 💻 Installation
 
-### `npm run eject`
+```bash
+# Cloner le repository
+git clone https://github.com/votre-username/gestion-abonnements-sfr.git
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# Installer les dépendances
+cd gestion-abonnements-sfr
+npm install
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+# Lancer l'application en mode développement
+npm run dev
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 📋 Structure du projet
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```
+src/
+├── components/
+│   ├── clients/
+│   │   ├── NewClientDialog.tsx
+│   │   └── ModernClientsManagement.tsx
+│   ├── sim/
+│   │   └── SimManagement.tsx
+│   └── commission/
+│       └── CommissionWithdrawal.tsx
+├── utils/
+├── hooks/
+└── pages/
+```
 
-## Learn More
+## 🔐 Rôles et responsabilités
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Superviseur
+- Création et configuration des agences
+- Gestion des comptes Red by SFR
+- Activation/blocage/désactivation des lignes
+- Commande et suivi des cartes SIM
+- Validation des commissions
+- Attribution des réductions exceptionnelles
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Agences
+- Création de nouveaux clients
+- Gestion du stock de cartes SIM
+- Facturation clients
+- Encaissement
+- Suivi des paiements
+- Déclaration des commissions reçues
 
-### Code Splitting
+## 💳 Processus de facturation
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Nouvelle activation (exemple le 10 du mois)
+- Base : 20 jours d'utilisation
+- Client paie : 12.67€ (prorata) + 10€ (carte) = 22.67€
+- Agence reçoit : 2€ (prorata) + 10€ (carte) = 12€
+- Superviseur reçoit : 10.67€
+- Coût SFR : 6.67€
 
-### Analyzing the Bundle Size
+### Mois normal
+- Client paie : 19€
+- Agence reçoit : 3€
+- Superviseur reçoit : 16€
+- Coût SFR : 9.99€
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 🔒 Points critiques de sécurité
 
-### Making a Progressive Web App
+- Suivi temps réel des paiements
+- Gestion automatique des blocages de ligne
+- Traçabilité des cartes SIM
+- Protection des données sensibles
+- Association sécurisée numéros/comptes SFR
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## 📝 Licence
 
-### Advanced Configuration
+Ce projet est sous licence privée. Tous droits réservés.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## 🤝 Contact
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Pour toute question ou support, veuillez contacter l'équipe de développement.
