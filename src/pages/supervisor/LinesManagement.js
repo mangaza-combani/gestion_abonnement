@@ -7,6 +7,7 @@ import UnblockTab from '../../components/ClientManagement/TabContent/UnblockTab'
 import OrderTab from '../../components/ClientManagement/TabContent/OrderTab';
 import ClientDetails from '../../components/ClientManagement/ClientDetails';
 import ClientActions from '../../components/ClientManagement/ClientActions';
+import ActivateTab from '../../components/ClientManagement/TabContent/ActivateTab';
 
 // Mock data
 const mockClients = [
@@ -186,7 +187,7 @@ const mockClients = [
     email: "david.yassine@gmail.com",
     simCCID: "8933150319xxxx",
     actions: [{
-      type: 'to_order',
+      type: 'to_activate',
       reason: 'NOUVEAU CLIENT',
       iccid : undefined,
     },
@@ -210,7 +211,8 @@ const tabs = [
   { id: TAB_TYPES.LIST, label: 'LISTE DES CLIENTS' },
   { id: TAB_TYPES.TO_UNBLOCK, label: 'A DEBLOQUER' },
   { id: TAB_TYPES.TO_BLOCK, label: 'A BLOQUER' },
-  { id: TAB_TYPES.TO_ORDER, label: 'A COMMANDER' }
+  { id: TAB_TYPES.TO_ORDER, label: 'A COMMANDER' },
+  { id: TAB_TYPES.TO_ACTIVATE, label: 'A ACTIVER' },
 ];
 
 const ClientManagement = () => {
@@ -251,6 +253,8 @@ const ClientManagement = () => {
           return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_unblock');
         case TAB_TYPES.TO_ORDER:
           return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_order');
+        case TAB_TYPES.TO_ACTIVATE:
+          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_activate');
         default:
           // Pour l'onglet par défaut, on affiche tous les clients qui correspondent à la recherche
           // y compris ceux qui n'ont pas d'actions
@@ -308,6 +312,19 @@ const ClientManagement = () => {
             onClientSelect={setSelectedClient}
           />
         );
+      case TAB_TYPES.TO_ACTIVATE:
+        return (
+          <ActivateTab
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            selectedOrderFilter={selectedOrderFilter}
+            onOrderFilterChange={setSelectedOrderFilter}
+            clients={filteredClients}
+            selectedClient={selectedClient}
+            onClientSelect={setSelectedClient}
+          />
+        );
+
       default:
         return null;
     }

@@ -13,7 +13,8 @@ export const CLIENT_STATUSES = {
     TO_UNBLOCK: 'unblock',
     TO_BLOCK: 'block',
     TO_ORDER: 'order',
-    LATE: 'late'
+    LATE: 'late',
+    TO_ACTIVATE: 'activate'
   };
   
   export const ORDER_FILTERS = {

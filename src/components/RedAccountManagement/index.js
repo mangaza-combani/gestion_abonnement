@@ -54,7 +54,7 @@ const RedAccountManagement = ({ client }) => {
       id: "RED_123456",
       password: "SecurePass123",
       agencyId: "COMBANI_01",
-      activeLines: 3,
+      activeLines: 5,
       maxLines: 5,
       lines: [
         { 
@@ -70,14 +70,14 @@ const RedAccountManagement = ({ client }) => {
         { 
           number: "0645678901", 
           status: "unattributed", 
-          simCard: "8933150319xxxx",
+          simCard: "893315031952478",
           lastStatus: "new"
         },
         { 
           number: "0656789012", 
           status: "terminated",
           simCard: "8933150319yyyy",
-          terminatedAt: "2023-01-15",
+          terminatedAt: "2025-01-15",
           clientData: {
             id: '126',
             prenom: 'Sophie',
@@ -90,7 +90,7 @@ const RedAccountManagement = ({ client }) => {
       id: "RED_789012",
       password: "Pass789012",
       agencyId: "COMBANI_01",
-      activeLines: 1,
+      activeLines: 5,
       maxLines: 5,
       lines: [
         { 
@@ -588,64 +588,76 @@ const RedAccountManagement = ({ client }) => {
           {showCreateForm && renderCreationForm()}
 
           {/* Liste détaillée des comptes */}
-          <Box sx={{ mt: 2, maxHeight: '400px', overflow: 'auto' }}>
-            <Typography variant="subtitle2" gutterBottom color="text.secondary">
-              Liste des comptes :
+        {/* Liste détaillée des comptes */}
+<Box sx={{ mt: 2, maxHeight: '400px', overflow: 'auto' }}>
+  <Typography variant="subtitle2" gutterBottom color="text.secondary">
+    Liste des comptes avec disponibilités :
+  </Typography>
+  
+  {(() => {
+    const accountsWithAvailability = availableAccounts
+      .filter(account => account.availableSlots > 0 || account.terminatedLines.length > 0);
+
+    if (accountsWithAvailability.length === 0) {
+      return (
+        <Alert 
+          severity="warning"
+        >
+          <AlertTitle>Aucun compte disponible</AlertTitle>
+          Aucun compte de l'agence {client?.agency?.id} n'a de disponibilité. 
+          Veuillez créer un nouveau compte associé à l'agence pour pouvoir ajouter des lignes.
+        </Alert>
+      );
+    }
+
+    return accountsWithAvailability
+      .sort((a, b) => b.availableSlots - a.availableSlots)
+      .map(account => (
+        <Box
+          key={account.id}
+          sx={{
+            p: 1.5,
+            mb: 1,
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            backgroundColor: 'background.paper',
+            '&:hover': { bgcolor: 'action.hover' }
+          }}
+        >
+          <Box>
+            <Typography variant="body2">
+              {account.id}
             </Typography>
-            {[...availableAccounts, ...fullAccounts]
-              .sort((a, b) => b.availableSlots - a.availableSlots)
-              .map(account => (
-                <Box
-                  key={account.id}
-                  sx={{
-                    p: 1.5,
-                    mb: 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    backgroundColor: 'background.paper',
-                    '&:hover': { bgcolor: 'action.hover' }
-                  }}
-                >
-                  <Box>
-                    <Typography variant="body2">
-                      {account.id}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {account.activeLines}/{account.maxLines} lignes
-                      {account.terminatedLines.length > 0 && 
-                        ` • ${account.terminatedLines.length} ligne(s) réutilisable(s)`}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    {account.availableSlots > 0 && (
-                      <Chip 
-                        size="small"
-                        label={`${account.availableSlots} place(s)`}
-                        color="success"
-                      />
-                    )}
-                    {account.terminatedLines.length > 0 && (
-                      <Chip
-                        size="small"
-                        label={`${account.terminatedLines.length} réutilisable(s)`}
-                        color="info"
-                      />
-                    )}
-                    {account.availableSlots === 0 && account.terminatedLines.length === 0 && (
-                      <Chip
-                        size="small"
-                        label="Complet"
-                        color="default"
-                      />
-                    )}
-                  </Box>
-                </Box>
-              ))}
+            <Typography variant="caption" color="text.secondary">
+              {account.activeLines}/{account.maxLines} lignes
+              {account.terminatedLines.length > 0 && 
+                ` • ${account.terminatedLines.length} ligne(s) réutilisable(s)`}
+            </Typography>
           </Box>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {account.availableSlots > 0 && (
+              <Chip 
+                size="small"
+                label={`${account.availableSlots} place(s)`}
+                color="success"
+              />
+            )}
+            {account.terminatedLines.length > 0 && (
+              <Chip
+                size="small"
+                label={`${account.terminatedLines.length} réutilisable(s)`}
+                color="info"
+              />
+            )}
+          </Box>
+        </Box>
+      ));
+  })()}
+</Box>
         </Paper>
       </Stack>
     );
@@ -656,7 +668,7 @@ const RedAccountManagement = ({ client }) => {
       <CardContent>
         <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <SimCardIcon color="primary" />
-          Attribution de ligne Red by SFR
+          Attribution de ligne Agence combani
         </Typography>
 
         {client.simCCID ? (

@@ -405,7 +405,7 @@ const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
       <Box sx={{ p: 3 }}>
         <ClientHeader client={client} />
         
-        {currentTab === 'order' ? (
+        {currentTab === 'order' || currentTab === 'activate' ? (
           <RedAccountManagement client={client} />
         ) : (
           <>
