@@ -44,13 +44,15 @@ const MainLayout = () => {
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
         { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
         { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
+        { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
         { text: 'Paramètres', icon: <Settings />, path: '/settings' },
       ]
     : [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
         { text: 'Clients', icon: <People />, path: '/clients' },
         { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
-        { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' }
+        { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' },
+        { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
       ];
 
   const handleDrawerToggle = () => {
