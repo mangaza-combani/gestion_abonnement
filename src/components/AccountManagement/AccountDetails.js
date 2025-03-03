@@ -16,74 +16,75 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Avatar,
-  Badge,
   Paper,
   Tabs,
   Tab,
   Collapse,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
+  Avatar,
+  Badge,
+  Grid,
   useTheme,
   alpha
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Block as BlockIcon,
-  PlayArrow as PlayArrowIcon,
-  Pause as PauseIcon,
-  Delete as DeleteIcon,
   Info as InfoIcon,
-  CreditCard as CreditCardIcon,
   Phone as PhoneIcon,
   AccountCircle as AccountCircleIcon,
-  WarningAmber as WarningAmberIcon
+  NavigateNext as NavigateNextIcon,
+  Business as BusinessIcon,
+  Email as EmailIcon,
+  VpnKey as VpnKeyIcon,
+  SwapHoriz as SwapHorizIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Delete as DeleteIcon,
+  History as HistoryIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
+
+// Import des constantes
+import { 
+  LINE_STATUSES, 
+  PAYMENT_STATUSES, 
+  UNASSIGNED_LINE_DISPLAY,
+  CLIENT_TYPES
+} from '../../components/AccountManagement/accountConstants';
 
 // Composant pour afficher le statut de la ligne avec la couleur appropriée
 const LineStatusChip = ({ status }) => {
   let color = 'default';
-  let icon = null;
   
   switch (status) {
-    case 'ACTIF':
+    case LINE_STATUSES.ACTIVE:
       color = 'success';
-      icon = <PlayArrowIcon fontSize="small" />;
       break;
-    case 'BLOQUÉ':
+    case LINE_STATUSES.BLOCKED:
       color = 'error';
-      icon = <BlockIcon fontSize="small" />;
       break;
-    case 'PAUSE':
+    case LINE_STATUSES.PAUSED:
       color = 'warning';
-      icon = <PauseIcon fontSize="small" />;
       break;
-    case 'RÉSILIÉ':
+    case LINE_STATUSES.TERMINATED:
       color = 'default';
-      icon = <DeleteIcon fontSize="small" />;
       break;
-    case 'NON ATTRIBUÉ':
+    case LINE_STATUSES.UNASSIGNED:
       color = 'info';
-      icon = <InfoIcon fontSize="small" />;
       break;
     default:
       color = 'default';
-      icon = null;
   }
   
   return (
     <Chip 
       label={status} 
       color={color} 
-      size="small" 
-      icon={icon}
+      size="small"
       sx={{ 
         fontWeight: 'medium',
-        '& .MuiChip-icon': {
-          fontSize: '0.7rem'
+        borderRadius: '4px',
+        '& .MuiChip-label': {
+          px: 1.5
         }
       }} 
     />
@@ -95,434 +96,693 @@ const PaymentStatusChip = ({ status }) => {
   let color = 'default';
   
   switch (status) {
-    case 'A JOUR':
+    case PAYMENT_STATUSES.UPTODATE:
       color = 'success';
       break;
-    case 'EN RETARD':
+    case PAYMENT_STATUSES.LATE:
       color = 'warning';
       break;
-    case 'DETTE':
+    case PAYMENT_STATUSES.DEBT:
       color = 'error';
+      break;
+    case PAYMENT_STATUSES.UNASSIGNED:
+      color = 'info';
       break;
     default:
       color = 'default';
   }
   
-  return <Chip label={status} color={color} size="small" variant="outlined" />;
+  return (
+    <Chip 
+      label={status} 
+      color={color} 
+      size="small" 
+      variant="outlined"
+      sx={{ 
+        borderRadius: '4px',
+        '& .MuiChip-label': {
+          px: 1.5
+        }
+      }}
+    />
+  );
 };
 
-const AccountDetails = ({ account, onAddLine, onActivateLine, onBlockLine, onPauseLine, onDeleteLine }) => {
+// // Composant pour afficher le motif de résiliation
+// const TerminationReasonChip = ({ reason }) => {
+//   let color = 'default';
+//   let icon = null;
+  
+//   switch (reason) {
+//     case TERMINATION_REASONS.NONPAYMENT:
+//       color = 'error';
+//       icon = <WarningIcon fontSize="small" />;
+//       break;
+//     case TERMINATION_REASONS.CUSTOMER_REQUEST:
+//       color = 'primary';
+//       icon = null;
+//       break;
+//     case TERMINATION_REASONS.EXPIRED:
+//       color = 'default';
+//       icon = <HistoryIcon fontSize="small" />;
+//       break;
+//     default:
+//       color = 'default';
+//       icon = null;
+//   }
+  
+//   return (
+//     <Chip 
+//       label={reason} 
+//       color={color} 
+//       size="small" 
+//       icon={icon}
+//       variant="outlined"
+//       sx={{ 
+//         borderRadius: '4px',
+//         '& .MuiChip-label': {
+//           px: 1
+//         }
+//       }}
+//     />
+//   );
+// };
+
+// Composant pour afficher le statut du client
+const ClientStatusChip = ({ type }) => {
+  let color = type === CLIENT_TYPES.UNASSIGNED ? 'info' : 'default';
+  
+  return type === CLIENT_TYPES.UNASSIGNED ? (
+    <Chip 
+      label={UNASSIGNED_LINE_DISPLAY.CLIENT_NAME} 
+      color={color} 
+      size="small"
+      variant="outlined"
+      sx={{ 
+        fontWeight: 'medium',
+        borderRadius: '4px'
+      }}
+    />
+  ) : null;
+};
+
+// Statistiques avec animation
+const StatItem = ({ icon, label, value, color = 'primary' }) => {
   const theme = useTheme();
-  const [tab, setTab] = useState(0);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [lineToDelete, setLineToDelete] = useState(null);
+  
+  return (
+    <Paper 
+      elevation={0} 
+      sx={{ 
+        p: 1.5, 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 1.5,
+        backgroundColor: alpha(theme.palette[color].main, 0.08),
+        borderRadius: 2,
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: `0 4px 10px ${alpha(theme.palette[color].main, 0.15)}`
+        }
+      }}
+    >
+      
+      <Box>
+        <Typography variant="h5" color={`${color}.main`} sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+          {value}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {label}
+        </Typography>
+      </Box>
+    </Paper>
+  );
+};
+
+// Fonction pour vérifier si une ligne résiliée a expiré (plus d'un an)
+const isExpiredTermination = (line) => {
+  if (!line || !line.terminationDate) return false;
+  
+  const terminationDate = new Date(line.terminationDate);
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  
+  return terminationDate < oneYearAgo;
+};
+
+const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
+  const theme = useTheme();
+  const [tab, setTab] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showExpiredLines, setShowExpiredLines] = useState(false);
 
   if (!account) return null;
 
-  const handleDeleteClick = (line) => {
-    setLineToDelete(line);
-    setDeleteDialogOpen(true);
+  // Fonction pour déterminer si la ligne est attribuée à un client
+  const isLineAssigned = (line) => {
+    return line.clientName && line.clientName !== UNASSIGNED_LINE_DISPLAY.CLIENT_NAME;
   };
-
-  const confirmDelete = () => {
-    if (lineToDelete) {
-      onDeleteLine(lineToDelete);
-      setDeleteDialogOpen(false);
-      setLineToDelete(null);
+  
+  // Fonction pour filtrer les lignes selon les critères d'affichage
+  const getFilteredLines = () => {
+    if (showExpiredLines) {
+      return account.lines || [];
     }
+    
+    return (account.lines || []).filter(line => 
+      !(line.status === LINE_STATUSES.TERMINATED && isExpiredTermination(line))
+    );
   };
+  
+  const filteredLines = getFilteredLines();
+  
+  // Statistiques des lignes
+  const stats = {
+    total: filteredLines.length,
+    active: filteredLines.filter(line => line.status === LINE_STATUSES.ACTIVE).length,
+    assigned: filteredLines.filter(line => isLineAssigned(line)).length,
+    unassigned: filteredLines.filter(line => !isLineAssigned(line)).length,
+    terminated: filteredLines.filter(line => line.status === LINE_STATUSES.TERMINATED).length,
+    expiredTerminations: (account.lines || []).filter(line => 
+      line.status === LINE_STATUSES.TERMINATED && isExpiredTermination(line)
+    ).length
+  };
+  
+  // Vérifier si le compte peut avoir de nouvelles lignes
+  const canAddLine = filteredLines.length < 5;
 
-  const getInitials = (name) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
+  // Récupérer la première lettre du login pour l'avatar
+  const getInitial = (login) => {
+    return login ? login.charAt(0).toUpperCase() : '?';
   };
 
   return (
-    <>
-      <Card 
+    <Card 
+      sx={{ 
+        width: '100%', 
+        borderRadius: 2,
+        transition: 'box-shadow 0.3s ease',
+        '&:hover': {
+          boxShadow: 6
+        },
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+      elevation={2}
+    >
+      <Box 
         sx={{ 
-          width: '100%', 
-          borderRadius: 2,
-          transition: 'box-shadow 0.3s ease',
-          '&:hover': {
-            boxShadow: 4
-          },
-          display: 'flex',
-          flexDirection: 'column'
+          p: 3, 
+          backgroundColor: alpha(theme.palette.primary.main, 0.04),
+          backgroundImage: `radial-gradient(${alpha(theme.palette.primary.main, 0.15)} 1px, transparent 1px)`,
+          backgroundSize: '20px 20px',
+          position: 'relative',
+          overflow: 'hidden'
         }}
-        elevation={2}
       >
-        <Box 
-          sx={{ 
-            p: 2, 
-            bgcolor: account.status === 'ACTIF' 
-              ? alpha(theme.palette.success.main, 0.1)
-              : account.status === 'BLOQUÉ'
-                ? alpha(theme.palette.error.main, 0.1)
-                : alpha(theme.palette.warning.main, 0.1),
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            borderTopLeftRadius: 8,
-            borderTopRightRadius: 8
-          }}
-        >
-          <Avatar 
-            sx={{ 
-              bgcolor: account.status === 'ACTIF' 
-                ? theme.palette.success.main
-                : account.status === 'BLOQUÉ'
-                  ? theme.palette.error.main
-                  : theme.palette.warning.main,
-              width: 56,
-              height: 56
-            }}
-          >
-            {getInitials(account.name)}
-          </Avatar>
-          <Box>
-            <Typography variant="h6">{account.name}</Typography>
-            <Typography variant="body2" color="text.secondary">{account.email}</Typography>
-          </Box>
-          <Box sx={{ ml: 'auto' }}>
-            <Chip 
-              label={account.status} 
-              color={
-                account.status === 'ACTIF' 
-                  ? 'success'
-                  : account.status === 'BLOQUÉ'
-                    ? 'error'
-                    : 'warning'
-              } 
-              size="medium"
-              sx={{ fontWeight: 'medium' }}
-            />
-          </Box>
-        </Box>
-        
-        <Tabs 
-          value={tab} 
-          onChange={(e, newValue) => setTab(newValue)}
-          sx={{ 
-            borderBottom: 1, 
-            borderColor: 'divider',
-            bgcolor: 'background.paper'
-          }}
-          variant="fullWidth"
-          indicatorColor="primary"
-          textColor="primary"
-        >
-          <Tab 
-            label="Informations" 
-            icon={<AccountCircleIcon />} 
-            iconPosition="start"
-            sx={{ textTransform: 'none' }}
-          />
-          <Tab 
-            label={`Lignes (${account.lines?.length || 0})`} 
-            icon={<PhoneIcon />} 
-            iconPosition="start"
-            sx={{ textTransform: 'none' }}
-          />
-        </Tabs>
-    
-        <CardContent sx={{ flex: 1, overflow: 'auto', p: 0 }}>
-          {/* Onglet Informations */}
-          <Collapse in={tab === 0}>
-            <Box sx={{ p: 2 }}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2,
-                  mb: 2,
-                  bgcolor: alpha(theme.palette.primary.main, 0.05),
-                  borderRadius: 2
-                }}
-              >
-                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AccountCircleIcon color="primary" fontSize="small" />
-                  Informations du compte
-                </Typography>
-                
-                <Stack spacing={2} sx={{ mt: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">Compte:</Typography>
-                    <Typography variant="body2" fontWeight="medium">{account.name}</Typography>
-                  </Box>
-                  <Divider />
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">Login:</Typography>
-                    <Typography variant="body2" fontWeight="medium">{account.login}</Typography>
-                  </Box>
-                  <Divider />
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">Email:</Typography>
-                    <Typography variant="body2" fontWeight="medium">{account.email}</Typography>
-                  </Box>
-                  <Divider />
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">Agence:</Typography>
-                    <Chip label={account.agency} size="small" color="primary" variant="outlined" />
-                  </Box>
-                </Stack>
-              </Paper>
-              
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2,
-                  bgcolor: alpha(theme.palette.warning.main, 0.05),
-                  borderRadius: 2
-                }}
-              >
-                <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CreditCardIcon color="warning" fontSize="small" />
-                  Informations de paiement
-                </Typography>
-                
-                <Stack spacing={2} sx={{ mt: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">Carte:</Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CreditCardIcon fontSize="small" color="action" />
-                      <Typography variant="body2" fontWeight="medium">
-                        **** **** **** {account.cardLastFour}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Divider />
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2" color="text.secondary">Expiration:</Typography>
-                    <Typography variant="body2" fontWeight="medium">{account.cardExpiry}</Typography>
-                  </Box>
-                </Stack>
-              </Paper>
-            </Box>
-          </Collapse>
-          
-          {/* Onglet Lignes */}
-          <Collapse in={tab === 1}>
-            <Box sx={{ p: 2 }}>
-              <Box 
-                display="flex" 
-                justifyContent="space-between" 
-                alignItems="center" 
-                mb={2}
-                sx={{
-                  bgcolor: alpha(theme.palette.info.main, 0.05),
-                  p: 2,
-                  borderRadius: 2
-                }}
-              >
+        <Box sx={{ position: 'relative', zIndex: 1 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={5}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Box>
-                  <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <PhoneIcon color="info" fontSize="small" />
-                    Lignes téléphoniques
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                    {account.login}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Gérez les lignes rattachées à ce compte ({account.lines?.length || 0}/5)
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <EmailIcon fontSize="small" color="action" />
+                    <Typography variant="body2" color="text.secondary">
+                      {account.email}
+                    </Typography>
+                  </Box>
                 </Box>
-                <Tooltip title={account.lines?.length >= 5 ? "Nombre maximum de lignes atteint" : "Ajouter une ligne"}>
-                  <span>
-                    <Button 
-                      startIcon={<AddIcon />} 
-                      size="small" 
-                      variant="contained"
-                      onClick={onAddLine}
-                      disabled={account.lines?.length >= 5}
-                      sx={{ whiteSpace: 'nowrap' }}
-                    >
-                      Nouvelle ligne
-                    </Button>
-                  </span>
-                </Tooltip>
+              </Box>
+            </Grid>
+            
+            <Grid item xs={12} sm={7}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+                <Chip 
+                  icon={<BusinessIcon />}
+                  label={account.agency} 
+                  color="primary" 
+                  sx={{ 
+                    fontWeight: 'medium', 
+                    px: 1,
+                    borderRadius: '8px',
+                    boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`
+                  }}
+                />
               </Box>
               
-              {account.lines?.length > 0 ? (
-                <TableContainer 
-                  component={Paper} 
+            
+            </Grid>
+          </Grid>
+        </Box>
+      </Box>
+      
+      <Tabs 
+        value={tab} 
+        onChange={(e, newValue) => setTab(newValue)}
+        sx={{ 
+          borderBottom: 1, 
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          '& .MuiTab-root': {
+            minHeight: '56px',
+            transition: 'all 0.2s',
+            fontWeight: 'medium',
+            '&:hover': {
+              bgcolor: alpha(theme.palette.primary.main, 0.04)
+            }
+          },
+          '& .Mui-selected': {
+            fontWeight: 'bold'
+          }
+        }}
+        variant="fullWidth"
+        indicatorColor="primary"
+        textColor="primary"
+      >
+        <Tab 
+          label="Informations" 
+          icon={<AccountCircleIcon />} 
+          iconPosition="start"
+          sx={{ textTransform: 'none' }}
+        />
+        <Tab 
+          label={`Lignes (${filteredLines.length})`} 
+          icon={<PhoneIcon />} 
+          iconPosition="start"
+          sx={{ textTransform: 'none' }}
+        />
+      </Tabs>
+  
+      <CardContent sx={{ flex: 1, overflow: 'auto', p: 0 }}>
+        {/* Onglet Informations */}
+        <Collapse in={tab === 0}>
+          <Box sx={{ p: 3 }}>
+            <Typography 
+              variant="h6" 
+              gutterBottom 
+              sx={{ 
+                mb: 3, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                pb: 1,
+                borderBottom: `1px dashed ${theme.palette.divider}`
+              }}
+            >
+              <AccountCircleIcon color="primary" />
+              Informations du compte
+            </Typography>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper
                   elevation={0}
-                  sx={{ 
-                    border: `1px solid ${theme.palette.divider}`,
+                  sx={{
+                    p: 2.5,
+                    height: '100%',
+                    bgcolor: alpha(theme.palette.background.default, 0.7),
                     borderRadius: 2,
-                    overflow: 'hidden'
+                    border: `1px solid ${theme.palette.divider}`
                   }}
                 >
-                  <Table size="small">
-                    <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
-                      <TableRow>
-                        <TableCell>NUMERO</TableCell>
-                        <TableCell>CLIENT</TableCell>
-                        <TableCell align="center">STATUT</TableCell>
-                        <TableCell align="center">ETAT</TableCell>
-                        <TableCell align="center">ACTIONS</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {account.lines?.map((line) => (
+                  <Stack spacing={2.5}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                        Identifiant de connexion
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AccountCircleIcon color="primary" fontSize="small" />
+                        <Typography variant="body1" fontWeight="medium">{account.login}</Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Divider flexItem />
+                    
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                        Adresse email
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <EmailIcon color="primary" fontSize="small" />
+                        <Typography variant="body1" fontWeight="medium">{account.email}</Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Divider flexItem />
+                    
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                        Mot de passe
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <VpnKeyIcon color="primary" fontSize="small" />
+                        <Typography variant="body1" fontWeight="medium">
+                          {showPassword ? (account.password || 'Aucun mot de passe') : '••••••••'}
+                        </Typography>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => setShowPassword(!showPassword)}
+                          color="primary"
+                          sx={{ 
+                            ml: 1,
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                          }}
+                        >
+                          {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2.5,
+                    height: '100%',
+                    bgcolor: alpha(theme.palette.background.default, 0.7),
+                    borderRadius: 2,
+                    border: `1px solid ${theme.palette.divider}`
+                  }}
+                >
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                      Agence rattachée
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <BusinessIcon color="primary" fontSize="small" />
+                      <Typography variant="body1" fontWeight="medium">{account.agency}</Typography>
+                    </Box>
+                  </Box>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                    Statistiques des lignes
+                  </Typography>
+                  
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid item xs={12}>
+                      <StatItem 
+                        icon={<PhoneIcon />} 
+                        label="Total des lignes actives" 
+                        value={stats.active} 
+                        color="success"
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <StatItem 
+                        icon={<SwapHorizIcon />} 
+                        label="Non attribuées" 
+                        value={stats.unassigned} 
+                        color="info"
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <StatItem 
+                        icon={<DeleteIcon />} 
+                        label="Résiliées" 
+                        value={stats.terminated} 
+                        color="error"
+                      />
+                    </Grid>
+                    {stats.terminatedForNonpayment > 0 && (
+                      <Grid item xs={12}>
+                        <StatItem 
+                          icon={<WarningIcon />} 
+                          label="Impayés" 
+                          value={stats.terminatedForNonpayment} 
+                          color="warning"
+                        />
+                      </Grid>
+                    )}
+                  </Grid>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        </Collapse>
+        
+        {/* Onglet Lignes */}
+        <Collapse in={tab === 1}>
+          <Box sx={{ p: 3 }}>
+            <Box 
+              display="flex" 
+              justifyContent="space-between" 
+              alignItems="center" 
+              mb={3}
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: alpha(theme.palette.info.main, 0.05),
+                backgroundImage: `linear-gradient(to right, ${alpha(theme.palette.info.main, 0.08)}, ${alpha(theme.palette.primary.main, 0.08)})`,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
+              }}
+            >
+              <Box>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <PhoneIcon color="primary" />
+                  Lignes téléphoniques
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {filteredLines.length} ligne(s) sur 5 maximum
+                  </Typography>
+                  
+                  {stats.expiredTerminations > 0 && (
+                    <Tooltip title="Cliquer pour afficher/masquer les lignes expirées depuis plus d'un an">
+                      <Chip
+                        size="small"
+                        label={`${stats.expiredTerminations} expirée(s)`}
+                        color="default"
+                        variant="outlined"
+                        onClick={() => setShowExpiredLines(!showExpiredLines)}
+                        sx={{ 
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          backgroundColor: showExpiredLines ? alpha(theme.palette.grey[500], 0.1) : 'transparent'
+                        }}
+                        icon={<HistoryIcon fontSize="small" />}
+                      />
+                    </Tooltip>
+                  )}
+                </Box>
+              </Box>
+              <Tooltip title={!canAddLine ? "Nombre maximum de lignes actives atteint (5)" : "Ajouter une ligne"}>
+                <span>
+                  <Button 
+                    startIcon={<AddIcon />} 
+                    size="medium" 
+                    variant="contained"
+                    onClick={onAddLine}
+                    disabled={!canAddLine}
+                    sx={{ 
+                      whiteSpace: 'nowrap',
+                      borderRadius: '8px',
+                      px: 2,
+                      boxShadow: 2,
+                      '&:hover': {
+                        boxShadow: 4
+                      }
+                    }}
+                  >
+                    Nouvelle ligne
+                  </Button>
+                </span>
+              </Tooltip>
+            </Box>
+            
+            {filteredLines.length > 0 ? (
+              <TableContainer 
+                component={Paper} 
+                elevation={0}
+                sx={{ 
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}
+              >
+                <Table>
+                  <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>NUMERO</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>CLIENT</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>STATUT</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>ETAT</TableCell>
+                    
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredLines.map((line) => {
+                      const isTerminated = line.status === LINE_STATUSES.TERMINATED;
+                      const isExpired = isExpiredTermination(line);
+                      
+                      return (
                         <TableRow 
                           key={line.id} 
                           sx={{ 
                             '&:last-child td, &:last-child th': { border: 0 },
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) }
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.03) },
+                            cursor: isLineAssigned(line) && !isTerminated ? 'pointer' : 'default',
+                            transition: 'background-color 0.2s',
+                            opacity: isExpired ? 0.7 : 1,
+                            backgroundColor: isExpired ? alpha(theme.palette.grey[500], 0.05) : 'inherit'
                           }}
+                          onClick={() => isLineAssigned(line) && !isTerminated && onNavigateToLine && onNavigateToLine(line.id)}
                         >
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <PhoneIcon fontSize="small" color="action" />
-                              <Typography variant="body2" fontWeight="medium">
+                              <Avatar 
+                                sx={{ 
+                                  width: 32, 
+                                  height: 32, 
+                                  bgcolor: isTerminated ? 
+                                    alpha(theme.palette.grey[500], 0.1) : 
+                                    alpha(theme.palette.primary.main, 0.1),
+                                  color: isTerminated ? 
+                                    theme.palette.grey[500] : 
+                                    theme.palette.primary.main
+                                }}
+                              >
+                                <PhoneIcon fontSize="small" />
+                              </Avatar>
+                              <Typography 
+                                variant="body2" 
+                                fontWeight="medium"
+                                sx={{ 
+                                  textDecoration: isTerminated ? 'line-through' : 'none',
+                                  color: isTerminated ? 'text.disabled' : 'text.primary'
+                                }}
+                              >
                                 {line.phoneNumber}
                               </Typography>
+                              {isExpired && (
+                                <Tooltip title="Ligne expirée (résiliée depuis plus d'un an)">
+                                  <HistoryIcon fontSize="small" color="disabled" />
+                                </Tooltip>
+                              )}
                             </Box>
                           </TableCell>
-                          <TableCell>{line.clientName}</TableCell>
-                          <TableCell align="center">
-                            <LineStatusChip status={line.status} />
-                          </TableCell>
-                          <TableCell align="center">
-                            <PaymentStatusChip status={line.paymentStatus} />
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                              {line.status !== 'ACTIF' && (
-                                <Tooltip title="Activer la ligne">
-                                  <IconButton 
-                                    size="small" 
-                                    color="success"
-                                    onClick={() => onActivateLine(line)}
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              {isLineAssigned(line) ? (
+                                <>
+                                  <Typography 
+                                    variant="body2"
                                     sx={{ 
-                                      border: `1px solid ${theme.palette.success.main}`,
-                                      '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.1) }
+                                      textDecoration: isTerminated ? 'line-through' : 'none',
+                                      color: isTerminated ? 'text.disabled' : 'text.primary'
                                     }}
                                   >
-                                    <PlayArrowIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                    {line.clientName}
+                                  </Typography>
+                                  {!isTerminated && (
+                                    <Tooltip title="Voir les détails de la ligne">
+                                      <IconButton 
+                                        size="small" 
+                                        color="primary"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onNavigateToLine && onNavigateToLine(line.id);
+                                        }}
+                                        sx={{ 
+                                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                          '&:hover': {
+                                            backgroundColor: alpha(theme.palette.primary.main, 0.15)
+                                          }
+                                        }}
+                                      >
+                                        <NavigateNextIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                </>
+                              ) : (
+                                <ClientStatusChip type={CLIENT_TYPES.UNASSIGNED} />
                               )}
-                              {line.status !== 'BLOQUÉ' && line.status !== 'RÉSILIÉ' && (
-                                <Tooltip title="Bloquer la ligne">
-                                  <IconButton 
-                                    size="small" 
-                                    color="error"
-                                    onClick={() => onBlockLine(line)}
-                                    sx={{ 
-                                      border: `1px solid ${theme.palette.error.main}`,
-                                      '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) }
-                                    }}
-                                  >
-                                    <BlockIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              {line.status !== 'PAUSE' && line.status !== 'RÉSILIÉ' && (
-                                <Tooltip title="Mettre en pause">
-                                  <IconButton 
-                                    size="small" 
-                                    color="warning"
-                                    onClick={() => onPauseLine(line)}
-                                    sx={{ 
-                                      border: `1px solid ${theme.palette.warning.main}`,
-                                      '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.1) }
-                                    }}
-                                  >
-                                    <PauseIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              <Tooltip title="Supprimer la ligne">
-                                <IconButton 
-                                  size="small" 
-                                  color="default"
-                                  onClick={() => handleDeleteClick(line)}
-                                  sx={{ 
-                                    border: `1px solid ${theme.palette.grey[400]}`,
-                                    '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.05) }
-                                  }}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
                             </Box>
                           </TableCell>
+                          <TableCell align="center">
+                            <LineStatusChip 
+                              status={!isLineAssigned(line) && line.status !== LINE_STATUSES.UNASSIGNED ? 
+                                LINE_STATUSES.UNASSIGNED : line.status} 
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <PaymentStatusChip 
+                              status={!isLineAssigned(line) ? 
+                                PAYMENT_STATUSES.UNASSIGNED : line.paymentStatus} 
+                            />
+                          </TableCell>
+                         
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper 
-                  elevation={0} 
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 4, 
+                  textAlign: 'center', 
+                  borderStyle: 'dashed',
+                  borderWidth: 1,
+                  borderColor: 'divider',
+                  bgcolor: alpha(theme.palette.primary.main, 0.02),
+                  borderRadius: 2
+                }}
+              >
+                <Avatar 
                   sx={{ 
-                    p: 3, 
-                    textAlign: 'center', 
-                    borderStyle: 'dashed',
-                    borderWidth: 1,
-                    borderColor: 'divider',
-                    bgcolor: alpha(theme.palette.primary.main, 0.02),
-                    borderRadius: 2
+                    width: 60, 
+                    height: 60, 
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    margin: '0 auto 16px'
                   }}
                 >
-                  <PhoneIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
-                  <Typography variant="body1" gutterBottom>
-                    Aucune ligne téléphonique
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Ce compte n'a pas encore de lignes téléphoniques rattachées.
-                  </Typography>
-                  <Button 
-                    variant="outlined" 
-                    startIcon={<AddIcon />}
-                    onClick={onAddLine}
-                    sx={{ mt: 2 }}
-                  >
-                    Ajouter une ligne
-                  </Button>
-                </Paper>
-              )}
-            </Box>
-          </Collapse>
-        </CardContent>
-      </Card>
-
-      {/* Dialog de confirmation de suppression */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningAmberIcon color="error" />
-          Confirmation de suppression
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Êtes-vous sûr de vouloir supprimer la ligne <strong>{lineToDelete?.phoneNumber}</strong> ?
-            <br /><br />
-            Cette action est irréversible.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            Annuler
-          </Button>
-          <Button 
-            onClick={confirmDelete} 
-            variant="contained" 
-            color="error"
-            startIcon={<DeleteIcon />}
-          >
-            Supprimer
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
+                  <PhoneIcon sx={{ fontSize: 30 }} />
+                </Avatar>
+                <Typography variant="h6" gutterBottom>
+                  Aucune ligne téléphonique
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Ce compte n'a pas encore de lignes téléphoniques rattachées.
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={onAddLine}
+                  sx={{ 
+                    mt: 3,
+                    borderRadius: '8px',
+                    boxShadow: 2,
+                    '&:hover': {
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  Ajouter une ligne
+                </Button>
+              </Paper>
+            )}
+          </Box>
+        </Collapse>
+      </CardContent>
+    </Card>
   );
 };
 
 export default AccountDetails;
+                           

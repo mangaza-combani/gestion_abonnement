@@ -19,12 +19,13 @@ import {
   FilterList as FilterListIcon
 } from '@mui/icons-material';
 
-
 import AccountSearch from '../../components/AccountManagement/AccountSearch';
-import AccountList from '../../components/AccountManagement/AccountList';
 import AccountDetails from '../../components/AccountManagement/AccountDetails';
 import NewAccountDialog from '../../components/AccountManagement/NewAccountDialog';
 import NewLineDialog from '../../components/AccountManagement/NewLineDialog';
+
+// Importation du composant AccountList modifié
+import AccountList from '../../components/AccountManagement/AccountList';
 
 // Données de test
 import { 
@@ -32,7 +33,6 @@ import {
   mockAgencies, 
   mockClients 
 } from '../../components/AccountManagement/accountConstants';
-
 
 const ModernAccountManagement = () => {
   const theme = useTheme();
@@ -48,8 +48,9 @@ const ModernAccountManagement = () => {
   // Filtrer les comptes en fonction des critères de recherche
   const filteredAccounts = accounts.filter(account => {
     const matchesSearch = !searchTerm ? true : 
-      account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.login.toLowerCase().includes(searchTerm.toLowerCase());
+      account.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesAgency = !selectedAgency ? true : 
       account.agencyId === selectedAgency;
@@ -61,14 +62,12 @@ const ModernAccountManagement = () => {
   const handleCreateAccount = (accountData) => {
     const newAccount = {
       id: accounts.length + 1,
-      name: accountData.name,
       login: accountData.login,
       email: accountData.email,
+      password: accountData.password,
       agency: mockAgencies.find(a => a.id === parseInt(accountData.agencyId))?.name || '',
       agencyId: parseInt(accountData.agencyId),
       status: 'ACTIF',
-      cardLastFour: accountData.cardLastFour,
-      cardExpiry: accountData.cardExpiry,
       linesCount: 0,
       lines: []
     };
@@ -82,15 +81,17 @@ const ModernAccountManagement = () => {
   const handleAddLine = (lineData) => {
     if (!selectedAccount) return;
     
-    const client = mockClients.find(c => c.id === parseInt(lineData.clientId));
-    if (!client) return;
+    const client = lineData.clientId 
+      ? mockClients.find(c => c.id === parseInt(lineData.clientId))
+      : null;
     
     const newLine = {
       id: Date.now(),
       phoneNumber: lineData.phoneNumber,
-      clientName: `${client.nom} ${client.prenom}`,
+      clientName: client ? `${client.nom} ${client.prenom}` : 'Sans client',
       status: 'ACTIF',
-      paymentStatus: 'A JOUR'
+      paymentStatus: 'A JOUR',
+      simCardId: lineData.simCardId
     };
     
     const updatedAccounts = accounts.map(account => {
@@ -270,13 +271,13 @@ const ModernAccountManagement = () => {
 
       {/* Conteneur principal */}
       <Box sx={{ display: 'flex', gap: 3, flexWrap: { xs: 'wrap', lg: 'nowrap' } }}>
-        {/* Panneau de gauche (recherche et liste) - réduit pour plus de lisibilité */}
+        {/* Panneau de gauche (recherche et liste) - avec largeur encore plus augmentée */}
         <Box sx={{ 
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column',
-          minWidth: '270px',
-          maxWidth: '350px'
+          minWidth: '700px',  // Augmenté de 650px à 700px
+          maxWidth: '900px'   // Augmenté de 800px à 900px
         }}>
           {/* Bloc de recherche avec animation */}
           <Fade in={isFilterVisible || !selectedAccount}>
@@ -302,7 +303,7 @@ const ModernAccountManagement = () => {
           </Box>
         </Box>
 
-        {/* Panneau de droite (détails) - agrandi pour plus de visibilité */}
+        {/* Panneau de droite (détails) */}
         <Box sx={{ flex: 2, display: 'flex', minWidth: '400px' }}>
           {selectedAccount ? (
             <Fade in={!!selectedAccount}>

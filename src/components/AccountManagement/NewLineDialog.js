@@ -14,7 +14,10 @@ import {
   MenuItem,
   Grid,
   Typography,
-  Divider
+  Divider,
+  FormControlLabel,
+  Switch,
+  Alert
 } from '@mui/material';
 import {
   Close as CloseIcon
@@ -24,12 +27,19 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
   const [formData, setFormData] = useState({
     clientId: '',
     phoneNumber: '',
-    simCardId: ''
+    simCardId: '',
+    assignSimNow: false,
+    assignToClient: false
   });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSwitchChange = (e) => {
+    const { name, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: checked }));
   };
 
   const handlePhoneNumberChange = (e) => {
@@ -44,15 +54,25 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ ...formData, accountId });
+    onSubmit({ 
+      ...formData,
+      accountId,
+      // Si assignSimNow est faux, on envoie null pour le simCardId
+      simCardId: formData.assignSimNow ? formData.simCardId : null,
+      // Si clientId est vide, on l'envoie comme null
+      clientId: formData.clientId || null
+    });
     resetForm();
+    onClose();
   };
 
   const resetForm = () => {
     setFormData({
       clientId: '',
       phoneNumber: '',
-      simCardId: ''
+      simCardId: '',
+      assignSimNow: false,
+      assignToClient: false
     });
   };
 
@@ -75,23 +95,45 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
         <DialogContent dividers>
           <Grid container spacing={3}>
             <Grid item xs={12}>
-              <FormControl fullWidth required>
-                <InputLabel id="client-select-label">Client</InputLabel>
-                <Select
-                  labelId="client-select-label"
-                  name="clientId"
-                  value={formData.clientId}
-                  onChange={handleChange}
-                  label="Client"
-                >
-                  {clients.map((client) => (
-                    <MenuItem key={client.id} value={client.id}>
-                      {client.nom} {client.prenom}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.assignToClient}
+                    onChange={(e) => {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        assignToClient: e.target.checked,
+                        clientId: e.target.checked ? prev.clientId : ''
+                      }));
+                    }}
+                    name="assignToClient"
+                    color="primary"
+                  />
+                }
+                label="Attribuer à un client"
+              />
             </Grid>
+
+            {formData.assignToClient && (
+              <Grid item xs={12}>
+                <FormControl fullWidth required>
+                  <InputLabel id="client-select-label">Client</InputLabel>
+                  <Select
+                    labelId="client-select-label"
+                    name="clientId"
+                    value={formData.clientId}
+                    onChange={handleChange}
+                    label="Client"
+                  >
+                    {clients.map((client) => (
+                      <MenuItem key={client.id} value={client.id}>
+                        {client.nom} {client.prenom}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
             
             <Grid item xs={12}>
               <TextField
@@ -107,16 +149,40 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
             </Grid>
             
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                required
-                label="ICCID Carte SIM"
-                name="simCardId"
-                value={formData.simCardId}
-                onChange={handleChange}
-                helperText="Entrez l'ICCID de la carte SIM à associer"
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.assignSimNow}
+                    onChange={handleSwitchChange}
+                    name="assignSimNow"
+                    color="primary"
+                  />
+                }
+                label="Attribuer une carte SIM maintenant"
               />
             </Grid>
+            
+            {formData.assignSimNow && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  required={formData.assignSimNow}
+                  label="ICCID Carte SIM"
+                  name="simCardId"
+                  value={formData.simCardId}
+                  onChange={handleChange}
+                  helperText="Entrez l'ICCID de la carte SIM à associer"
+                />
+              </Grid>
+            )}
+            
+            {!formData.assignSimNow && (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  Vous pourrez attribuer une carte SIM ultérieurement.
+                </Alert>
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -125,9 +191,8 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
             type="submit" 
             variant="contained"
             disabled={
-              !formData.clientId ||
               !formData.phoneNumber ||
-              !formData.simCardId
+              (formData.assignSimNow && !formData.simCardId)
             }
           >
             Ajouter
