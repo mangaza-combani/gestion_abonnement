@@ -8,7 +8,7 @@ import { useSelector } from 'react-redux';
 
 // Theme and Store
 import { theme } from './theme/theme';
-import { store } from './store/store';
+import { store } from './store/';
 
 // Layouts
 import MainLayout from './components/layout/MainLayaout';

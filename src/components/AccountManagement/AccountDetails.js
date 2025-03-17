@@ -236,6 +236,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   const [tab, setTab] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showExpiredLines, setShowExpiredLines] = useState(false);
+  console.log(account);
 
   if (!account) return null;
 
@@ -308,12 +309,12 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Box>
                   <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                    {account.login}
+                    {account.login ? account.login : ""}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <EmailIcon fontSize="small" color="action" />
                     <Typography variant="body2" color="text.secondary">
-                      {account.email}
+                      {account.email ? account.email : ""}
                     </Typography>
                   </Box>
                 </Box>
@@ -324,7 +325,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
                 <Chip 
                   icon={<BusinessIcon />}
-                  label={account.agency} 
+                  label={account.agency?.name ? account.agency.name : ""} 
                   color="primary" 
                   sx={{ 
                     fontWeight: 'medium', 
@@ -417,7 +418,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AccountCircleIcon color="primary" fontSize="small" />
-                        <Typography variant="body1" fontWeight="medium">{account.login}</Typography>
+                        <Typography variant="body1" fontWeight="medium">{account.login ? account.login : ''}</Typography>
                       </Box>
                     </Box>
                     
@@ -429,7 +430,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <EmailIcon color="primary" fontSize="small" />
-                        <Typography variant="body1" fontWeight="medium">{account.email}</Typography>
+                        <Typography variant="body1" fontWeight="medium">{account.email ? account.email : ""}</Typography>
                       </Box>
                     </Box>
                     
@@ -477,10 +478,10 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                     <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                       Agence rattachée
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <BusinessIcon color="primary" fontSize="small" />
-                      <Typography variant="body1" fontWeight="medium">{account.agency}</Typography>
-                    </Box>
+                      <Typography variant="body1" fontWeight="medium">{account.agency ? account.agency : ""}</Typography>
+                    </Box> */}
                   </Box>
                   
                   <Divider sx={{ my: 2 }} />

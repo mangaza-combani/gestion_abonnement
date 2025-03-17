@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -26,7 +26,9 @@ import {
   CardContent,
   Fade,
   Zoom,
-  Chip
+  Chip,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -41,23 +43,32 @@ import {
   NavigateBefore as NavigateBeforeIcon,
   Phone as PhoneIcon,
   CheckCircle as CheckCircleIcon,
-  PersonAdd as PersonAddIcon
+  PersonAdd as PersonAddIcon,
+  Error as ErrorIcon
 } from '@mui/icons-material';
+import { useSelector, useDispatch } from 'react-redux';
+import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
+import { useCreateRedAccountMutation } from '../../store/slices/redAccountsSlice';
 
 const NewAccountDialog = ({ 
   open, 
   onClose, 
-  onSubmit, 
-  agencies = [], 
+  onSubmit,
   clients = []
 }) => {
+  // Récupération des agences depuis Redux via le hook RTK Query
+  const { data: agenciesData, isLoading: agenciesLoading, isError: agenciesError, refetch: refetchAgencies } = useGetAgenciesQuery();
+  
+  // Mutation pour créer un compte RED
+  const [createRedAccount, { isLoading: isSubmitting, isError: submitError, error: submitErrorDetails, isSuccess }] = useCreateRedAccountMutation();
+  
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState({
     // Étape 1: Informations de compte
-    name: '',
-    email: '',
+    redId: '',
     password: '',
     agencyId: '',
+    maxLines: 5,
     
     // Étape 2: Informations de paiement
     cardLastFour: '',
@@ -76,6 +87,18 @@ const NewAccountDialog = ({
   });
   
   const [selectedClient, setSelectedClient] = useState(null);
+
+  // Extraction des agences à partir des données récupérées
+  const agencies = agenciesData || [];
+
+  // Réinitialiser le formulaire quand la mutation est réussie
+  useEffect(() => {
+    if (isSuccess) {
+      resetForm();
+      onClose();
+      if (onSubmit) onSubmit();
+    }
+  }, [isSuccess]);
 
   // Liste des banques courantes en France
   const banks = [
@@ -188,17 +211,38 @@ const NewAccountDialog = ({
     setActiveStep((prevStep) => prevStep - 1);
   };
 
-  const handleSubmit = () => {
-    onSubmit(formData);
-    resetForm();
+  const handleSubmit = async () => {
+    // Créer l'objet de données pour l'API
+    const redAccountData = {
+      redId: formData.redId,
+      password: formData.password,
+      agencyId: parseInt(formData.agencyId),
+      maxLines: parseInt(5),
+      // Les données financières ne sont pas envoyées à l'API de RED mais pourraient être stockées ailleurs
+      paymentInfo: {
+        bankName: formData.bankName,
+        cardLastFour: formData.cardLastFour,
+        cardExpiry: formData.cardExpiry
+      }
+    };
+
+    try {
+      // Appel de la mutation pour créer le compte
+      await createRedAccount(redAccountData).unwrap();
+      
+      // Les lignes seront créées séparément après la création du compte
+      // si besoin avec useCreateLineMutation pour chaque ligne
+    } catch (err) {
+      console.error("Erreur lors de la création du compte:", err);
+    }
   };
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      email: '',
+      redId: '',
       password: '',
       agencyId: '',
+      maxLines: 5,
       cardLastFour: '',
       cardExpiry: '',
       bankName: '',
@@ -223,8 +267,7 @@ const NewAccountDialog = ({
     switch (step) {
       case 0: // Étape 1: Informations de compte
         return (
-          formData.name &&
-          formData.email &&
+          formData.redId &&
           formData.password &&
           formData.agencyId
         );
@@ -255,46 +298,64 @@ const NewAccountDialog = ({
               
               <Grid container spacing={3}>
                 <Grid item xs={12}>
-                  <Autocomplete
-                    fullWidth
-                    options={agencies}
-                    getOptionLabel={(option) => option.name}
-                    value={agencies.find(a => a.id === parseInt(formData.agencyId)) || null}
-                    onChange={(event, agency) => {
-                      setFormData(prev => ({ ...prev, agencyId: agency ? agency.id.toString() : '' }));
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        required
-                        label="Agence"
-                        error={activeStep > 0 && !formData.agencyId}
-                        helperText={activeStep > 0 && !formData.agencyId ? "Ce champ est obligatoire" : ""}
-                        InputProps={{
-                          ...params.InputProps,
-                          startAdornment: (
-                            <>
-                              <InputAdornment position="start">
-                                <BusinessIcon color="primary" />
-                              </InputAdornment>
-                              {params.InputProps.startAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
+                  {agenciesLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
+                      <CircularProgress size={24} sx={{ mr: 2 }} />
+                      <Typography variant="body2">Chargement des agences...</Typography>
+                    </Box>
+                  ) : agenciesError ? (
+                    <Alert 
+                      severity="error" 
+                      icon={<ErrorIcon />}
+                      sx={{ mb: 2 }}
+                    >
+                      Une erreur est survenue lors du chargement des agences.
+                      <Button size="small" onClick={() => refetchAgencies()} sx={{ ml: 2 }}>
+                        Réessayer
+                      </Button>
+                    </Alert>
+                  ) : (
+                    <Autocomplete
+                      fullWidth
+                      options={agencies}
+                      getOptionLabel={(option) => option.name}
+                      value={agencies.find(a => a.id === parseInt(formData.agencyId)) || null}
+                      onChange={(event, agency) => {
+                        setFormData(prev => ({ ...prev, agencyId: agency ? agency.id.toString() : '' }));
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          required
+                          label="Agence"
+                          error={activeStep > 0 && !formData.agencyId}
+                          helperText={activeStep > 0 && !formData.agencyId ? "Ce champ est obligatoire" : ""}
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment: (
+                              <>
+                                <InputAdornment position="start">
+                                  <BusinessIcon color="primary" />
+                                </InputAdornment>
+                                {params.InputProps.startAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                    />
+                  )}
                 </Grid>
                 
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
                     required
-                    label="Nom du compte"
-                    name="name"
-                    value={formData.name}
+                    label="Identifiant Red by SFR"
+                    name="redId"
+                    value={formData.redId}
                     onChange={handleChange}
-                    placeholder="ex: ABDOU.CELINE"
+                    placeholder="ex: RED_123456"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -302,29 +363,8 @@ const NewAccountDialog = ({
                         </InputAdornment>
                       ),
                     }}
-                    error={activeStep > 0 && !formData.name}
-                    helperText={activeStep > 0 && !formData.name ? "Ce champ est obligatoire" : ""}
-                  />
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <EmailIcon color="primary" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    error={activeStep > 0 && !formData.email}
-                    helperText={activeStep > 0 && !formData.email ? "Ce champ est obligatoire" : ""}
+                    error={activeStep > 0 && !formData.redId}
+                    helperText={activeStep > 0 && !formData.redId ? "Ce champ est obligatoire" : ""}
                   />
                 </Grid>
                 
@@ -348,6 +388,7 @@ const NewAccountDialog = ({
                     helperText={activeStep > 0 && !formData.password ? "Ce champ est obligatoire" : ""}
                   />
                 </Grid>
+                
               </Grid>
             </Box>
           </Fade>
@@ -491,6 +532,10 @@ const NewAccountDialog = ({
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Les lignes seront créées automatiquement après la création du compte. Vous pourrez ensuite les attribuer à des clients.
+              </Alert>
+
               <Grid container spacing={3}>
                 {/* Formulaire d'ajout de ligne */}
                 <Grid item xs={12}>
@@ -615,7 +660,7 @@ const NewAccountDialog = ({
                     <Paper elevation={1} sx={{ mt: 2, p: 0, overflow: 'hidden', borderRadius: 2 }}>
                       <Box sx={{ p: 2, bgcolor: 'primary.light', color: 'white' }}>
                         <Typography variant="subtitle2">
-                          Lignes ajoutées ({formData.lines.length}/5)
+                          Lignes ajoutées ({formData.lines.length}/{formData.maxLines})
                         </Typography>
                       </Box>
                       <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
@@ -679,7 +724,7 @@ const NewAccountDialog = ({
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Box display="flex" alignItems="center" gap={1}>
             <CreditCardIcon />
-            <Typography variant="h6">Nouveau Compte Rattaché</Typography>
+            <Typography variant="h6">Nouveau Compte Red by SFR</Typography>
           </Box>
           <IconButton onClick={handleClose} sx={{ color: 'white' }}>
             <CloseIcon />
@@ -688,6 +733,15 @@ const NewAccountDialog = ({
       </DialogTitle>
       
       <DialogContent dividers sx={{ p: 3 }}>
+        {submitError && (
+          <Alert 
+            severity="error" 
+            sx={{ mb: 3 }}
+          >
+            {submitErrorDetails?.data?.message || "Une erreur est survenue lors de la création du compte."}
+          </Alert>
+        )}
+
         <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
           <Step>
             <StepLabel>Informations du compte</StepLabel>
@@ -729,8 +783,14 @@ const NewAccountDialog = ({
               onClick={handleSubmit}
               sx={{ borderRadius: 2 }}
               startIcon={<CheckCircleIcon />}
+              disabled={isSubmitting}
             >
-              Finaliser
+              {isSubmitting ? (
+                <>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  Création...
+                </>
+              ) : "Finaliser"}
             </Button>
           ) : (
             <Button

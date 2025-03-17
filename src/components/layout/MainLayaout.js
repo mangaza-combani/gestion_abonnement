@@ -1,4 +1,3 @@
-// src/components/layout/MainLayout.js
 import React, { useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import {
@@ -28,7 +27,7 @@ import {
   AccountBalanceWallet
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../../store/slices/authSlice';
+import { logOut, useLogoutMutation } from '../../store/slices/authSlice';
 
 const drawerWidth = 280;
 
@@ -38,6 +37,9 @@ const MainLayout = () => {
   const { user, role } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  // Utiliser le hook de déconnexion de RTK Query
+  const [logout] = useLogoutMutation();
 
   const menuItems = role === 'supervisor' 
     ? [
@@ -68,9 +70,19 @@ const MainLayout = () => {
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      // Appel API pour déconnecter l'utilisateur côté serveur
+      await logout().unwrap();
+      // Ensuite mise à jour de l'état local
+      dispatch(logOut());
+      navigate('/login');
+    } catch (err) {
+      // En cas d'erreur, on déconnecte quand même côté client
+      console.error('Erreur lors de la déconnexion:', err);
+      dispatch(logOut());
+      navigate('/login');
+    }
   };
 
   const handleNavigate = (path) => {

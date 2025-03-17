@@ -48,6 +48,7 @@ const PasswordDisplay = ({ password }) => {
 };
 
 const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
+  console.log('AccountList', accounts);
   const theme = useTheme();
   
   return (
@@ -104,14 +105,14 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
                   >
                     <TableCell>
                       <Typography variant="body2" fontWeight={selectedAccount?.id === account.id ? 'bold' : 'regular'}>
-                        {account.login}
+                        {account.login || account.name || ''}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <EmailIcon fontSize="small" color="action" />
                         <Typography variant="body2">
-                          {account.email}
+                          {account.email || ''}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -122,7 +123,9 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <HomeIcon fontSize="small" color="action" />
                         <Typography variant="body2">
-                          {account.agency}
+                          {typeof account.agency === 'string' ? account.agency.name : (
+                            account.agency.name || ''
+                          )}
                         </Typography>
                       </Box>
                     </TableCell>

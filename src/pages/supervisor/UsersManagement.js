@@ -10,19 +10,20 @@ import {
   CardContent,
   Snackbar,
   Alert,
+  TextField,
+  InputAdornment,
   useTheme,
   Fade
 } from '@mui/material';
 import { 
   Add as AddIcon,
   Person as PersonIcon,
-  FilterList as FilterListIcon
+  Search as SearchIcon
 } from '@mui/icons-material';
 
-import UserList from '../../components/UserManagement/';
+import ModernUserTable from '../../components/UserManagement';
 import UserDetails from '../../components/UserManagement/UserDetails';
 import NewUserDialog from '../../components/UserManagement/NewUserDialog';
-import UserSearch from '../../components/UserManagement/UserSearch';
 
 // Données de test
 const mockUsers = [
@@ -65,23 +66,17 @@ const UsersManagement = () => {
   const theme = useTheme();
   const [users, setUsers] = useState(mockUsers);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedAgency, setSelectedAgency] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
 
   // Filtrer les utilisateurs en fonction des critères de recherche
   const filteredUsers = users.filter(user => {
     const matchesSearch = !searchTerm ? true : 
       user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.telephone?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesAgency = !selectedAgency ? true : 
-      user.agency === selectedAgency;
-    
-    return matchesSearch && matchesAgency;
+    return matchesSearch;
   });
 
   // Gérer la création d'un nouvel utilisateur
@@ -136,15 +131,12 @@ const UsersManagement = () => {
       minHeight: '100vh',
       transition: 'all 0.3s ease-in-out'
     }}>
-      {/* Header avec bouton d'ajout */}
+      {/* Header avec barre de recherche et bouton d'ajout */}
       <Paper 
         elevation={2} 
         sx={{ 
           p: 2.5, 
           mb: 3, 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
           borderRadius: 2,
           transition: 'box-shadow 0.3s ease-in-out',
           '&:hover': {
@@ -152,76 +144,81 @@ const UsersManagement = () => {
           }
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <PersonIcon color="primary" sx={{ fontSize: 40 }} />
-          <Box>
-            <Typography variant="h5" component="h1" fontWeight="medium">
-              Gestion des Utilisateurs
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {filteredUsers.length} utilisateur(s)
-            </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <PersonIcon color="primary" sx={{ fontSize: 40 }} />
+            <Box>
+              <Typography variant="h5" component="h1" fontWeight="medium">
+                Gestion des Utilisateurs
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {filteredUsers.length} utilisateur(s)
+              </Typography>
+            </Box>
           </Box>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Tooltip title="Afficher/masquer les filtres">
-            <Button 
-              variant="outlined" 
-              color="primary"
-              onClick={() => setIsFilterVisible(!isFilterVisible)}
-              startIcon={<FilterListIcon />}
-            >
-              Filtres
-            </Button>
-          </Tooltip>
-          <Tooltip title="Créer un nouvel utilisateur">
-            <Button 
-              variant="contained" 
-              startIcon={<AddIcon />}
-              onClick={() => setIsNewUserDialogOpen(true)}
-            >
-              Nouvel Utilisateur
-            </Button>
-          </Tooltip>
+          
+          <Box sx={{ display: 'flex', gap: 2, flex: 1, maxWidth: '600px' }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Rechercher par nom ou téléphone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ 
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2
+                }
+              }}
+            />
+            
+            <Tooltip title="Créer un nouvel utilisateur">
+              <Button 
+                variant="contained" 
+                startIcon={<AddIcon />}
+                onClick={() => setIsNewUserDialogOpen(true)}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
+                Nouvel Utilisateur
+              </Button>
+            </Tooltip>
+          </Box>
         </Box>
       </Paper>
 
       {/* Conteneur principal */}
       <Box sx={{ display: 'flex', gap: 3, flexWrap: { xs: 'wrap', lg: 'nowrap' } }}>
-        {/* Panneau de gauche (recherche et liste) */}
+        {/* Panneau de gauche (liste) */}
         <Box sx={{ 
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column',
-          minWidth: '700px',
-          maxWidth: '900px'
+          minWidth: { xs: '100%', lg: '700px' },
+          maxWidth: { lg: '900px' }
         }}>
-          {/* Bloc de recherche avec animation */}
-          <Fade in={isFilterVisible || !selectedUser}>
-            <div>
-              <UserSearch 
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                resultCount={filteredUsers.length}
-                selectedAgency={selectedAgency}
-                onAgencyChange={setSelectedAgency}
-                agencies={mockAgencies}
-              />
-            </div>
-          </Fade>
-          
-          {/* Liste des utilisateurs avec animation */}
-          <Box sx={{ mt: isFilterVisible ? 2 : 0, flex: 1, transition: 'all 0.3s ease-in-out' }}>
-            <UserList 
-              users={filteredUsers}
-              selectedUser={selectedUser}
-              onUserSelect={setSelectedUser}
-            />
-          </Box>
+          {/* Liste des utilisateurs */}
+          <ModernUserTable 
+            users={filteredUsers}
+            selectedUser={selectedUser}
+            onUserSelect={setSelectedUser}
+          />
         </Box>
 
         {/* Panneau de droite (détails) */}
-        <Box sx={{ flex: 2, display: 'flex', minWidth: '400px' }}>
+        <Box sx={{ flex: 2, display: 'flex', minWidth: { xs: '100%', lg: '400px' } }}>
           {selectedUser ? (
             <Fade in={!!selectedUser}>
               <div style={{ width: '100%' }}>

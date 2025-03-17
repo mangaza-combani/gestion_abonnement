@@ -1,6 +1,7 @@
-// src/components/UserManagement/UserList.js
-import React from 'react';
+// src/components/UserManagement/ModernUserTable.js
+import React, { useState } from 'react';
 import { 
+  Box,
   Card, 
   TableContainer, 
   Table, 
@@ -8,90 +9,163 @@ import {
   TableBody, 
   TableRow, 
   TableCell,
-  Chip,
   Typography,
+  Fade,
   useTheme,
-  alpha
+  IconButton,
+  Chip
 } from '@mui/material';
+import { 
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  Password as PasswordIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Home as HomeIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon
+} from '@mui/icons-material';
 
-const StatusChip = ({ status }) => {
-  const theme = useTheme();
-  const getColor = (status) => {
-    switch (status) {
-      case 'ACTIF':
-        return 'success';
-      case 'INACTIF':
-        return 'error';
-      default:
-        return 'default';
-    }
+// Composant pour afficher le mot de passe avec possibilité de le révéler
+const PasswordDisplay = ({ password }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  
+  const togglePassword = (event) => {
+    event.stopPropagation(); // Empêche le déclenchement de l'événement onClick du TableRow
+    setShowPassword(!showPassword);
   };
-
+  
   return (
-    <Chip 
-      label={status} 
-      color={getColor(status)} 
-      size="small" 
-      variant="outlined"
-    />
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <PasswordIcon fontSize="small" color="action" />
+      <Typography variant="body2" sx={{ flex: 1 }}>
+        {showPassword ? password : '••••••••'}
+      </Typography>
+      <IconButton 
+        size="small" 
+        onClick={togglePassword}
+        sx={{ ml: 1 }}
+      >
+        {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+      </IconButton>
+    </Box>
   );
 };
 
-const UserList = ({ users, selectedUser, onUserSelect }) => {
-  const theme = useTheme();
+// Composant pour afficher le statut avec une icône
+const StatusDisplay = ({ status }) => {
+  const isActive = status === 'ACTIF';
+  
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      {isActive ? (
+        <CheckCircleIcon fontSize="small" color="success" />
+      ) : (
+        <CancelIcon fontSize="small" color="error" />
+      )}
+      <Typography 
+        variant="body2" 
+        color={isActive ? "success.main" : "error.main"}
+      >
+        {isActive ? 'Actif' : 'Inactif'}
+      </Typography>
+    </Box>
+  );
+};
 
+const ModernUserTable = ({ users, selectedUser, onUserSelect }) => {
+  const theme = useTheme();
+  
   return (
     <Card 
+      elevation={2}
       sx={{ 
-        flex: 1, 
-        boxShadow: theme.shadows[2],
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
         borderRadius: 2,
-        transition: 'box-shadow 0.3s ease',
+        overflow: 'hidden',
+        transition: 'box-shadow 0.3s ease-in-out',
         '&:hover': {
-          boxShadow: theme.shadows[4]
+          boxShadow: 4
         }
       }}
     >
-      <TableContainer>
-        <Table>
-          <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" px={2} py={1.5} borderBottom={1} borderColor="divider">
+        <Typography variant="h6">
+          Liste des utilisateurs
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {users.length} utilisateur(s)
+        </Typography>
+      </Box>
+      
+      <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
+        <Table size="small" stickyHeader>
+          <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 'bold' }}>NOM D'UTILISATEUR</TableCell>
+              <TableCell>NOM D'UTILISATEUR</TableCell>
               <TableCell>EMAIL</TableCell>
+              <TableCell>MOT DE PASSE</TableCell>
               <TableCell>TÉLÉPHONE</TableCell>
-              <TableCell>RÔLE</TableCell>
-              <TableCell>AGENCE</TableCell>
-              <TableCell align="center">STATUT</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user) => (
-              <TableRow
-                key={user.id}
-                hover
-                selected={selectedUser?.id === user.id}
-                onClick={() => onUserSelect(user)}
-                sx={{ 
-                  cursor: 'pointer',
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.primary.main, 0.04)
-                  }
-                }}
-              >
-                <TableCell>
-                  <Typography variant="body2" fontWeight="medium">
-                    {user.username}
+            {users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Aucun utilisateur ne correspond aux critères de recherche
                   </Typography>
                 </TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.telephone}</TableCell>
-                <TableCell>{user.role}</TableCell>
-                <TableCell>{user.agency}</TableCell>
-                <TableCell align="center">
-                  <StatusChip status={user.status} />
-                </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              users.map((user) => (
+                <Fade key={user.id} in={true} timeout={300}>
+                  <TableRow
+                    hover
+                    selected={selectedUser?.id === user.id}
+                    onClick={() => onUserSelect(user)}
+                    sx={{ 
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s',
+                      '&.Mui-selected': {
+                        backgroundColor: `${theme.palette.primary.light}20`
+                      },
+                      '&.Mui-selected:hover': {
+                        backgroundColor: `${theme.palette.primary.light}30`
+                      }
+                    }}
+                  >
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={selectedUser?.id === user.id ? 'bold' : 'regular'}>
+                        {user.username}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <EmailIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {user.email}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <PasswordDisplay password="MotDePasse123" /> {/* Mot de passe fictif */}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <PhoneIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {user.telephone}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+
+                  </TableRow>
+                </Fade>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -99,4 +173,4 @@ const UserList = ({ users, selectedUser, onUserSelect }) => {
   );
 };
 
-export default UserList;
+export default ModernUserTable;

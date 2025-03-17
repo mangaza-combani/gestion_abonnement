@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Button, 
@@ -8,7 +8,6 @@ import {
   Tooltip, 
   Card,
   CardContent,
-  Divider,
   Snackbar,
   Alert,
   useTheme
@@ -23,33 +22,61 @@ import AccountSearch from '../../components/AccountManagement/AccountSearch';
 import AccountDetails from '../../components/AccountManagement/AccountDetails';
 import NewAccountDialog from '../../components/AccountManagement/NewAccountDialog';
 import NewLineDialog from '../../components/AccountManagement/NewLineDialog';
-
-// Importation du composant AccountList modifié
 import AccountList from '../../components/AccountManagement/AccountList';
 
-// Données de test
-import { 
-  mockAccounts, 
-  mockAgencies, 
-  mockClients 
-} from '../../components/AccountManagement/accountConstants';
+// Import hooks from redAccountsApiSlice
+import {
+  useGetRedAccountsQuery,
+  useChangeLineStatusMutation,
+  useCreateLineMutation,
+  useCreateRedAccountMutation,
+  transformAccount,
+  selectSelectedAccount,
+  selectAccount
+} from '../../store/slices/redAccountsSlice';
+import { useDispatch, useSelector } from 'react-redux';
+
+// Import des agencies et clients
+import { mockAgencies, mockClients } from '../../components/AccountManagement/accountConstants';
 
 const ModernAccountManagement = () => {
   const theme = useTheme();
-  const [accounts, setAccounts] = useState(mockAccounts);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAgency, setSelectedAgency] = useState(null);
-  const [selectedAccount, setSelectedAccount] = useState(null);
   const [isNewAccountDialogOpen, setIsNewAccountDialogOpen] = useState(false);
   const [isNewLineDialogOpen, setIsNewLineDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const dispatch = useDispatch();
+
+  // Fetch accounts data with RTK Query
+  const {
+    data: accounts = [],
+    isLoading,
+    isError,
+    error
+  } = useGetRedAccountsQuery();
+
+  // Get selected account from Redux state
+  const selectedAccount = useSelector(selectSelectedAccount);
+
+  // Initialize mutations
+  const [changeLineStatus] = useChangeLineStatusMutation();
+  const [createLine] = useCreateLineMutation();
+  const [createRedAccount] = useCreateRedAccountMutation();
+
+  // Effect to show error in snackbar if API call fails
+  useEffect(() => {
+    if (isError) {
+      showSnackbar(`Erreur: ${error?.data?.message || 'Impossible de charger les données'}`, 'error');
+    }
+  }, [isError, error]);
 
   // Filtrer les comptes en fonction des critères de recherche
   const filteredAccounts = accounts.filter(account => {
     const matchesSearch = !searchTerm ? true : 
       account.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.login.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       account.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesAgency = !selectedAgency ? true : 
@@ -59,146 +86,92 @@ const ModernAccountManagement = () => {
   });
 
   // Gérer la création d'un nouveau compte
-  const handleCreateAccount = (accountData) => {
-    const newAccount = {
-      id: accounts.length + 1,
-      login: accountData.login,
-      email: accountData.email,
-      password: accountData.password,
-      agency: mockAgencies.find(a => a.id === parseInt(accountData.agencyId))?.name || '',
-      agencyId: parseInt(accountData.agencyId),
-      status: 'ACTIF',
-      linesCount: 0,
-      lines: []
-    };
-    
-    setAccounts([...accounts, newAccount]);
-    setIsNewAccountDialogOpen(false);
-    showSnackbar('Compte créé avec succès', 'success');
+  const handleCreateAccount = async (accountData) => {
+    try {
+      await createRedAccount({
+        id: accountData.name,
+        password: accountData.password,
+        email: accountData.email,
+        agencyId: parseInt(accountData.agencyId),
+      }).unwrap();
+      
+      setIsNewAccountDialogOpen(false);
+      showSnackbar('Compte créé avec succès', 'success');
+    } catch (err) {
+      showSnackbar(`Erreur lors de la création du compte: ${err.message}`, 'error');
+    }
   };
 
   // Gérer l'ajout d'une nouvelle ligne
-  const handleAddLine = (lineData) => {
+  const handleAddLine = async (lineData) => {
     if (!selectedAccount) return;
     
-    const client = lineData.clientId 
-      ? mockClients.find(c => c.id === parseInt(lineData.clientId))
-      : null;
-    
-    const newLine = {
-      id: Date.now(),
-      phoneNumber: lineData.phoneNumber,
-      clientName: client ? `${client.nom} ${client.prenom}` : 'Sans client',
-      status: 'ACTIF',
-      paymentStatus: 'A JOUR',
-      simCardId: lineData.simCardId
-    };
-    
-    const updatedAccounts = accounts.map(account => {
-      if (account.id === selectedAccount.id) {
-        const updatedLines = [...account.lines, newLine];
-        return {
-          ...account,
-          lines: updatedLines,
-          linesCount: updatedLines.length
-        };
-      }
-      return account;
-    });
-    
-    setAccounts(updatedAccounts);
-    setSelectedAccount(updatedAccounts.find(a => a.id === selectedAccount.id));
-    setIsNewLineDialogOpen(false);
-    showSnackbar('Ligne ajoutée avec succès', 'success');
+    try {
+      await createLine({
+        accountId: selectedAccount.id,
+        lineData: {
+          phoneNumber: lineData.phoneNumber,
+          clientId: lineData.clientId || null,
+          simCardId: lineData.assignSimNow ? lineData.simCardId : null,
+          status: lineData.assignToClient ? 'attributed' : 'unattributed'
+        }
+      }).unwrap();
+      
+      setIsNewLineDialogOpen(false);
+      showSnackbar('Ligne ajoutée avec succès', 'success');
+    } catch (err) {
+      showSnackbar(`Erreur lors de l'ajout de la ligne: ${err.message}`, 'error');
+    }
   };
 
   // Gérer l'activation d'une ligne
-  const handleActivateLine = (line) => {
+  const handleActivateLine = async (line) => {
     if (!selectedAccount) return;
     
-    const updatedAccounts = accounts.map(account => {
-      if (account.id === selectedAccount.id) {
-        const updatedLines = account.lines.map(l => 
-          l.id === line.id ? { ...l, status: 'ACTIF' } : l
-        );
-        return {
-          ...account,
-          lines: updatedLines
-        };
-      }
-      return account;
-    });
-    
-    setAccounts(updatedAccounts);
-    setSelectedAccount(updatedAccounts.find(a => a.id === selectedAccount.id));
-    showSnackbar(`Ligne ${line.phoneNumber} activée`, 'success');
+    try {
+      await changeLineStatus({
+        accountId: selectedAccount.id,
+        lineId: line.id,
+        status: 'attributed'
+      }).unwrap();
+      
+      showSnackbar(`Ligne ${line.phoneNumber} activée`, 'success');
+    } catch (err) {
+      showSnackbar(`Erreur lors de l'activation: ${err.message}`, 'error');
+    }
   };
 
   // Gérer le blocage d'une ligne
-  const handleBlockLine = (line) => {
+  const handleBlockLine = async (line) => {
     if (!selectedAccount) return;
     
-    const updatedAccounts = accounts.map(account => {
-      if (account.id === selectedAccount.id) {
-        const updatedLines = account.lines.map(l => 
-          l.id === line.id ? { ...l, status: 'BLOQUÉ' } : l
-        );
-        return {
-          ...account,
-          lines: updatedLines
-        };
-      }
-      return account;
-    });
-    
-    setAccounts(updatedAccounts);
-    setSelectedAccount(updatedAccounts.find(a => a.id === selectedAccount.id));
-    showSnackbar(`Ligne ${line.phoneNumber} bloquée`, 'warning');
+    try {
+      await changeLineStatus({
+        accountId: selectedAccount.id,
+        lineId: line.id,
+        status: 'blocked'
+      }).unwrap();
+      
+      showSnackbar(`Ligne ${line.phoneNumber} bloquée`, 'warning');
+    } catch (err) {
+      showSnackbar(`Erreur lors du blocage: ${err.message}`, 'error');
+    }
   };
 
   // Gérer la mise en pause d'une ligne
-  const handlePauseLine = (line) => {
+  const handlePauseLine = async (line) => {
     if (!selectedAccount) return;
     
-    const updatedAccounts = accounts.map(account => {
-      if (account.id === selectedAccount.id) {
-        const updatedLines = account.lines.map(l => 
-          l.id === line.id ? { ...l, status: 'PAUSE' } : l
-        );
-        return {
-          ...account,
-          lines: updatedLines
-        };
-      }
-      return account;
-    });
-    
-    setAccounts(updatedAccounts);
-    setSelectedAccount(updatedAccounts.find(a => a.id === selectedAccount.id));
-    showSnackbar(`Ligne ${line.phoneNumber} mise en pause`, 'info');
-  };
-
-  // Gérer la suppression d'une ligne
-  const handleDeleteLine = (line) => {
-    if (!selectedAccount) return;
-    
-    const confirmDelete = window.confirm(`Êtes-vous sûr de vouloir supprimer la ligne ${line.phoneNumber}?`);
-    if (confirmDelete) {
-      const updatedAccounts = accounts.map(account => {
-        if (account.id === selectedAccount.id) {
-          const updatedLines = account.lines.filter(l => l.id !== line.id);
-          return {
-            ...account,
-            lines: updatedLines,
-            linesCount: updatedLines.length
-          };
-        }
-        return account;
-      });
+    try {
+      await changeLineStatus({
+        accountId: selectedAccount.id,
+        lineId: line.id,
+        status: 'paused'
+      }).unwrap();
       
-      setAccounts(updatedAccounts);
-      setSelectedAccount(updatedAccounts.find(a => a.id === selectedAccount.id));
-      showSnackbar(`Ligne ${line.phoneNumber} supprimée`, 'error');
+      showSnackbar(`Ligne ${line.phoneNumber} mise en pause`, 'info');
+    } catch (err) {
+      showSnackbar(`Erreur lors de la mise en pause: ${err.message}`, 'error');
     }
   };
 
@@ -211,6 +184,14 @@ const ModernAccountManagement = () => {
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
   };
+
+  // Sélectionner un compte
+  const handleSelectAccount = (account) => {
+    dispatch(selectAccount(transformAccount(account)));
+  };
+
+  // Calculer les statistiques totales des lignes
+  const totalLines = accounts.reduce((acc, curr) => acc + (curr.lines?.length || 0), 0);
 
   return (
     <Box sx={{ 
@@ -242,7 +223,8 @@ const ModernAccountManagement = () => {
               Gestion des Comptes Rattachés
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {filteredAccounts.length} compte(s) • {accounts.reduce((acc, curr) => acc + curr.linesCount, 0)} ligne(s)
+              {isLoading ? 'Chargement...' : 
+                `${filteredAccounts.length} compte(s) • ${totalLines} ligne(s)`}
             </Typography>
           </Box>
         </Box>
@@ -271,13 +253,13 @@ const ModernAccountManagement = () => {
 
       {/* Conteneur principal */}
       <Box sx={{ display: 'flex', gap: 3, flexWrap: { xs: 'wrap', lg: 'nowrap' } }}>
-        {/* Panneau de gauche (recherche et liste) - avec largeur encore plus augmentée */}
+        {/* Panneau de gauche (recherche et liste) */}
         <Box sx={{ 
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column',
-          minWidth: '700px',  // Augmenté de 650px à 700px
-          maxWidth: '900px'   // Augmenté de 800px à 900px
+          minWidth: '700px',
+          maxWidth: '900px'
         }}>
           {/* Bloc de recherche avec animation */}
           <Fade in={isFilterVisible || !selectedAccount}>
@@ -295,11 +277,15 @@ const ModernAccountManagement = () => {
           
           {/* Liste des comptes avec animation */}
           <Box sx={{ mt: isFilterVisible ? 2 : 0, flex: 1, transition: 'all 0.3s ease-in-out' }}>
-            <AccountList 
-              accounts={filteredAccounts}
-              selectedAccount={selectedAccount}
-              onAccountSelect={setSelectedAccount}
-            />
+            {isLoading ? (
+              <Typography>Chargement des comptes...</Typography>
+            ) : (
+              <AccountList 
+                accounts={filteredAccounts}
+                selectedAccount={selectedAccount}
+                onAccountSelect={handleSelectAccount}
+              />
+            )}
           </Box>
         </Box>
 
@@ -314,7 +300,7 @@ const ModernAccountManagement = () => {
                   onActivateLine={handleActivateLine}
                   onBlockLine={handleBlockLine}
                   onPauseLine={handlePauseLine}
-                  onDeleteLine={handleDeleteLine}
+                  onDeleteLine={() => {}} // Cette fonctionnalité sera implémentée ultérieurement
                 />
               </div>
             </Fade>
@@ -332,10 +318,10 @@ const ModernAccountManagement = () => {
               <CardContent sx={{ textAlign: 'center', py: 8 }}>
                 <AccountCircleIcon color="disabled" sx={{ fontSize: 60, mb: 2 }} />
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  Aucun compte sélectionné
+                  {isLoading ? 'Chargement des comptes...' : 'Aucun compte sélectionné'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Veuillez sélectionner un compte dans la liste pour voir ses détails
+                  {isLoading ? 'Veuillez patienter...' : 'Veuillez sélectionner un compte dans la liste pour voir ses détails'}
                 </Typography>
               </CardContent>
             </Card>
