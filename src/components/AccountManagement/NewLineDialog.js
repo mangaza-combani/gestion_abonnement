@@ -17,13 +17,23 @@ import {
   Divider,
   FormControlLabel,
   Switch,
-  Alert
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
-  Close as CloseIcon
+  Close as CloseIcon,
+  Phone as PhoneIcon,
+  ContactPhone as ContactPhoneIcon,
+  SimCard as SimCardIcon
 } from '@mui/icons-material';
 
+// Import de la mutation depuis redAccountsSlice
+import { useCreateLineMutation, LINE_STATUSES } from '../../store/slices/redAccountsSlice';
+
 const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => {
+  // Utilisation de la mutation de redAccountsSlice
+  const [createLine, { isLoading: isCreatingLine, isError, error }] = useCreateLineMutation();
+
   const [formData, setFormData] = useState({
     clientId: '',
     phoneNumber: '',
@@ -52,18 +62,48 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
     setFormData(prev => ({ ...prev, phoneNumber: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit({ 
-      ...formData,
-      accountId,
-      // Si assignSimNow est faux, on envoie null pour le simCardId
+    
+    if (!accountId) {
+      console.error("ID de compte manquant pour créer une ligne");
+      return;
+    }
+    
+    // Déterminer le statut approprié
+    let status = formData.assignToClient ? LINE_STATUSES.ATTRIBUTED : LINE_STATUSES.UNATTRIBUTED;
+    
+    // Création de l'objet pour l'API
+    const lineData = {
+      phoneNumber: formData.phoneNumber.replace(/\s/g, ''), // Supprimer les espaces
+      clientId: formData.assignToClient ? formData.clientId : null,
       simCardId: formData.assignSimNow ? formData.simCardId : null,
-      // Si clientId est vide, on l'envoie comme null
-      clientId: formData.clientId || null
-    });
-    resetForm();
-    onClose();
+      status
+    };
+
+    try {
+      // Utilisation de la mutation du redAccountsSlice
+      const result = await createLine({
+        accountId,
+        lineData
+      }).unwrap();
+
+      console.log("Ligne créée avec succès:", result);
+
+      // Appel du callback onSubmit
+      if (onSubmit) {
+        onSubmit({ 
+          ...result, // Utiliser les données de la réponse de l'API
+          accountId
+        });
+      }
+      
+      resetForm();
+      onClose();
+    } catch (err) {
+      console.error("Erreur lors de la création de la ligne:", err);
+      // Vous pourriez ajouter ici une gestion d'erreur supplémentaire si nécessaire
+    }
   };
 
   const resetForm = () => {
@@ -81,19 +121,61 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
     onClose();
   };
 
+  // Vérifier si le formulaire est valide
+  const isFormValid = () => {
+    if (!formData.phoneNumber) return false;
+    if (formData.assignToClient && !formData.clientId) return false;
+    if (formData.assignSimNow && !formData.simCardId) return false;
+    return true;
+  };
+
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
         <Box display="flex" justifyContent="space-between" alignItems="center">
-          Nouvelle Ligne
-          <IconButton onClick={handleClose}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <PhoneIcon />
+            <Typography variant="h6">Nouvelle Ligne</Typography>
+          </Box>
+          <IconButton onClick={handleClose} sx={{ color: 'white' }}>
             <CloseIcon />
           </IconButton>
         </Box>
       </DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent dividers>
+          {isError && (
+            <Alert 
+              severity="error" 
+              sx={{ mb: 3 }}
+            >
+              {error?.data?.message || "Une erreur est survenue lors de la création de la ligne."}
+            </Alert>
+          )}
+          
           <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                required
+                label="Numéro de téléphone"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handlePhoneNumberChange}
+                placeholder="06XX XX XX XX"
+                helperText="Format: 06XX XX XX XX"
+                InputProps={{
+                  startAdornment: (
+                    <PhoneIcon color="primary" sx={{ mr: 1 }} />
+                  )
+                }}
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Divider />
+            </Grid>
+            
             <Grid item xs={12}>
               <FormControlLabel
                 control={
@@ -110,7 +192,12 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
                     color="primary"
                   />
                 }
-                label="Attribuer à un client"
+                label={
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <ContactPhoneIcon color={formData.assignToClient ? "primary" : "disabled"} />
+                    <Typography>Attribuer à un client</Typography>
+                  </Box>
+                }
               />
             </Grid>
 
@@ -127,7 +214,7 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
                   >
                     {clients.map((client) => (
                       <MenuItem key={client.id} value={client.id}>
-                        {client.nom} {client.prenom}
+                        {client.nom} {client.prenom} - {client.telephone || "N° non défini"}
                       </MenuItem>
                     ))}
                   </Select>
@@ -136,16 +223,7 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
             )}
             
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                required
-                label="Numéro de téléphone"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handlePhoneNumberChange}
-                placeholder="06XX XX XX XX"
-                helperText="Format: 06XX XX XX XX"
-              />
+              <Divider />
             </Grid>
             
             <Grid item xs={12}>
@@ -158,7 +236,12 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
                     color="primary"
                   />
                 }
-                label="Attribuer une carte SIM maintenant"
+                label={
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <SimCardIcon color={formData.assignSimNow ? "primary" : "disabled"} />
+                    <Typography>Attribuer une carte SIM maintenant</Typography>
+                  </Box>
+                }
               />
             </Grid>
             
@@ -178,24 +261,25 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
             
             {!formData.assignSimNow && (
               <Grid item xs={12}>
-                <Alert severity="info">
+                <Alert severity="info" icon={<SimCardIcon />}>
                   Vous pourrez attribuer une carte SIM ultérieurement.
                 </Alert>
               </Grid>
             )}
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Annuler</Button>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={handleClose} variant="outlined" sx={{ borderRadius: 2 }}>
+            Annuler
+          </Button>
           <Button 
             type="submit" 
             variant="contained"
-            disabled={
-              !formData.phoneNumber ||
-              (formData.assignSimNow && !formData.simCardId)
-            }
+            disabled={isCreatingLine || !isFormValid()}
+            sx={{ borderRadius: 2 }}
+            startIcon={isCreatingLine ? <CircularProgress size={20} /> : null}
           >
-            Ajouter
+            {isCreatingLine ? 'Création...' : 'Ajouter la ligne'}
           </Button>
         </DialogActions>
       </form>

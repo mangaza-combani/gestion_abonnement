@@ -48,7 +48,7 @@ import {
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
-import { useCreateRedAccountMutation } from '../../store/slices/redAccountsSlice';
+import { useCreateRedAccountMutation, useCreateLineMutation } from '../../store/slices/redAccountsSlice';
 
 const NewAccountDialog = ({ 
   open, 
@@ -61,6 +61,9 @@ const NewAccountDialog = ({
   
   // Mutation pour créer un compte RED
   const [createRedAccount, { isLoading: isSubmitting, isError: submitError, error: submitErrorDetails, isSuccess }] = useCreateRedAccountMutation();
+  
+  // Mutation pour créer une ligne
+  const [createLine, { isLoading: isCreatingLine }] = useCreateLineMutation();
   
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -87,18 +90,24 @@ const NewAccountDialog = ({
   });
   
   const [selectedClient, setSelectedClient] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processStatus, setProcessStatus] = useState({ 
+    current: 0, 
+    total: 0, 
+    message: '' 
+  });
 
   // Extraction des agences à partir des données récupérées
   const agencies = agenciesData || [];
 
   // Réinitialiser le formulaire quand la mutation est réussie
   useEffect(() => {
-    if (isSuccess) {
+    if (isSuccess && !isProcessing) {
       resetForm();
       onClose();
       if (onSubmit) onSubmit();
     }
-  }, [isSuccess]);
+  }, [isSuccess, isProcessing]);
 
   // Liste des banques courantes en France
   const banks = [
@@ -211,13 +220,85 @@ const NewAccountDialog = ({
     setActiveStep((prevStep) => prevStep - 1);
   };
 
+  // Nouvelle fonction pour créer les lignes en séquence
+  const createLines = async (accountId) => {
+    const { lines } = formData;
+    if (lines.length === 0) return true;
+    
+    setIsProcessing(true);
+    setProcessStatus({ 
+      current: 0, 
+      total: lines.length, 
+      message: 'Création des lignes en cours...' 
+    });
+    
+    try {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        setProcessStatus({ 
+          current: i + 1, 
+          total: lines.length, 
+          message: `Création de la ligne ${i + 1}/${lines.length}...` 
+        });
+        
+        // Préparer les données de la ligne pour l'API
+        const lineData = {
+          phoneNumber: line.phoneNumber.replace(/\s/g, ''), // Enlever les espaces
+          status: mapStatusToApiFormat(line.status)
+        };
+        
+        // Si un client est attribué, ajouter l'ID du client
+        if (line.clientId) {
+          lineData.clientId = line.clientId;
+        }
+        console.log("line data , ", lineData)
+        // Appel à l'API pour créer la ligne
+        await createLine({ 
+          accountId, 
+          lineData 
+        }).unwrap();
+      }
+      
+      setProcessStatus({ 
+        current: lines.length, 
+        total: lines.length, 
+        message: 'Toutes les lignes ont été créées avec succès!' 
+      });
+      
+      setIsProcessing(false);
+      return true;
+    } catch (err) {
+      console.error("Erreur lors de la création des lignes:", err);
+      setProcessStatus({ 
+        current: 0, 
+        total: lines.length, 
+        message: `Erreur: ${err.message || 'Impossible de créer les lignes'}` 
+      });
+      setIsProcessing(false);
+      return false;
+    }
+  };
+
+  // Fonction utilitaire pour mapper les statuts du formulaire vers les statuts de l'API
+  const mapStatusToApiFormat = (uiStatus) => {
+    // Mapper les statuts de l'UI vers les constantes de l'API dans redAccountsSlice.js
+    const statusMap = {
+      'NON ATTRIBUÉ': 'UNATTRIBUTED',
+      'ACTIF': 'attributed',
+      'BLOQUÉ': 'blocked',
+      'PAUSE': 'paused'
+    };
+    
+    return statusMap[uiStatus] || 'UNATTRIBUTED';
+  };
+
   const handleSubmit = async () => {
     // Créer l'objet de données pour l'API
     const redAccountData = {
       redId: formData.redId,
       password: formData.password,
       agencyId: parseInt(formData.agencyId),
-      maxLines: parseInt(5),
+      maxLines: parseInt(formData.maxLines),
       // Les données financières ne sont pas envoyées à l'API de RED mais pourraient être stockées ailleurs
       paymentInfo: {
         bankName: formData.bankName,
@@ -228,10 +309,21 @@ const NewAccountDialog = ({
 
     try {
       // Appel de la mutation pour créer le compte
-      await createRedAccount(redAccountData).unwrap();
+      const result = await createRedAccount(redAccountData).unwrap();
+      console.log(result.data.id)
       
-      // Les lignes seront créées séparément après la création du compte
-      // si besoin avec useCreateLineMutation pour chaque ligne
+      // Récupérer l'ID du compte créé
+      const newAccountId = result.data.id;
+      console.log(formData.lines)
+      
+      // Créer les lignes si nécessaire
+      if (formData.lines.length > 0) {
+        
+        await createLines(newAccountId);
+      }
+      
+      // Si tout s'est bien passé, on peut fermer le dialogue
+      if (onSubmit) onSubmit();
     } catch (err) {
       console.error("Erreur lors de la création du compte:", err);
     }
@@ -255,6 +347,8 @@ const NewAccountDialog = ({
       status: 'NON ATTRIBUÉ'
     });
     setSelectedClient(null);
+    setIsProcessing(false);
+    setProcessStatus({ current: 0, total: 0, message: '' });
   };
 
   const handleClose = () => {
@@ -532,183 +626,199 @@ const NewAccountDialog = ({
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Les lignes seront créées automatiquement après la création du compte. Vous pourrez ensuite les attribuer à des clients.
-              </Alert>
-
-              <Grid container spacing={3}>
-                {/* Formulaire d'ajout de ligne */}
-                <Grid item xs={12}>
-                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Nouvelle ligne
+              {isProcessing ? (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <CircularProgress size={40} sx={{ mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    {processStatus.message}
+                  </Typography>
+                  {processStatus.total > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      Progression: {processStatus.current}/{processStatus.total}
                     </Typography>
-                    
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          label="Numéro de téléphone"
-                          name="phoneNumber"
-                          value={newLine.phoneNumber}
-                          onChange={handlePhoneNumberChange}
-                          placeholder="06XX XX XX XX"
-                          InputProps={{
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <PhoneIcon color="primary" />
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Grid>
-                      
-                      <Grid item xs={12} md={6}>
-                        <FormControl fullWidth>
-                          <InputLabel id="status-select-label">Statut</InputLabel>
-                          <Select
-                            labelId="status-select-label"
-                            name="status"
-                            value={newLine.status}
-                            onChange={handleLineChange}
-                            label="Statut"
-                          >
-                            {lineStatuses.map((status) => (
-                              <MenuItem key={status} value={status}>
-                                {status}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      
-                      {newLine.status !== 'NON ATTRIBUÉ' && (
-                        <Grid item xs={12}>
-                          <Autocomplete
-                            fullWidth
-                            options={clients}
-                            getOptionLabel={(option) => `${option.nom} ${option.prenom} (${option.telephone})`}
-                            value={selectedClient}
-                            onChange={handleClientChange}
-                            renderInput={(params) => (
-                              <TextField
-                                {...params}
-                                required
-                                label="Client"
-                                InputProps={{
-                                  ...params.InputProps,
-                                  startAdornment: (
-                                    <>
-                                      <InputAdornment position="start">
-                                        <AccountCircleIcon color="primary" />
-                                      </InputAdornment>
-                                      {params.InputProps.startAdornment}
-                                    </>
-                                  ),
-                                }}
+                  )}
+                </Box>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    Les lignes seront créées automatiquement après la création du compte.
+                  </Alert>
+
+                  <Grid container spacing={3}>
+                    {/* Formulaire d'ajout de ligne */}
+                    <Grid item xs={12}>
+                      <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Nouvelle ligne
+                        </Typography>
+                        
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Numéro de téléphone"
+                              name="phoneNumber"
+                              value={newLine.phoneNumber}
+                              onChange={handlePhoneNumberChange}
+                              placeholder="06XX XX XX XX"
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <PhoneIcon color="primary" />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
+                          </Grid>
+                          
+                          <Grid item xs={12} md={6}>
+                            <FormControl fullWidth>
+                              <InputLabel id="status-select-label">Statut</InputLabel>
+                              <Select
+                                labelId="status-select-label"
+                                name="status"
+                                value={newLine.status}
+                                onChange={handleLineChange}
+                                label="Statut"
+                              >
+                                {lineStatuses.map((status) => (
+                                  <MenuItem key={status} value={status}>
+                                    {status}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          
+                          {newLine.status !== 'NON ATTRIBUÉ' && (
+                            <Grid item xs={12}>
+                              <Autocomplete
+                                fullWidth
+                                options={clients}
+                                getOptionLabel={(option) => `${option.nom} ${option.prenom} (${option.telephone})`}
+                                value={selectedClient}
+                                onChange={handleClientChange}
+                                renderInput={(params) => (
+                                  <TextField
+                                    {...params}
+                                    required
+                                    label="Client"
+                                    InputProps={{
+                                      ...params.InputProps,
+                                      startAdornment: (
+                                        <>
+                                          <InputAdornment position="start">
+                                            <AccountCircleIcon color="primary" />
+                                          </InputAdornment>
+                                          {params.InputProps.startAdornment}
+                                        </>
+                                      ),
+                                    }}
+                                  />
+                                )}
                               />
-                            )}
-                          />
+                            </Grid>
+                          )}
+                          
+                          {/* Aperçu du client sélectionné */}
+                          {selectedClient && (
+                            <Grid item xs={12}>
+                              <Zoom in={Boolean(selectedClient)} timeout={500}>
+                                <Card variant="outlined" sx={{ mt: 1 }}>
+                                  <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
+                                    <Box display="flex" alignItems="center" gap={2}>
+                                      <Avatar sx={{ bgcolor: 'primary.main' }}>
+                                        {selectedClient.nom[0]}{selectedClient.prenom[0]}
+                                      </Avatar>
+                                      <Box>
+                                        <Typography variant="subtitle2">
+                                          {selectedClient.nom} {selectedClient.prenom}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                          {selectedClient.telephone}
+                                        </Typography>
+                                      </Box>
+                                    </Box>
+                                  </CardContent>
+                                </Card>
+                              </Zoom>
+                            </Grid>
+                          )}
+                          
+                          <Grid item xs={12}>
+                            <Box display="flex" justifyContent="flex-end">
+                              <Button
+                                variant="contained"
+                                color="secondary"
+                                onClick={handleAddLine}
+                                disabled={!newLine.phoneNumber}
+                                startIcon={<PersonAddIcon />}
+                              >
+                                Ajouter la ligne
+                              </Button>
+                            </Box>
+                          </Grid>
                         </Grid>
-                      )}
-                      
-                      {/* Aperçu du client sélectionné */}
-                      {selectedClient && (
-                        <Grid item xs={12}>
-                          <Zoom in={Boolean(selectedClient)} timeout={500}>
-                            <Card variant="outlined" sx={{ mt: 1 }}>
-                              <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
-                                <Box display="flex" alignItems="center" gap={2}>
-                                  <Avatar sx={{ bgcolor: 'primary.main' }}>
-                                    {selectedClient.nom[0]}{selectedClient.prenom[0]}
-                                  </Avatar>
+                      </Paper>
+                    </Grid>
+                    
+                    {/* Liste des lignes ajoutées */}
+                    {formData.lines.length > 0 && (
+                      <Grid item xs={12}>
+                        <Paper elevation={1} sx={{ mt: 2, p: 0, overflow: 'hidden', borderRadius: 2 }}>
+                          <Box sx={{ p: 2, bgcolor: 'primary.light', color: 'white' }}>
+                            <Typography variant="subtitle2">
+                              Lignes ajoutées ({formData.lines.length}/{formData.maxLines})
+                            </Typography>
+                          </Box>
+                          <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                            {formData.lines.map((line, index) => (
+                              <Fade key={line.id} in={true} timeout={500}>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  borderBottom: index < formData.lines.length - 1 ? '1px solid #eee' : 'none'
+                                }}>
                                   <Box>
                                     <Typography variant="subtitle2">
-                                      {selectedClient.nom} {selectedClient.prenom}
+                                      {line.phoneNumber || 'Numéro non défini'}
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                      {selectedClient.telephone}
-                                    </Typography>
+                                    <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+                                      {line.clientName ? (
+                                        <Typography variant="body2" color="text.secondary">
+                                          {line.clientName}
+                                        </Typography>
+                                      ) : (
+                                        <Typography variant="body2" color="text.secondary">
+                                          Aucun client attribué
+                                        </Typography>
+                                      )}
+                                      <Chip 
+                                        label={line.status} 
+                                        size="small"
+                                        color={line.status === 'ACTIF' ? 'success' : line.status === 'BLOQUÉ' ? 'error' : 'default'}
+                                      />
+                                    </Box>
                                   </Box>
+                                  <IconButton 
+                                    size="small" 
+                                    color="error"
+                                    onClick={() => handleRemoveLine(line.id)}
+                                  >
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
                                 </Box>
-                              </CardContent>
-                            </Card>
-                          </Zoom>
-                        </Grid>
-                      )}
-                      
-                      <Grid item xs={12}>
-                        <Box display="flex" justifyContent="flex-end">
-                          <Button
-                            variant="contained"
-                            color="secondary"
-                            onClick={handleAddLine}
-                            disabled={!newLine.phoneNumber}
-                            startIcon={<PersonAddIcon />}
-                          >
-                            Ajouter la ligne
-                          </Button>
-                        </Box>
+                              </Fade>
+                            ))}
+                          </Box>
+                        </Paper>
                       </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-                
-                {/* Liste des lignes ajoutées */}
-                {formData.lines.length > 0 && (
-                  <Grid item xs={12}>
-                    <Paper elevation={1} sx={{ mt: 2, p: 0, overflow: 'hidden', borderRadius: 2 }}>
-                      <Box sx={{ p: 2, bgcolor: 'primary.light', color: 'white' }}>
-                        <Typography variant="subtitle2">
-                          Lignes ajoutées ({formData.lines.length}/{formData.maxLines})
-                        </Typography>
-                      </Box>
-                      <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-                        {formData.lines.map((line, index) => (
-                          <Fade key={line.id} in={true} timeout={500}>
-                            <Box sx={{ 
-                              p: 2, 
-                              display: 'flex', 
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              borderBottom: index < formData.lines.length - 1 ? '1px solid #eee' : 'none'
-                            }}>
-                              <Box>
-                                <Typography variant="subtitle2">
-                                  {line.phoneNumber || 'Numéro non défini'}
-                                </Typography>
-                                <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-                                  {line.clientName ? (
-                                    <Typography variant="body2" color="text.secondary">
-                                      {line.clientName}
-                                    </Typography>
-                                  ) : (
-                                    <Typography variant="body2" color="text.secondary">
-                                      Aucun client attribué
-                                    </Typography>
-                                  )}
-                                  <Chip 
-                                    label={line.status} 
-                                    size="small"
-                                    color={line.status === 'ACTIF' ? 'success' : line.status === 'BLOQUÉ' ? 'error' : 'default'}
-                                  />
-                                </Box>
-                              </Box>
-                              <IconButton 
-                                size="small" 
-                                color="error"
-                                onClick={() => handleRemoveLine(line.id)}
-                              >
-                                <CloseIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          </Fade>
-                        ))}
-                      </Box>
-                    </Paper>
+                    )}
                   </Grid>
-                )}
-              </Grid>
+                </>
+              )}
             </Box>
           </Fade>
         );
@@ -783,12 +893,12 @@ const NewAccountDialog = ({
               onClick={handleSubmit}
               sx={{ borderRadius: 2 }}
               startIcon={<CheckCircleIcon />}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isProcessing || isCreatingLine}
             >
-              {isSubmitting ? (
+              {isSubmitting || isProcessing ? (
                 <>
                   <CircularProgress size={20} sx={{ mr: 1 }} />
-                  Création...
+                  {isProcessing ? "Création des lignes..." : "Création du compte..."}
                 </>
               ) : "Finaliser"}
             </Button>

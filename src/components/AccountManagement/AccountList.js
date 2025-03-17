@@ -71,7 +71,6 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
           <TableHead>
             <TableRow>
               <TableCell>LOGIN</TableCell>
-              <TableCell>EMAIL</TableCell>
               <TableCell>MOT DE PASSE</TableCell>
               <TableCell>AGENCE</TableCell>
             </TableRow>
@@ -105,17 +104,10 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
                   >
                     <TableCell>
                       <Typography variant="body2" fontWeight={selectedAccount?.id === account.id ? 'bold' : 'regular'}>
-                        {account.login || account.name || ''}
+                        {account.redId || ''}
                       </Typography>
                     </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <EmailIcon fontSize="small" color="action" />
-                        <Typography variant="body2">
-                          {account.email || ''}
-                        </Typography>
-                      </Box>
-                    </TableCell>
+
                     <TableCell>
                       <PasswordDisplay password={account.password || 'Non défini'} />
                     </TableCell>

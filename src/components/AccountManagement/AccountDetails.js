@@ -308,13 +308,10 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
             <Grid item xs={12} sm={5}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                    {account.login ? account.login : ""}
-                  </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <EmailIcon fontSize="small" color="action" />
                     <Typography variant="body2" color="text.secondary">
-                      {account.email ? account.email : ""}
+                      {account.redId  || ""}
                     </Typography>
                   </Box>
                 </Box>
@@ -478,10 +475,10 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                     <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                       Agence rattachée
                     </Typography>
-                    {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <BusinessIcon color="primary" fontSize="small" />
-                      <Typography variant="body1" fontWeight="medium">{account.agency ? account.agency : ""}</Typography>
-                    </Box> */}
+                      <Typography variant="body1" fontWeight="medium">{account.agency?.name ? account.agency.name : ""}</Typography>
+                    </Box>
                   </Box>
                   
                   <Divider sx={{ my: 2 }} />

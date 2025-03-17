@@ -4,7 +4,7 @@ import { apiSlice } from '../api/apiSlice';
 // Status constants
 export const LINE_STATUSES = {
   ATTRIBUTED: "attributed",
-  UNATTRIBUTED: "unattributed",
+  UNATTRIBUTED: "UNATTRIBUTED",
   TERMINATED: "terminated",
   BLOCKED: "blocked",
   PAUSED: "paused",
