@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box ,Tabs, Tab} from '@mui/material';
+import { Box, Tabs, Tab, Tooltip, IconButton } from '@mui/material';
+import { PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { TAB_TYPES, CLIENT_STATUSES, ORDER_FILTERS } from '../../components/ClientManagement/constant';
 import ListTab from '../../components/ClientManagement/TabContent/ListTab';
 import BlockTab from '../../components/ClientManagement/TabContent//BlockTab';
@@ -8,6 +9,7 @@ import OrderTab from '../../components/ClientManagement/TabContent/OrderTab';
 import ClientDetails from '../../components/ClientManagement/ClientDetails';
 import ClientActions from '../../components/ClientManagement/ClientActions';
 import ActivateTab from '../../components/ClientManagement/TabContent/ActivateTab';
+import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
 
 // Mock data
 const mockClients = [
@@ -172,8 +174,6 @@ const mockClients = [
       ]
     }
   },
-  ,
-
   {
     id: 4,
     nom: "YASSINE",
@@ -221,7 +221,13 @@ const ClientManagement = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState(CLIENT_STATUSES.ALL);
   const [selectedOrderFilter, setSelectedOrderFilter] = useState(null);
-
+  const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  
+  const handleNewClient = (clientData) => {
+    console.log('Nouveau client créé:', clientData);
+    // Ici on pourrait ajouter le client à la liste des clients
+    // et le sélectionner automatiquement
+  };
 
   const handleChangeTabs = (e, newValue)=>{
     setSelectedClient(null)
@@ -332,7 +338,7 @@ const ClientManagement = () => {
 
   return (
     <Box sx={{ bgcolor: 'grey.50', minHeight: '100vh' }}>
-      <Box sx={{ bgcolor: 'white', boxShadow: 1 }}>
+      <Box sx={{ bgcolor: 'white', boxShadow: 1, position: 'relative' }}>
         <Tabs 
           value={currentTab}
           onChange={(e, newValue) => handleChangeTabs(e, newValue)}
@@ -349,21 +355,47 @@ const ClientManagement = () => {
             <Tab key={tab.id} value={tab.id} label={tab.label} />
           ))}
         </Tabs>
+        <Tooltip title="Créer un nouveau client" placement="left">
+          <IconButton 
+            color="primary"
+            sx={{ 
+              position: 'absolute', 
+              right: 16, 
+              top: '50%', 
+              transform: 'translateY(-50%)',
+              backgroundColor: 'rgba(255,255,255,0.8)',
+              '&:hover': { backgroundColor: 'rgba(255,255,255,0.9)' }
+            }}
+            onClick={() => setIsNewClientModalOpen(true)}
+          >
+            <PersonAddIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
       <Box sx={{ display: 'flex', p: 2, gap: 2 }}>
         <Box sx={{ flex: 1 }}>
           {renderTabContent()}
         </Box>
         {selectedClient && (
-  <>
-    <ClientDetails 
-      client={selectedClient}
-      currentTab={currentTab}
-    />
-    <ClientActions client={selectedClient}  currentTab={currentTab}/>
-  </>
-)}
+          <>
+            <ClientDetails 
+              client={selectedClient}
+              currentTab={currentTab}
+            />
+            <ClientActions 
+              client={selectedClient}  
+              currentTab={currentTab}
+            />
+          </>
+        )}
       </Box>
+      
+      {/* Modal de création/sélection de client */}
+      <CreateClientModal
+        open={isNewClientModalOpen}
+        onClose={() => setIsNewClientModalOpen(false)}
+        onClientCreated={handleNewClient}
+      />
     </Box>
   );
 };
