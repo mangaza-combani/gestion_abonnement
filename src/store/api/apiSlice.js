@@ -1,10 +1,11 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import config from '../../config/index.js';
 
 // Création de l'API de base sans endpoints spécifiques
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({ 
-    baseUrl: 'http://localhost:7002/',
+    baseUrl: config.api.baseURL,
     prepareHeaders: (headers, { getState }) => {
       // Ajout du token d'authentification
       const token = getState().auth.token;
