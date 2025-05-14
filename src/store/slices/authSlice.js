@@ -20,11 +20,13 @@ const authSlice = createSlice({
       state.error = null;
     },
     setCredentials: (state, { payload }) => {
+      console.log('payload', payload);
       state.user = payload.user;
       state.token = payload.token;
       state.role = payload.user.role;
       state.isAuthenticated = true;
-      localStorage.setItem('token', payload.token);
+      localStorage.setItem('token', payload.token.token);
+      localStorage.setItem('user', JSON.stringify(payload.user));
     },
     logOut: (state) => {
       state.user = null;
@@ -32,6 +34,7 @@ const authSlice = createSlice({
       state.role = null;
       state.isAuthenticated = false;
       localStorage.removeItem('token');
+        localStorage.removeItem('user');
     },
   },
 });
@@ -47,7 +50,10 @@ export const authApiSlice = apiSlice.injectEndpoints({
       query: (credentials) => ({
         url: '/auth/login',
         method: 'POST',
-        body: credentials,
+        body: {
+          email: credentials.identifiant,
+          password: credentials.password,
+        },
       }),
     }),
     register: builder.mutation({
@@ -59,41 +65,47 @@ export const authApiSlice = apiSlice.injectEndpoints({
     }),
     logout: builder.mutation({
       query: () => ({
-        url: '/v1/user/logout',
+        url: '/auth/logout',
         method: 'POST',
       }),
     }),
     forgotPasswordEmail: builder.mutation({
       query: (email) => ({
-        url: '/v1/user/forgot-password/email',
+        url: '/auth/send-password-reset-link',
         method: 'POST',
-        body: { email },
+        body: {
+          fetchBy: 'email',
+          email
+        },
       }),
     }),
     forgotPasswordSms: builder.mutation({
       query: (phoneNumber) => ({
-        url: '/v1/user/forgot-password/sms',
+        url: '/auth/send-password-reset-link',
         method: 'POST',
-        body: { phoneNumber },
+        body: {
+          fetchBy: 'phone',
+          phone: phoneNumber
+        },
       }),
     }),
     verifyCode: builder.mutation({
       query: (data) => ({
-        url: '/v1/user/verify-code',
+        url: '/auth/verify-code',
         method: 'POST',
         body: data,
       }),
     }),
     resetPassword: builder.mutation({
       query: (data) => ({
-        url: '/v1/user/reset-password',
+        url: '/auth/reset-password',
         method: 'POST',
         body: data,
       }),
     }),
     changePassword: builder.mutation({
       query: (data) => ({
-        url: '/v1/user/change-password',
+        url: '/auth/reset-password',
         method: 'POST',
         body: data,
       }),
