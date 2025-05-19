@@ -57,7 +57,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Récupérer toutes les agences
     getAgencies: builder.query({
-      query: () => '/v1/agency',
+      query: () => '/agencies',
       transformResponse: (response) => {
         return response.data;
       },
@@ -66,7 +66,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     
     // Récupérer une agence par ID
     getAgencyById: builder.query({
-      query: (id) => `/v1/agency/${id}`,
+      query: (id) => `/agencies/${id}`,
       transformResponse: (response) => {
         return response.data;
       },
@@ -76,7 +76,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Créer une nouvelle agence
     createAgency: builder.mutation({
       query: (agencyData) => ({
-        url: '/v1/agency',
+        url: '/agencies',
         method: 'POST',
         body: agencyData
       }),
@@ -86,7 +86,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Mettre à jour une agence
     updateAgency: builder.mutation({
       query: ({ id, ...agencyData }) => ({
-        url: `/v1/agency/${id}`,
+        url: `/agencies/${id}`,
         method: 'PUT',
         body: agencyData
       }),
@@ -96,7 +96,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Mettre à jour le statut d'une agence
     updateAgencyStatus: builder.mutation({
       query: ({ id, status }) => ({
-        url: `/v1/agency/${id}/status`,
+        url: `/agencies/${id}/status`,
         method: 'PATCH',
         body: { status }
       }),
@@ -105,7 +105,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     
     // Récupérer les commissions d'une agence
     getAgencyCommissions: builder.query({
-      query: (id) => `/v1/agency/${id}/commission`,
+      query: (id) => `/agencies/${id}/commission`,
       transformResponse: (response) => {
         return response.data;
       },
@@ -114,7 +114,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     
     // Récupérer les demandes de retrait d'une agence
     getAgencyWithdrawalRequests: builder.query({
-      query: (id) => `/v1/agency/${id}/withdrawal-requests`,
+      query: (id) => `/agencies/${id}/withdrawal-requests`,
       transformResponse: (response) => {
         return response.data;
       },
@@ -124,7 +124,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Créer une demande de retrait pour une agence
     createWithdrawalRequest: builder.mutation({
       query: ({ id, ...requestData }) => ({
-        url: `/v1/agency/${id}/withdrawal-request`,
+        url: `/agencies/${id}/withdrawal-request`,
         method: 'POST',
         body: requestData
       }),
@@ -137,7 +137,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Mettre à jour une demande de retrait
     updateWithdrawalRequest: builder.mutation({
       query: ({ requestId, ...requestData }) => ({
-        url: `/v1/agency/withdrawal-request/${requestId}`,
+        url: `/agencies/withdrawal-request/${requestId}`,
         method: 'PATCH',
         body: requestData
       }),
@@ -146,17 +146,14 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     
     // Récupérer l'inventaire des cartes SIM d'une agence
     getAgencySimCards: builder.query({
-      query: (id) => `/v1/agency/${id}/sim-cards`,
-      transformResponse: (response) => {
-        return response.data;
-      },
+      query: (id) => `/agencies/${id}/sim_cards`,
       providesTags: (result, error, id) => [{ type: 'SimCards', id }]
     }),
     
     // Créer une commande de carte SIM pour une agence
     createSimCardOrder: builder.mutation({
       query: ({ id, ...orderData }) => ({
-        url: `/v1/agency/${id}/sim-card-order`,
+        url: `/sim-card-orders`,
         method: 'POST',
         body: orderData
       }),
@@ -166,7 +163,7 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Déclarer la réception d'une carte SIM
     receiveSimCard: builder.mutation({
       query: ({ id, ...receptionData }) => ({
-        url: `/v1/agency/${id}/sim-card-reception`,
+        url: `/sim-card-receipt`,
         method: 'POST',
         body: receptionData
       }),

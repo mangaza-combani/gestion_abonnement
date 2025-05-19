@@ -56,6 +56,12 @@ export const authApiSlice = apiSlice.injectEndpoints({
         },
       }),
     }),
+    whoIAm: builder.query({
+      query: () => ({
+        url: "/auth/who-i-am",
+        method: "GET",
+      })
+    }),
     register: builder.mutation({
       query: (userData) => ({
         url: '/auth/register',
@@ -118,6 +124,7 @@ export const {
   useLoginMutation,
   useRegisterMutation,
   useLogoutMutation,
+  useWhoIAmQuery,
   useForgotPasswordEmailMutation,
   useForgotPasswordSmsMutation,
   useVerifyCodeMutation,

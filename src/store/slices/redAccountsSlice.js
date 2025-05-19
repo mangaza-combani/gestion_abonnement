@@ -53,7 +53,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Récupérer tous les comptes RED
     getRedAccounts: builder.query({
-      query: () => '/v1/red-accounts',
+      query: () => '/red-accounts',
       providesTags: (result) => 
         result 
           ? [
@@ -65,7 +65,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     
     // Récupérer les comptes RED par agence
     getRedAccountsByAgency: builder.query({
-      query: (agencyId) => `/v1/agencies/${agencyId}/red-accounts`,
+      query: (agencyId) => `/agencies/${agencyId}/red-accounts`,
       providesTags: (result, error, agencyId) => 
         result 
           ? [
@@ -77,24 +77,24 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     
     // Récupérer un compte RED par ID
     getRedAccountById: builder.query({
-      query: (id) => `/v1/red-accounts/${id}`,
+      query: (id) => `/red-accounts/${id}`,
       providesTags: (result, error, id) => [{ type: 'RedAccount', id }]
     }),
     
     // Créer un nouveau compte RED
     createRedAccount: builder.mutation({
       query: (accountData) => ({
-        url: '/v1/red-accounts',
+        url: '/red-accounts',
         method: 'POST',
         body: accountData
       }),
-      invalidatesTags: [{ type: '/v1/RedAccount', id: 'LIST' }]
+      invalidatesTags: [{ type: '/RedAccount', id: 'LIST' }]
     }),
     
     // Créer une nouvelle ligne sur un compte
     createLine: builder.mutation({
       query: ({ accountId, lineData }) => ({
-        url: `/v1/red-accounts/${accountId}/lines`,
+        url: `/red-accounts/${accountId}/lines`,
         method: 'POST',
         body: lineData
       }),
@@ -106,7 +106,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     // Changer le statut d'une ligne
     changeLineStatus: builder.mutation({
       query: ({ accountId, lineId, status }) => ({
-        url: `/v1/red-accounts/${accountId}/lines/${lineId}/status`,
+        url: `/red-accounts/${accountId}/lines/${lineId}/status`,
         method: 'PATCH',
         body: { status }
       }),
@@ -118,7 +118,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     // Attribuer une ligne à un client
     assignLine: builder.mutation({
       query: ({ accountId, lineId, clientId, simCardId }) => ({
-        url: `/v1/red-accounts/${accountId}/lines/${lineId}/assign`,
+        url: `/red-accounts/${accountId}/lines/${lineId}/assign`,
         method: 'POST',
         body: { clientId, simCardId }
       }),
@@ -131,7 +131,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     // Résilier une ligne
     terminateLine: builder.mutation({
       query: ({ accountId, lineId, reason }) => ({
-        url: `/v1/red-accounts/${accountId}/lines/${lineId}/terminate`,
+        url: `/red-accounts/${accountId}/lines/${lineId}/terminate`,
         method: 'POST',
         body: { reason }
       }),
@@ -143,7 +143,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     // Commander une carte SIM pour une ligne
     orderSimCard: builder.mutation({
       query: ({ accountId, lineId, clientId }) => ({
-        url: `/v1/red-accounts/${accountId}/lines/${lineId}/order-sim`,
+        url: `/red-accounts/${accountId}/lines/${lineId}/order-sim`,
         method: 'POST',
         body: { clientId }
       }),

@@ -5,19 +5,19 @@ import { apiSlice } from '../api/apiSlice';
 export const clientsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getClients: builder.query({
-      query: (params) => ({
-        url: '/clients',
-        params,
+      query: (id) => ({
+        url: `/agencies/${id}/users`,
       }),
       providesTags: ['Client'],
+      invalidatesTags: (result, error, id) => [{ type: 'Client', id }],
     }),
     getClientById: builder.query({
-      query: (id) => `/clients/${id}`,
+      query: (id) => `/auth/get-user/${id}`,
       providesTags: (result, error, id) => [{ type: 'Client', id }],
     }),
     createClient: builder.mutation({
       query: (client) => ({
-        url: '/clients',
+        url: '/auth/register',
         method: 'POST',
         body: client,
       }),
@@ -25,7 +25,7 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
     }),
     updateClient: builder.mutation({
       query: ({ id, ...patch }) => ({
-        url: `/clients/${id}`,
+        url: `/auth/user/${id}`,
         method: 'PATCH',
         body: patch,
       }),

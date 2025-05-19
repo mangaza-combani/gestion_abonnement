@@ -33,13 +33,18 @@ import StatCard from '../../components/common/StatCard';
 import ClientSearch from '../../components/common/ClientSearch';
 import StatusOverview from '../../components/common/StatusOverview';
 import NewClientDialog from '../../components/common/NewClientDialog';
+import { useGetClientsQuery } from "../../store/slices/clientsSlice";
+import { useWhoIAmQuery } from "../../store/slices/authSlice";
+import {useGetAgencySimCardsQuery} from "../../store/slices/agencySlice";
 
 const AgencyDashboard = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [error, setError] = useState('');
-  
+  const connectedUser = useWhoIAmQuery();
+  const client =  useGetClientsQuery(connectedUser?.currentData?.user?.agencyId);
+  const agencySimCardStock = useGetAgencySimCardsQuery(connectedUser?.currentData?.user?.agencyId)
   // États pour le modal de création de client
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
 //States for payment modal
@@ -57,7 +62,7 @@ const AgencyDashboard = () => {
   };
 
   const handlePaymentSubmit = () => {
-    if (!paymentAmount || isNaN(paymentAmount) || paymentAmount <= 0) {
+    if (!paymentAmount || isNaN(parseInt(paymentAmount)) || paymentAmount <= 0) {
       setError('Veuillez entrer un montant valide');
       return;
     }
@@ -82,7 +87,7 @@ const AgencyDashboard = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Nombre de Clients"
-            value={mockData.stats.totalClients}
+            value={client?.currentData?.users?.length || "Chargement..."}
             icon={<People />}
             color="primary"
           />
@@ -90,7 +95,7 @@ const AgencyDashboard = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Stock Cartes SIM"
-            value={mockData.stats.simStock}
+            value={agencySimCardStock?.currentData?.sim_cards?.length}
             icon={<SimCard />}
             color="warning"
           />
