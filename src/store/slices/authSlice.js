@@ -60,7 +60,9 @@ export const authApiSlice = apiSlice.injectEndpoints({
       query: () => ({
         url: "/auth/who-i-am",
         method: "GET",
-      })
+      }),
+      providesTags: ['User'],
+      invalidatesTags: ['User'],
     }),
     register: builder.mutation({
       query: (userData) => ({

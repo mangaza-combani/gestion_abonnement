@@ -16,12 +16,20 @@ export const sim_cardsApiSlice = apiSlice.injectEndpoints({
                         providesTags: (result, error, id) => [{ type: 'SimCard', id }],
                 }),
                 createSimCard: builder.mutation({
-                        query: (client) => ({
-                                url: '/auth/register',
+                        query: (simCardData) => ({
+                                url: '/sim-card',
                                 method: 'POST',
-                                body: client,
+                                body: simCardData
                         }),
-                        invalidatesTags: ['SimCard'],
+                        invalidatesTags: ['SimCardsOrders', 'SimCardsReceipt', 'SimCards']
+                }),
+                connectSimCardToOrder: builder.mutation({
+                        query: ({ id, ...orderData }) => ({
+                                url: `/sim-card-orders/connect/${id}`,
+                                method: 'POST',
+                                body: orderData
+                        }),
+                        invalidatesTags: ['SimCardsOrders', 'SimCardsReceipt', 'SimCards']
                 }),
                 updateSimCard: builder.mutation({
                         query: ({ id, ...patch }) => ({
@@ -39,6 +47,7 @@ export const {
         useGetSimCardByIdQuery,
         useCreateSimCardMutation,
         useUpdateSimCardMutation,
+        useConnectSimCardToOrderMutation,
 } = sim_cardsApiSlice;
 
 // Slice Redux pour la gestion d'état locale des sim_cards

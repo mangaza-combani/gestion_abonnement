@@ -25,6 +25,10 @@ import Settings from './pages/settings/Settings';
 import CommissionWithdrawal from './pages/agency/CommissionWithdrawal';
 import AccountResign from './pages/supervisor/AccountResign';
 import UsersManagement from './pages/supervisor/UsersManagement';
+import dayjs from 'dayjs';
+import 'dayjs/locale/fr';
+
+dayjs.locale('fr'); // Set the locale to French
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);

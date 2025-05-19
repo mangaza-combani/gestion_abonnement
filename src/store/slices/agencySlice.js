@@ -149,6 +149,17 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
       query: (id) => `/agencies/${id}/sim_cards`,
       providesTags: (result, error, id) => [{ type: 'SimCards', id }]
     }),
+    // Récupérer l'inventaire des cartes SIM d'une agence
+    getAgencySimCardsOrder: builder.query({
+      query: (id) => `/sim-card-orders`,
+      providesTags: (result, error, id) => [{ type: 'SimCardsOrders', id }]
+    }),
+
+    // Récupérer l'inventaire des cartes SIM d'une agence
+    getAgencySimCardsReceipt: builder.query({
+      query: (id) => `/sim-card-receipt`,
+      providesTags: (result, error, id) => [{ type: 'SimCardsReceipt', id }]
+    }),
     
     // Créer une commande de carte SIM pour une agence
     createSimCardOrder: builder.mutation({
@@ -158,6 +169,15 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
         body: orderData
       }),
       invalidatesTags: (result, error, { id }) => [{ type: 'SimCards', id }]
+    }),
+
+    createSimCard: builder.mutation({
+        query: (simCardData) => ({
+            url: '/sim-card',
+            method: 'POST',
+            body: simCardData
+        }),
+        invalidatesTags: ['SimCards']
     }),
     
     // Déclarer la réception d'une carte SIM
@@ -178,12 +198,15 @@ export const {
   useGetAgencyByIdQuery,
   useCreateAgencyMutation,
   useUpdateAgencyMutation,
+    useCreateSimCardMutation,
   useUpdateAgencyStatusMutation,
   useGetAgencyCommissionsQuery,
   useGetAgencyWithdrawalRequestsQuery,
   useCreateWithdrawalRequestMutation,
   useUpdateWithdrawalRequestMutation,
   useGetAgencySimCardsQuery,
+    useGetAgencySimCardsOrderQuery,
+    useGetAgencySimCardsReceiptQuery,
   useCreateSimCardOrderMutation,
   useReceiveSimCardMutation
 } = agencyApiSlice;

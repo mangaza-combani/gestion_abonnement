@@ -30,6 +30,16 @@ import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import {useWhoIAmQuery} from "../../store/slices/authSlice";
+import {useGetClientsQuery} from "../../store/slices/clientsSlice";
+import {
+  useGetAgencySimCardsOrderQuery,
+  useGetAgencySimCardsQuery,
+  useGetAgencySimCardsReceiptQuery
+} from "../../store/slices/agencySlice";
+import {useReceiveSimCardMutation} from "../../store/slices/agencySlice";
+import dayjs from "dayjs";
+import {useCreateSimCardMutation} from "../../store/slices/simCardsSlice";
 
 const SimCardManagement = () => {
   // États
@@ -39,9 +49,17 @@ const SimCardManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [newICCID, setNewICCID] = useState('');
+  const [createSimCard] = useCreateSimCardMutation();
+  const [receiveSimCard] = useReceiveSimCardMutation();
+
+  const connectedUser = useWhoIAmQuery();
+  const client =  useGetClientsQuery(connectedUser?.currentData?.user?.agencyId);
+  const agencySimCardStock = useGetAgencySimCardsQuery(connectedUser?.currentData?.user?.agencyId)
+  const agencySimCardOrder = useGetAgencySimCardsOrderQuery(connectedUser?.currentData?.user?.agencyId)
+  const agencySimCardReceipt = useGetAgencySimCardsReceiptQuery(connectedUser?.currentData?.user?.agencyId)
 
   // Données mockées
-  const simOrders = [
+  const simOrders = agencySimCardOrder?.currentData?.data || [
     {
       id: 1,
       orderDate: '2024-02-01',
@@ -58,23 +76,51 @@ const SimCardManagement = () => {
     }
   ];
 
-  const simCards = [
-    { id: 1, iccid: '8933150319xxxx', status: 'active', receivedDate: '2024-01-15', assignedTo: 'Client A' },
-    { id: 2, iccid: '8933150319yyyy', status: 'stock', receivedDate: '2024-02-01', orderRef: 1 },
-    { id: 3, iccid: '8933150319zzzz', status: 'lost', receivedDate: '2024-01-10', reportDate: '2024-02-05' }
+  const simCards = agencySimCardStock?.currentData?.sim_cards || [
+    { id: 1, iccid: '8933150319xxxx', status: 'IN_USE', receivedDate: '2024-01-15', assignedTo: 'Client A' },
+    { id: 2, iccid: '8933150319yyyy', status: 'IN_STOCK', receivedDate: '2024-02-01', orderRef: 1 },
+    { id: 3, iccid: '8933150319zzzz', status: 'BLOCKED', receivedDate: '2024-01-10', reportDate: '2024-02-05' }
   ];
 
   // Statistiques
   const stats = {
     total: simCards.length,
-    active: simCards.filter(sim => sim.status === 'active').length,
-    stock: simCards.filter(sim => sim.status === 'stock').length,
-    lost: simCards.filter(sim => sim.status === 'lost').length,
-    ordered: simOrders.reduce((acc, order) => acc + (order.quantity - order.receivedQuantity), 0)
+    active: simCards.filter(sim => sim.status === 'IN_USE').length,
+    stock: simCards.filter(sim => sim.status === 'IN_STOCK').length,
+    lost: simCards.filter(sim => sim.status === 'BLOCKED').length,
+    inactive: simCards.filter(sim => sim.status === 'INACTIVE').length,
+    ordered: simOrders.reduce((acc, order) => acc + (order.quantity - order.quantityReceived), 0)
   };
 
   // Gestionnaires d'événements
-  const handleReceiveSubmit = () => {
+  const handleReceiveSubmit = async () => {
+
+    if (!selectedOrder || !newICCID || !selectedOrder.id) {
+      console.error("Invalid order or ICCID", {
+        selectedOrder,
+        newICCID
+      });
+      return;
+    }
+
+    const receiveNewSimCardDate = await receiveSimCard({
+        sim_card_order_id: selectedOrder?.id,
+        quantity: 1,
+        received_date: dayjs().format('YYYY-MM-DD'),
+    })
+
+    const newSimCard = await createSimCard({
+      iccid: newICCID,
+      status: "IN_STOCK",
+      simCardReceiptId: receiveNewSimCardDate?.data?.simCardReceipt?.id,
+      simCardOrderId: selectedOrder?.id,
+      agencyId: connectedUser?.currentData?.user?.agencyId,
+    })
+
+
+    console.log("receiveNewSimCard", receiveNewSimCardDate)
+    console.log("newSimCard", newSimCard)
+
     setShowReceiveModal(false);
     setShowConfirmModal(false);
     setSelectedOrder(null);
@@ -200,28 +246,28 @@ const SimCardManagement = () => {
               Tous
             </Button>
             <Button
-              variant={filterStatus === 'active' ? 'contained' : 'outlined'}
+              variant={filterStatus === 'IN_USE' ? 'contained' : 'outlined'}
               size="small"
               color="success"
-              onClick={() => setFilterStatus('active')}
+              onClick={() => setFilterStatus('IN_USE')}
               startIcon={<PhoneAndroidIcon />}
             >
               Actives
             </Button>
             <Button
-              variant={filterStatus === 'stock' ? 'contained' : 'outlined'}
+              variant={filterStatus === 'IN_STOCK' ? 'contained' : 'outlined'}
               size="small"
               color="warning"
-              onClick={() => setFilterStatus('stock')}
+              onClick={() => setFilterStatus('IN_STOCK')}
               startIcon={<InventoryIcon />}
             >
               En Stock
             </Button>
             <Button
-              variant={filterStatus === 'lost' ? 'contained' : 'outlined'}
+              variant={filterStatus === 'BLOCKED' ? 'contained' : 'outlined'}
               size="small"
               color="error"
-              onClick={() => setFilterStatus('lost')}
+              onClick={() => setFilterStatus('BLOCKED')}
               startIcon={<ErrorOutlineIcon />}
             >
               Perdues/Volées
@@ -236,9 +282,8 @@ const SimCardManagement = () => {
           <Typography variant="h6">Commandes en cours</Typography>
         </Box>
         <Box sx={{ p: 2 }}>
-          {simOrders
-            .filter(order => order.receivedQuantity < order.quantity)
-            .map(order => (
+          {simOrders?.filter(order => order.quantityReceived < order.quantity)
+            ?.map(order => (
               <Box 
                 key={order.id} 
                 sx={{ 
@@ -257,12 +302,12 @@ const SimCardManagement = () => {
                     Commande #{order.id}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Commandé par: {order.orderedBy} le {order.orderDate}
+                    Commandé par: {order.orderedBy.firstname + ' ' + order.orderedBy.lastname} le {dayjs(order.orderDate).format("dddd D MMMM YYYY")}
                   </Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="body2" color="text.secondary">
-                    Reçues: {order.receivedQuantity}/{order.quantity}
+                    Reçues: {order.quantityReceived || 0}/{order.quantity}
                   </Typography>
                   <Button
                     size="small"
@@ -296,29 +341,33 @@ const SimCardManagement = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredSims.map((sim) => (
+              {filteredSims?.map((sim) => (
                 <TableRow key={sim.id} hover>
                   <TableCell>{sim.iccid}</TableCell>
                   <TableCell>
                     <Chip
                       label={
-                        sim.status === 'active' ? 'Active' :
-                        sim.status === 'stock' ? 'En Stock' :
-                        'Perdue/Volée'
+                        sim.status === 'IN_USE' ? 'Active' :
+                        sim.status === 'INACTIVE' ? 'Inactive' :
+                        sim.status === 'BLOCKED' ? 'Bloqué / Volé / Perdu' :
+                        sim.status === 'IN_STOCK' ? 'En Stock' :
+                        'Inconnu'
                       }
                       color={
-                        sim.status === 'active' ? 'success' :
-                        sim.status === 'stock' ? 'warning' :
-                        'error'
+                        sim.status === 'IN_USE' ? 'success' :
+                        sim.status === 'IN_STOCK' ? 'warning' :
+                        sim.status === 'BLOCKED' ? 'error' :
+                        sim.status === 'INACTIVE' ? 'default' :
+                        'default'
                       }
                       size="small"
                     />
                   </TableCell>
-                  <TableCell>{sim.receivedDate}</TableCell>
+                  <TableCell>{dayjs(sim.createdAt).format('dddd D MMMM YYYY')}</TableCell>
                   <TableCell>
-                    {sim.assignedTo && `Assignée à: ${sim.assignedTo}`}
-                    {sim.reportDate && `Date de déclaration: ${sim.reportDate}`}
-                    {sim.orderRef && `Commande #${sim.orderRef}`}
+                    {sim.orderedBy && `Assignée à: ${sim.orderedBy.firstname} ${sim.orderedBy.lastname}`}
+                    {sim.reportDate && `Date de déclaration: ${dayjs(sim.reportDate).format('dddd D MMMM YYYY')}`}
+                    {sim.id && `N° De Reçu #${sim.simCardReceiptId}`}
                   </TableCell>
                 </TableRow>
               ))}
@@ -336,7 +385,7 @@ const SimCardManagement = () => {
       >
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            Déclarer une réception de carte SIM
+            Déclarer une réception d'une carte SIM
             <IconButton 
               edge="end" 
               color="inherit" 
@@ -357,7 +406,7 @@ const SimCardManagement = () => {
               fullWidth
               value={selectedOrder?.id || ''}
               onChange={(e) => {
-                const order = simOrders.find(o => o.id === Number(e.target.value));
+                const order = simOrders?.find(o => o.id === Number(e.target.value));
                 setSelectedOrder(order);
               }}
               size="small"
@@ -365,10 +414,10 @@ const SimCardManagement = () => {
             >
               <MenuItem value="">Sélectionnez une commande</MenuItem>
               {simOrders
-                .filter(order => order.receivedQuantity < order.quantity)
-                .map(order => (
+                ?.filter(order => (order.quantityReceived || 0) < order.quantity)
+                ?.map(order => (
                   <MenuItem key={order.id} value={order.id}>
-                    Commande #{order.id} - {order.orderedBy} ({order.receivedQuantity}/{order.quantity})
+                    Commande #{order.id} - {order.orderedBy.firstname + ' ' + order.orderedBy.lastname} ({order.quantityReceived || 0}/{order.quantity})
                   </MenuItem>
                 ))}
             </TextField>
@@ -392,13 +441,13 @@ const SimCardManagement = () => {
                 </Typography>
                 <Stack spacing={1}>
                   <Typography variant="body2">
-                    • Commandé par: {selectedOrder.orderedBy}
+                    • Commandé par: {selectedOrder.orderedBy.firstname + ' ' + selectedOrder.orderedBy.lastname}
                   </Typography>
                   <Typography variant="body2">
-                    • Date de commande: {selectedOrder.orderDate}
+                    • Date de commande: {dayjs(selectedOrder.orderDate).format('dddd D MMMM YYYY')}
                   </Typography>
                   <Typography variant="body2">
-                    • Cartes reçues: {selectedOrder.receivedQuantity} sur {selectedOrder.quantity}
+                    • Cartes reçues: {selectedOrder.quantityReceived || 0} sur {selectedOrder.quantity}
                   </Typography>
                 </Stack>
               </Box>
@@ -443,10 +492,10 @@ const SimCardManagement = () => {
                 • Sera associée à la commande #{selectedOrder?.id}
               </Typography>
               <Typography color="text.secondary" gutterBottom>
-                • Commandée par : {selectedOrder?.orderedBy}
+                • Commandée par : {selectedOrder?.orderedBy.firstname + " " + selectedOrder?.orderedBy.lastname}
               </Typography>
               <Typography color="text.secondary">
-                • Cette carte sera la {selectedOrder?.receivedQuantity + 1}e carte reçue sur {selectedOrder?.quantity}
+                • Cette carte sera la {parseInt(selectedOrder?.quantityReceived + 1)} carte{selectedOrder?.quantityReceived + 1 > 1 ? "s" : ""} reçue sur {selectedOrder?.quantity} carte{selectedOrder?.quantity > 1 ? "s" : ""} commandée{selectedOrder?.quantity > 1 ? "s" : ""} commandé.
               </Typography>
             </Box>
           </Box>
