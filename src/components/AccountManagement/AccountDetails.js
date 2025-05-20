@@ -49,7 +49,8 @@ import {
   PAYMENT_STATUSES, 
   UNASSIGNED_LINE_DISPLAY,
   CLIENT_TYPES
-} from '../../components/AccountManagement/accountConstants';
+} from './accountConstants';
+import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
 
 // Composant pour afficher le statut de la ligne avec la couleur appropriée
 const LineStatusChip = ({ status }) => {
@@ -236,7 +237,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   const [tab, setTab] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showExpiredLines, setShowExpiredLines] = useState(false);
-  console.log(account);
+  const agencies = useGetAgenciesQuery();
 
   if (!account) return null;
 
@@ -277,6 +278,8 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   const getInitial = (login) => {
     return login ? login.charAt(0).toUpperCase() : '?';
   };
+
+        console.log(agencies)
 
   return (
     <Card 
@@ -415,7 +418,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AccountCircleIcon color="primary" fontSize="small" />
-                        <Typography variant="body1" fontWeight="medium">{account.login ? account.login : ''}</Typography>
+                        <Typography variant="body1" fontSize={'small'} fontWeight="medium">{account.redAccountId ? account.redAccountId : ''}</Typography>
                       </Box>
                     </Box>
                     
@@ -427,7 +430,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <EmailIcon color="primary" fontSize="small" />
-                        <Typography variant="body1" fontWeight="medium">{account.email ? account.email : ""}</Typography>
+                        <Typography variant="body1" fontSize={'small'} fontWeight="medium">{account.redAccountId ? account.redAccountId : ""}</Typography>
                       </Box>
                     </Box>
                     
@@ -477,7 +480,15 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <BusinessIcon color="primary" fontSize="small" />
-                      <Typography variant="body1" fontWeight="medium">{account.agency?.name ? account.agency.name : ""}</Typography>
+                      <Typography variant="body1" fontWeight="medium">
+                              {
+                                      agencies?.currentData?.map((agency) => {
+                                        if (agency.id === parseInt(account.agencyId)) {
+                                          return agency.name;
+                                        }
+                                      })
+                              }
+                      </Typography>
                     </Box>
                   </Box>
                   
@@ -492,7 +503,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       <StatItem 
                         icon={<PhoneIcon />} 
                         label="Total des lignes actives" 
-                        value={stats.active} 
+                        value={account?.activeLines}
                         color="success"
                       />
                     </Grid>
@@ -500,7 +511,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       <StatItem 
                         icon={<SwapHorizIcon />} 
                         label="Non attribuées" 
-                        value={stats.unassigned} 
+                        value={account?.maxLines - account?.activeLines}
                         color="info"
                       />
                     </Grid>
@@ -512,12 +523,12 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                         color="error"
                       />
                     </Grid>
-                    {stats.terminatedForNonpayment > 0 && (
+                    {stats?.terminatedForNonpayment > 0 && (
                       <Grid item xs={12}>
                         <StatItem 
                           icon={<WarningIcon />} 
                           label="Impayés" 
-                          value={stats.terminatedForNonpayment} 
+                          value={stats?.terminatedForNonpayment}
                           color="warning"
                         />
                       </Grid>
@@ -552,7 +563,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2" color="text.secondary">
-                    {filteredLines.length} ligne(s) sur 5 maximum
+                          {account.activeLines} ligne(s) sur {account.maxLines} maximum
                   </Typography>
                   
                   {stats.expiredTerminations > 0 && (

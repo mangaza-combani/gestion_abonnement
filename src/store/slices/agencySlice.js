@@ -58,18 +58,12 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     // Récupérer toutes les agences
     getAgencies: builder.query({
       query: () => '/agencies',
-      transformResponse: (response) => {
-        return response.data;
-      },
       providesTags: ['Agencies']
     }),
     
     // Récupérer une agence par ID
     getAgencyById: builder.query({
       query: (id) => `/agencies/${id}`,
-      transformResponse: (response) => {
-        return response.data;
-      },
       providesTags: (result, error, id) => [{ type: 'Agencies', id }]
     }),
     

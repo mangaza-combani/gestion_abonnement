@@ -56,7 +56,6 @@ const ModernAccountManagement = () => {
     isError,
     error
   } = useGetRedAccountsQuery();
-
   // Get selected account from Redux state
   const selectedAccount = useSelector(selectSelectedAccount);
 
@@ -73,7 +72,7 @@ const ModernAccountManagement = () => {
   }, [isError, error]);
 
   // Filtrer les comptes en fonction des critères de recherche
-  const filteredAccounts = accounts.filter(account => {
+  const filteredAccounts = accounts?.redAccounts?.filter(account => {
     const matchesSearch = !searchTerm ? true : 
       account.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       account.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -191,7 +190,7 @@ const ModernAccountManagement = () => {
   };
 
   // Calculer les statistiques totales des lignes
-  const totalLines = accounts.reduce((acc, curr) => acc + (curr.lines?.length || 0), 0);
+  const totalLines = accounts?.redAccounts?.reduce((acc, curr) => acc + (curr.lines?.length || 0), 0);
 
   return (
     <Box sx={{ 
@@ -267,7 +266,7 @@ const ModernAccountManagement = () => {
               <AccountSearch 
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
-                resultCount={filteredAccounts.length}
+                resultCount={filteredAccounts?.length || 0}
                 selectedAgency={selectedAgency}
                 onAgencyChange={setSelectedAgency}
                 agencies={mockAgencies}

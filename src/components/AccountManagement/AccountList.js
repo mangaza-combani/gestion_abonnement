@@ -76,7 +76,7 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {accounts.length === 0 ? (
+            {accounts?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                   <Typography variant="body2" color="text.secondary">
@@ -86,10 +86,10 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
               </TableRow>
             ) : (
               accounts.map((account) => (
-                <Fade key={account.id} in={true} timeout={300}>
+                <Fade key={account?.id} in={true} timeout={300}>
                   <TableRow
                     hover
-                    selected={selectedAccount?.id === account.id}
+                    selected={selectedAccount?.id === account?.id}
                     onClick={() => onAccountSelect(account)}
                     sx={{ 
                       cursor: 'pointer',
@@ -103,8 +103,8 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
                     }}
                   >
                     <TableCell>
-                      <Typography variant="body2" fontWeight={selectedAccount?.id === account.id ? 'bold' : 'regular'}>
-                        {account.redId || ''}
+                      <Typography variant="body2" fontWeight={selectedAccount?.id === account?.id ? 'bold' : 'regular'}>
+                        {account.redAccountId || ''}
                       </Typography>
                     </TableCell>
 
@@ -115,8 +115,8 @@ const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <HomeIcon fontSize="small" color="action" />
                         <Typography variant="body2">
-                          {typeof account.agency === 'string' ? account.agency.name : (
-                            account.agency.name || ''
+                          {typeof account?.agency === 'string' ? account?.agency?.name : (
+                            account?.agency?.name || ''
                           )}
                         </Typography>
                       </Box>

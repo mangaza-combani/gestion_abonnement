@@ -167,12 +167,12 @@ const AgenciesManagement = () => {
   const handleOpenEditModal = () => {
     if (selectedAgency) {
       setFormData({
-        name: selectedAgency.name,
-        email: selectedAgency.email || '',
-        phone: selectedAgency.phone || '',
-        address: selectedAgency.address || '',
-        commissionRate: selectedAgency.commissionRate || 15.8,
-        subscriptionPrice: selectedAgency.subscriptionPrice || 19
+        name: selectedAgency?.agency.name,
+        email: selectedAgency?.agency.email || '',
+        phone: selectedAgency?.agency.phone || '',
+        address: selectedAgency?.agency.address || '',
+        commissionRate: selectedAgency?.agency.commissionRate || 15.8,
+        subscriptionPrice: selectedAgency?.agency.subscriptionPrice || 19
       });
       setEditModalOpen(true);
     }
@@ -194,7 +194,12 @@ const AgenciesManagement = () => {
 
   const handleCreateAgency = async () => {
     try {
-      const result = await createAgency(formData).unwrap();
+      const result = await createAgency({
+        ...formData,
+        status: 'ACTIVE',
+        tax_rate: "3.00",
+        manager: "WEZO"
+      }).unwrap();
       setCreateModalOpen(false);
       setNotification({
         open: true,
@@ -216,8 +221,11 @@ const AgenciesManagement = () => {
     
     try {
       const result = await updateAgency({ 
-        id: selectedAgency.id, 
-        ...formData 
+        id: selectedAgency?.agency?.id,
+        ...formData,
+        status: 'ACTIVE',
+        tax_rate: "3.00",
+        manager: "WEZO"
       }).unwrap();
       
       setEditModalOpen(false);
@@ -341,7 +349,7 @@ const AgenciesManagement = () => {
             
             <IconButton
               onClick={() => handleStatusFilterChange('active')}
-              color={filters.status === 'active' ? 'success' : 'default'}
+              color={filters.status === 'ACTIVE' ? 'success' : 'default'}
               size="small"
               title="Agences actives"
             >
@@ -350,9 +358,18 @@ const AgenciesManagement = () => {
             
             <IconButton
               onClick={() => handleStatusFilterChange('inactive')}
-              color={filters.status === 'inactive' ? 'warning' : 'default'}
+              color={filters.status === 'INACTIVE' ? 'warning' : 'default'}
               size="small"
               title="Agences inactives"
+            >
+              <BlockIcon />
+            </IconButton>
+
+            <IconButton
+                onClick={() => handleStatusFilterChange('inactive')}
+                color={filters.status === 'SUSPENDED' ? 'error' : 'default'}
+                size="small"
+                title="Suspendre l'agence"
             >
               <BlockIcon />
             </IconButton>
@@ -399,7 +416,7 @@ const AgenciesManagement = () => {
                       )}
                     </Box>
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>VILLE</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>MANAGER</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>STATUT</TableCell>
                 </TableRow>
               </TableHead>
@@ -411,15 +428,15 @@ const AgenciesManagement = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredAgencies.map((agency) => (
+                  filteredAgencies?.map((agency) => (
                     <TableRow 
                       key={agency.id} 
                       hover
-                      selected={selectedAgency && agency.id === selectedAgency.id}
+                      selected={selectedAgency && agency?.id == selectedAgency?.agency?.id}
                       onClick={() => handleAgencySelect(agency)}
                       sx={{ 
                         cursor: 'pointer',
-                        bgcolor: selectedAgency && agency.id === selectedAgency.id ? 'rgba(25, 118, 210, 0.08)' : 'inherit',
+                        bgcolor: selectedAgency && agency.id === selectedAgency?.agency?.id ? 'rgba(25, 118, 210, 0.08)' : 'inherit',
                         '&:hover': {
                           bgcolor: 'rgba(25, 118, 210, 0.04)'
                         },
@@ -429,12 +446,12 @@ const AgenciesManagement = () => {
                       }}
                     >
                       <TableCell>{agency.name}</TableCell>
-                      <TableCell>{agency.email}</TableCell>
+                      <TableCell>{agency.manager}</TableCell>
                       <TableCell>
                         <Chip 
                           size="small"
-                          label={agency.status === 'active' ? 'Actif' : 'Inactif'}
-                          color={agency.status === 'active' ? 'success' : 'default'}
+                          label={agency.status === 'ACTIVE' ? 'Actif' : 'Inactif'}
+                          color={agency.status === 'ACTIVE' ? 'success' : 'default'}
                         />
                       </TableCell>
                     </TableRow>
@@ -458,7 +475,7 @@ const AgenciesManagement = () => {
                 <Card sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: 1, overflow: 'hidden' }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="h6">{selectedAgency.name}</Typography>
+                      <Typography variant="h6">{selectedAgency?.agency?.name}</Typography>
                       <Box>
                         <IconButton 
                           sx={{ 
@@ -520,7 +537,7 @@ const AgenciesManagement = () => {
                 <Card sx={{ borderRadius: 1, overflow: 'hidden' }}>
                   <CardContent>
                     <Typography variant="h4" color="primary.main" fontWeight="500" gutterBottom>
-                      CA {(selectedAgency.caTotal || 0).toLocaleString('fr-FR')}€
+                      CA {(selectedAgency?.agency?.caTotal || 0).toLocaleString('fr-FR')}€
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={6}>
@@ -528,7 +545,7 @@ const AgenciesManagement = () => {
                           À verser
                         </Typography>
                         <Typography variant="h5" fontWeight="500">
-                          {(selectedAgency.aVerser || 0).toLocaleString('fr-FR')}€
+                          {(selectedAgency?.agency?.aVerser || 0).toLocaleString('fr-FR')}€
                         </Typography>
                       </Grid>
                       <Grid item xs={6}>
@@ -536,7 +553,7 @@ const AgenciesManagement = () => {
                           Commission
                         </Typography>
                         <Typography variant="h5" fontWeight="500">
-                          {(selectedAgency.commission || 0).toLocaleString('fr-FR')}€
+                          {(selectedAgency?.agency?.commission || 0).toLocaleString('fr-FR')}€
                         </Typography>
                       </Grid>
                     </Grid>
@@ -559,7 +576,7 @@ const AgenciesManagement = () => {
                       borderRadius: 1
                     }}>
                       <PlayArrowIcon sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography>PLAY - {selectedAgency.stats?.play || 0} Ligne(s)</Typography>
+                      <Typography>PLAY - {selectedAgency?.agency?.stats?.play || 0} Ligne(s)</Typography>
                     </Box>
                     
                     <Box sx={{ 
@@ -572,7 +589,7 @@ const AgenciesManagement = () => {
                     }}>
                       <WarningIcon sx={{ mr: 1, color: 'error.main' }} />
                       <Typography color="error.main">
-                        DETTE - {selectedAgency.stats?.dette || 0} Ligne(s) - {(selectedAgency.stats?.detteAmount || 0).toLocaleString('fr-FR')}€
+                        DETTE - {selectedAgency?.agency?.stats?.dette || 0} Ligne(s) - {(selectedAgency?.agency?.stats?.detteAmount || 0).toLocaleString('fr-FR')}€
                       </Typography>
                     </Box>
                     
@@ -584,7 +601,7 @@ const AgenciesManagement = () => {
                       borderRadius: 1
                     }}>
                       <BlockIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                      <Typography>RESILIE - {selectedAgency.stats?.resilie || 0} Ligne(s)</Typography>
+                      <Typography>RESILIE - {selectedAgency?.agency?.stats?.resilie || 0} Ligne(s)</Typography>
                     </Box>
                   </CardContent>
                 </Card>
@@ -664,19 +681,19 @@ const AgenciesManagement = () => {
                 <Typography variant="h6" gutterBottom>Informations générales</Typography>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Nom</Typography>
-                  <Typography variant="body1">{selectedAgency.name}</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.name}</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Email</Typography>
-                  <Typography variant="body1">{selectedAgency.email || 'Non spécifié'}</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.email || 'Non spécifié'}</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Téléphone</Typography>
-                  <Typography variant="body1">{selectedAgency.phone || 'Non spécifié'}</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.phone || 'Non spécifié'}</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Adresse</Typography>
-                  <Typography variant="body1">{selectedAgency.address || 'Non spécifiée'}</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency.address || 'Non spécifiée'}</Typography>
                 </Box>
               </Grid>
               
@@ -684,29 +701,29 @@ const AgenciesManagement = () => {
                 <Typography variant="h6" gutterBottom>Paramètres financiers</Typography>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Chiffre d'affaires total</Typography>
-                  <Typography variant="body1">{(selectedAgency.caTotal || 0).toLocaleString('fr-FR')}€</Typography>
+                  <Typography variant="body1">{(selectedAgency?.agency?.caTotal || 0).toLocaleString('fr-FR')}€</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Montant à verser</Typography>
-                  <Typography variant="body1">{(selectedAgency.aVerser || 0).toLocaleString('fr-FR')}€</Typography>
+                  <Typography variant="body1">{(selectedAgency?.agency?.aVerser || 0).toLocaleString('fr-FR')}€</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Commission</Typography>
-                  <Typography variant="body1">{(selectedAgency.commission || 0).toLocaleString('fr-FR')}€</Typography>
+                  <Typography variant="body1">{(selectedAgency?.agency?.commission || 0).toLocaleString('fr-FR')}€</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Taux de commission</Typography>
-                  <Typography variant="body1">{selectedAgency.commissionRate || 15.8}%</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.commissionRate || 15.8}%</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Prix d'abonnement</Typography>
-                  <Typography variant="body1">{selectedAgency.subscriptionPrice || 19}€</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.subscriptionPrice || 19}€</Typography>
                 </Box>
               </Grid>
               
               <Grid item xs={12}>
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="h6" gutterBottom>Clients associés ({selectedAgency.clients?.length || 0})</Typography>
+                <Typography variant="h6" gutterBottom>Clients associés ({selectedAgency?.clients?.length || 0})</Typography>
                 
                 <TableContainer>
                   <Table size="small">
@@ -718,12 +735,12 @@ const AgenciesManagement = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {selectedAgency.clients?.length > 0 ? (
-                        selectedAgency.clients.map(client => (
+                      {selectedAgency?.clients?.length > 0 ? (
+                        selectedAgency?.clients?.map(client => (
                           <TableRow key={client.id}>
-                            <TableCell>{client.name}</TableCell>
+                            <TableCell>{client.firstname + ' ' + client.lastname}</TableCell>
                             <TableCell>{client.email || '-'}</TableCell>
-                            <TableCell>{client.phone || '-'}</TableCell>
+                            <TableCell>{client.phoneNumber || 'N/C'}</TableCell>
                           </TableRow>
                         ))
                       ) : (

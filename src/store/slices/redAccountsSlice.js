@@ -54,10 +54,10 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     // Récupérer tous les comptes RED
     getRedAccounts: builder.query({
       query: () => '/red-accounts',
-      providesTags: (result) => 
+      providesTags: (result) =>
         result 
           ? [
-              ...result.map(({ id }) => ({ type: 'RedAccount', id })),
+              ...result?.redAccounts?.map(({ id }) => ({ type: 'RedAccount', id })),
               { type: 'RedAccount', id: 'LIST' }
             ]
           : [{ type: 'RedAccount', id: 'LIST' }]

@@ -58,7 +58,6 @@ const MainLayout = () => {
 
           //TODO need to be deleted
 
-      { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
       { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
       { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
@@ -109,7 +108,7 @@ const MainLayout = () => {
             {user?.username}
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN" ? 'Superviseur' : 'Agent'}
+            {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN" ? 'Superviseur' : 'Agence'}
           </Typography>
         </Box>
       </Box>

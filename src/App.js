@@ -37,7 +37,7 @@ const ProtectedRoute = ({ children }) => {
 
 const RoleBasedRoute = ({ supervisorComponent, agencyComponent }) => {
   const { role } = useSelector((state) => state.auth);
-  console.log('RoleBasedRoutes', role);
+  console.log('RoleBasedRoutes', (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === "SUPERVISOR") ? supervisorComponent : agencyComponent);
   return (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === "SUPERVISOR") ? supervisorComponent : agencyComponent;
 };
 
