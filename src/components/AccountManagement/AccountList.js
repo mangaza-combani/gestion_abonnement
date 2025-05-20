@@ -48,7 +48,6 @@ const PasswordDisplay = ({ password }) => {
 };
 
 const AccountList = ({ accounts, selectedAccount, onAccountSelect }) => {
-  console.log('AccountList', accounts);
   const theme = useTheme();
   
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import { 
   Box, 
   Card, 
@@ -50,7 +50,7 @@ import {
   UNASSIGNED_LINE_DISPLAY,
   CLIENT_TYPES
 } from './accountConstants';
-import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
+import {useGetAgenciesQuery, useGetAgencyByIdQuery} from "../../store/slices/agencySlice";
 
 // Composant pour afficher le statut de la ligne avec la couleur appropriée
 const LineStatusChip = ({ status }) => {
@@ -237,7 +237,16 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   const [tab, setTab] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showExpiredLines, setShowExpiredLines] = useState(false);
+  const [ca, setCurrentAgency] = useState(null);
+  const [currentAgency, setCurrentAgencyWithPhones] = useState(null);
   const agencies = useGetAgenciesQuery();
+
+        useEffect(() => {
+           if(agencies?.data?.length > 0) {
+                const agency = agencies?.currentData?.find((agency) => agency.id === parseInt(account.agencyId));
+                setCurrentAgency(agency);
+           }
+        }, []);
 
   if (!account) return null;
 
@@ -253,7 +262,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
     }
     
     return (account.lines || []).filter(line => 
-      !(line.status === LINE_STATUSES.TERMINATED && isExpiredTermination(line))
+      !(line?.phoneStatus === LINE_STATUSES.TERMINATED && isExpiredTermination(line))
     );
   };
   
@@ -262,12 +271,12 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   // Statistiques des lignes
   const stats = {
     total: filteredLines.length,
-    active: filteredLines.filter(line => line.status === LINE_STATUSES.ACTIVE).length,
+    active: filteredLines.filter(line => line.phoneStatus === LINE_STATUSES.ACTIVE).length,
     assigned: filteredLines.filter(line => isLineAssigned(line)).length,
     unassigned: filteredLines.filter(line => !isLineAssigned(line)).length,
-    terminated: filteredLines.filter(line => line.status === LINE_STATUSES.TERMINATED).length,
+    terminated: filteredLines.filter(line => line?.phoneStatus === LINE_STATUSES.TERMINATED).length,
     expiredTerminations: (account.lines || []).filter(line => 
-      line.status === LINE_STATUSES.TERMINATED && isExpiredTermination(line)
+      line?.phoneStatus === LINE_STATUSES.TERMINATED && isExpiredTermination(line)
     ).length
   };
   
@@ -278,8 +287,6 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   const getInitial = (login) => {
     return login ? login.charAt(0).toUpperCase() : '?';
   };
-
-        console.log(agencies)
 
   return (
     <Card 
@@ -632,7 +639,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                   </TableHead>
                   <TableBody>
                     {filteredLines.map((line) => {
-                      const isTerminated = line.status === LINE_STATUSES.TERMINATED;
+                      const isTerminated = line?.phoneStatus === LINE_STATUSES.TERMINATED;
                       const isExpired = isExpiredTermination(line);
                       
                       return (
@@ -722,8 +729,8 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                           </TableCell>
                           <TableCell align="center">
                             <LineStatusChip 
-                              status={!isLineAssigned(line) && line.status !== LINE_STATUSES.UNASSIGNED ? 
-                                LINE_STATUSES.UNASSIGNED : line.status} 
+                              status={!isLineAssigned(line) && line?.phoneStatus !== LINE_STATUSES.UNASSIGNED ? 
+                                LINE_STATUSES.UNASSIGNED : line?.phoneStatus} 
                             />
                           </TableCell>
                           <TableCell align="center">
