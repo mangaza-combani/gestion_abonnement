@@ -41,7 +41,7 @@ const MainLayout = () => {
   // Utiliser le hook de déconnexion de RTK Query
   const [logout] = useLogoutMutation();
 
-  const menuItems = role === 'supervisor' 
+  const menuItems = role === 'SUPERVISOR' || role === 'ADMIN' || role === 'SUPER_ADMIN'
     ? [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
         { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
@@ -49,13 +49,21 @@ const MainLayout = () => {
         { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
         { text: 'Paramètres', icon: <Settings />, path: '/settings' },
         { text: 'Utilisateur', icon: <Settings />, path: '/user' },
-
       ]
     : [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
         { text: 'Clients', icon: <People />, path: '/clients' },
         { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
         { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' },
+
+          //TODO need to be deleted
+
+      { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+      { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
+      { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
+      { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
+      { text: 'Paramètres', icon: <Settings />, path: '/settings' },
+      { text: 'Utilisateur', icon: <Settings />, path: '/user' },
       ];
 
   const handleDrawerToggle = () => {
@@ -101,12 +109,12 @@ const MainLayout = () => {
             {user?.username}
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            {role === 'supervisor' ? 'Superviseur' : 'Agent'}
+            {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN" ? 'Superviseur' : 'Agent'}
           </Typography>
         </Box>
       </Box>
       <List>
-        {menuItems.map((item) => (
+        {menuItems?.map((item) => (
           <ListItem
             button
             key={item.text}
@@ -152,7 +160,7 @@ const MainLayout = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            {role === 'supervisor' ? 'Superviseur' : user?.agencyName}
+            {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN" ? 'Superviseur' : "Agence"}
           </Typography>
           <IconButton color="inherit">
             <Badge badgeContent={3} color="error">
@@ -164,7 +172,7 @@ const MainLayout = () => {
             sx={{ ml: 1 }}
           >
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-              {user?.username?.[0]?.toUpperCase()}
+              {user?.firstname?.[0]?.toUpperCase()}
             </Avatar>
           </IconButton>
           <Menu

@@ -29,42 +29,23 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import NewClientDialog from '../../components/common/NewClientDialog';
+import {useGetClientsQuery} from "../../store/slices/clientsSlice";
+
+const activeLines = [
+  { number: '06 12 34 56 78', status: 'active', lastPayment: '2024-01-15' },
+  { number: '06 98 76 54 32', status: 'late', lastPayment: '2023-12-01' }
+]
+
+const paymentHistory = [
+  { date: '2024-01-15', amount: 38, status: 'paid' },
+  { date: '2023-12-01', amount: 38, status: 'late' }
+]
 
 // Mock data avec informations étendues
-const mockClients = [
-  {
-    id: 1,
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@email.com',
-    address: '123 Rue de Paris',
-    activeLines: [
-      { number: '06 12 34 56 78', status: 'active', lastPayment: '2024-01-15' },
-      { number: '06 98 76 54 32', status: 'late', lastPayment: '2023-12-01' }
-    ],
-    paymentHistory: [
-      { date: '2024-01-15', amount: 38, status: 'paid' },
-      { date: '2023-12-01', amount: 38, status: 'late' }
-    ]
-  },
-  {
-    id: 2,
-    firstName: 'Jane',
-    lastName: 'Smith',
-    email: 'jane.smith@email.com',
-    address: '456 Avenue des Champs',
-    activeLines: [
-      { number: '06 11 22 33 44', status: 'active', lastPayment: '2024-01-10' }
-    ],
-    paymentHistory: [
-      { date: '2024-01-10', amount: 19, status: 'paid' }
-    ]
-  }
-];
 
 const ClientCard = ({ client, onViewDetails }) => {
-  const totalActiveLines = client.activeLines.length;
-  const hasLateLine = client.activeLines.some(line => line.status === 'late');
+  const totalActiveLines = activeLines.length;
+  const hasLateLine = activeLines.some(line => line.status === 'late');
 
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -72,7 +53,7 @@ const ClientCard = ({ client, onViewDetails }) => {
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box display="flex" gap={2} alignItems="center">
             <Avatar sx={{ bgcolor: hasLateLine ? 'error.light' : 'primary.light' }}>
-              {client.firstName[0]}{client.lastName[0]}
+              {client.firstname[0]}{client.lastname[0]}
             </Avatar>
             <Box>
               <Typography variant="h6" component="div">
@@ -103,7 +84,7 @@ const ClientCard = ({ client, onViewDetails }) => {
         </Stack>
 
         <Typography variant="body2" color="text.secondary" mt={2}>
-          Dernier paiement: {new Date(client.paymentHistory[0].date).toLocaleDateString('fr-FR')}
+          Dernier paiement: {new Date(paymentHistory[0].date).toLocaleDateString('fr-FR')}
         </Typography>
       </CardContent>
     </Card>
@@ -138,7 +119,7 @@ const ClientDetailsDialog = ({ client, open, onClose }) => {
                   Informations personnelles
                 </Typography>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Nom:</strong> {client.firstName} {client.lastName}
+                  <strong>Nom:</strong> {client.firstname} {client.lastname}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
                   <strong>Email:</strong> {client.email}
@@ -158,7 +139,7 @@ const ClientDetailsDialog = ({ client, open, onClose }) => {
                   Lignes téléphoniques
                 </Typography>
                 <Stack spacing={2}>
-                  {client.activeLines.map((line, index) => (
+                  {activeLines?.map((line, index) => (
                     <Box key={index} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
                       <Box display="flex" justifyContent="space-between" alignItems="center">
                         <Typography variant="body1">{line.number}</Typography>
@@ -200,7 +181,7 @@ const ClientDetailsDialog = ({ client, open, onClose }) => {
                   </Button>
                 </Box>
                 <Grid container spacing={2}>
-                  {client.paymentHistory.map((payment, index) => (
+                  {paymentHistory?.map((payment, index) => (
                     <Grid item xs={12} key={index}>
                       <Box display="flex" justifyContent="space-between" alignItems="center" 
                            sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
@@ -244,7 +225,11 @@ const ModernClientsManagement = () => {
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState(STATUSES.ALL);
 
-  const filteredClients = mockClients.filter(client => {
+  const connectedUser = JSON.parse(localStorage.getItem('user'));
+  const fetchClients = useGetClientsQuery(connectedUser?.agencyId)
+  const clients = fetchClients?.currentData?.users
+
+  const filteredClients = clients?.filter(client => {
     const matchesSearch = 
       `${client.firstName} ${client.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -277,13 +262,13 @@ const ModernClientsManagement = () => {
               <Box display="flex" alignItems="center" gap={1}>
                 <GroupIcon color="primary" />
                 <Typography variant="body2">
-                  {mockClients.length} clients
+                  {clients?.length || 0} clients
                 </Typography>
               </Box>
               <Box display="flex" alignItems="center" gap={1}>
                 <PhoneIcon color="primary" />
                 <Typography variant="body2">
-                  {mockClients.reduce((acc, client) => acc + client.activeLines.length, 0)} lignes actives
+                  {clients?.reduce((acc, client) => acc + activeLines.length, 0)} lignes actives
                 </Typography>
               </Box>
             </Stack>
@@ -344,7 +329,7 @@ const ModernClientsManagement = () => {
 
       {/* Clients grid */}
       <Grid container spacing={3}>
-        {filteredClients.map(client => (
+        {filteredClients?.map(client => (
           <Grid item xs={12} sm={6} md={4} key={client.id}>
             <ClientCard
               client={client}
