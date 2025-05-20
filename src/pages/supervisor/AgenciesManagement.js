@@ -71,14 +71,6 @@ const AgenciesManagement = () => {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    commissionRate: 15.8,
-    subscriptionPrice: 19
-  });
   const [notification, setNotification] = useState({
     open: false,
     message: '',
@@ -100,6 +92,15 @@ const AgenciesManagement = () => {
   // Mutations
   const [createAgency, { isLoading: isCreating }] = useCreateAgencyMutation();
   const [updateAgency, { isLoading: isUpdating }] = useUpdateAgencyMutation();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    taxRate: selectedAgency?.agency?.taxRate || 15.8,
+    prixAbonnement: selectedAgency?.agency?.taxRate || 19
+  });
+
 
   // Synchronize local search state with Redux filter state
   useEffect(() => {
@@ -158,8 +159,8 @@ const AgenciesManagement = () => {
       email: '',
       phone: '',
       address: '',
-      commissionRate: 15.8,
-      subscriptionPrice: 19
+      taxRate: 15.8,
+      prixAbonnement: 19
     });
     setCreateModalOpen(true);
   };
@@ -171,8 +172,8 @@ const AgenciesManagement = () => {
         email: selectedAgency?.agency.email || '',
         phone: selectedAgency?.agency.phone || '',
         address: selectedAgency?.agency.address || '',
-        commissionRate: selectedAgency?.agency.commissionRate || 15.8,
-        subscriptionPrice: selectedAgency?.agency.subscriptionPrice || 19
+        taxRate: selectedAgency?.agency.taxRate || 15.8,
+        prixAbonnement: selectedAgency?.agency.prixAbonnement || 19
       });
       setEditModalOpen(true);
     }
@@ -195,9 +196,9 @@ const AgenciesManagement = () => {
   const handleCreateAgency = async () => {
     try {
       const result = await createAgency({
-        ...formData,
         status: 'ACTIVE',
-        tax_rate: "3.00",
+        tax_rate: formData.taxRate,
+        ...formData,
         manager: "WEZO"
       }).unwrap();
       setCreateModalOpen(false);
@@ -222,9 +223,9 @@ const AgenciesManagement = () => {
     try {
       const result = await updateAgency({ 
         id: selectedAgency?.agency?.id,
+        tax_rate: formData.taxRate,
         ...formData,
         status: 'ACTIVE',
-        tax_rate: "3.00",
         manager: "WEZO"
       }).unwrap();
       
@@ -292,6 +293,18 @@ const AgenciesManagement = () => {
         </Alert>
       </Box>
     );
+  }
+
+  const countActiveLines = () => {
+    return selectedAgency?.phones?.filter(phone => phone.phoneStatus === 'ACTIVE').length || 0;
+  }
+
+  const countOverdueLines = () => {
+    return selectedAgency?.phones?.filter(phone => phone.paymentStatus === 'OVERDUE').length || 0;
+  }
+
+  const countInactiveLines = () => {
+    return selectedAgency?.phones?.filter(phone => phone.phoneStatus === 'INACTIVE').length || 0;
   }
 
   // Render main content
@@ -537,7 +550,7 @@ const AgenciesManagement = () => {
                 <Card sx={{ borderRadius: 1, overflow: 'hidden' }}>
                   <CardContent>
                     <Typography variant="h4" color="primary.main" fontWeight="500" gutterBottom>
-                      CA {(selectedAgency?.agency?.caTotal || 0).toLocaleString('fr-FR')}€
+                      CA {(selectedAgency?.agency?.chiffreAffaire || 0).toLocaleString('fr-FR')}€
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={6}>
@@ -545,7 +558,7 @@ const AgenciesManagement = () => {
                           À verser
                         </Typography>
                         <Typography variant="h5" fontWeight="500">
-                          {(selectedAgency?.agency?.aVerser || 0).toLocaleString('fr-FR')}€
+                          {(selectedAgency?.agency?.aPayer || 0).toLocaleString('fr-FR')}€
                         </Typography>
                       </Grid>
                       <Grid item xs={6}>
@@ -553,7 +566,7 @@ const AgenciesManagement = () => {
                           Commission
                         </Typography>
                         <Typography variant="h5" fontWeight="500">
-                          {(selectedAgency?.agency?.commission || 0).toLocaleString('fr-FR')}€
+                          {(selectedAgency?.agency?.taxRate || 0).toLocaleString('fr-FR')}€
                         </Typography>
                       </Grid>
                     </Grid>
@@ -564,7 +577,7 @@ const AgenciesManagement = () => {
                 <Card sx={{ borderRadius: 1, overflow: 'hidden' }}>
                   <CardContent>
                     <Typography variant="h6" gutterBottom>
-                      STATISTIQUES
+                      STATISTIQUES DES {selectedAgency?.phones?.length} LIGNES ACTIVES
                     </Typography>
                     
                     <Box sx={{ 
@@ -576,7 +589,7 @@ const AgenciesManagement = () => {
                       borderRadius: 1
                     }}>
                       <PlayArrowIcon sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography>PLAY - {selectedAgency?.agency?.stats?.play || 0} Ligne(s)</Typography>
+                      <Typography>ACTIVE - {countActiveLines() || 0} Ligne(s)</Typography>
                     </Box>
                     
                     <Box sx={{ 
@@ -587,9 +600,9 @@ const AgenciesManagement = () => {
                       bgcolor: 'error.light',
                       borderRadius: 1
                     }}>
-                      <WarningIcon sx={{ mr: 1, color: 'error.main' }} />
-                      <Typography color="error.main">
-                        DETTE - {selectedAgency?.agency?.stats?.dette || 0} Ligne(s) - {(selectedAgency?.agency?.stats?.detteAmount || 0).toLocaleString('fr-FR')}€
+                      <WarningIcon sx={{ mr: 1, color: 'white' }} />
+                      <Typography color="white">
+                        DETTE - {countOverdueLines() || 0} Ligne(s) - {(countOverdueLines() * selectedAgency?.agency?.prixAbonnement || 0).toLocaleString('fr-FR')}€
                       </Typography>
                     </Box>
                     
@@ -601,7 +614,7 @@ const AgenciesManagement = () => {
                       borderRadius: 1
                     }}>
                       <BlockIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                      <Typography>RESILIE - {selectedAgency?.agency?.stats?.resilie || 0} Ligne(s)</Typography>
+                      <Typography>INACTIVE - {countInactiveLines() || 0} Ligne(s)</Typography>
                     </Box>
                   </CardContent>
                 </Card>
@@ -701,23 +714,23 @@ const AgenciesManagement = () => {
                 <Typography variant="h6" gutterBottom>Paramètres financiers</Typography>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Chiffre d'affaires total</Typography>
-                  <Typography variant="body1">{(selectedAgency?.agency?.caTotal || 0).toLocaleString('fr-FR')}€</Typography>
+                  <Typography variant="body1">{(selectedAgency?.agency?.chiffreAffaire || 0).toLocaleString('fr-FR')}€</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Montant à verser</Typography>
-                  <Typography variant="body1">{(selectedAgency?.agency?.aVerser || 0).toLocaleString('fr-FR')}€</Typography>
+                  <Typography variant="body1">{(selectedAgency?.agency?.aPayer || 0).toLocaleString('fr-FR')}€</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Commission</Typography>
-                  <Typography variant="body1">{(selectedAgency?.agency?.commission || 0).toLocaleString('fr-FR')}€</Typography>
+                  <Typography variant="body1">{(selectedAgency?.agency?.taxRate || 0).toLocaleString('fr-FR')}€</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Taux de commission</Typography>
-                  <Typography variant="body1">{selectedAgency?.agency?.commissionRate || 15.8}%</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.taxRate || 15.8}%</Typography>
                 </Box>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary">Prix d'abonnement</Typography>
-                  <Typography variant="body1">{selectedAgency?.agency?.subscriptionPrice || 19}€</Typography>
+                  <Typography variant="body1">{selectedAgency?.agency?.prixAbonnement || 19}€</Typography>
                 </Box>
               </Grid>
               
@@ -825,11 +838,11 @@ const AgenciesManagement = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                name="commissionRate"
+                name="taxRate"
                 label="Taux de commission (%)"
                 type="number"
                 fullWidth
-                value={formData.commissionRate}
+                value={formData.taxRate}
                 onChange={handleInputChange}
                 margin="normal"
                 InputProps={{
@@ -839,11 +852,11 @@ const AgenciesManagement = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                name="subscriptionPrice"
+                name="prixAbonnement"
                 label="Prix d'abonnement (€)"
                 type="number"
                 fullWidth
-                value={formData.subscriptionPrice}
+                value={formData.prixAbonnement}
                 onChange={handleInputChange}
                 margin="normal"
                 InputProps={{
@@ -929,11 +942,11 @@ const AgenciesManagement = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                name="commissionRate"
+                name="taxRate"
                 label="Taux de commission (%)"
                 type="number"
                 fullWidth
-                value={formData.commissionRate}
+                value={formData.taxRate}
                 onChange={handleInputChange}
                 margin="normal"
                 InputProps={{
@@ -943,11 +956,11 @@ const AgenciesManagement = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                name="subscriptionPrice"
+                name="prixAbonnement"
                 label="Prix d'abonnement (€)"
                 type="number"
                 fullWidth
-                value={formData.subscriptionPrice}
+                value={formData.prixAbonnement}
                 onChange={handleInputChange}
                 margin="normal"
                 InputProps={{
