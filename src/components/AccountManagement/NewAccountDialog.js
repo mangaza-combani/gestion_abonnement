@@ -309,18 +309,28 @@ const NewAccountDialog = ({
 
     try {
       // Appel de la mutation pour créer le compte
-      const result = await createRedAccount(redAccountData).unwrap();
-      console.log(result.data.id)
-      
-      // Récupérer l'ID du compte créé
+      const result = await createRedAccount({
+        password: redAccountData.password,
+        redAccountId: redAccountData.redId,
+        agencyId: redAccountData.agencyId,
+        activeLines: redAccountData.activeLines || 0,
+        maxLines: redAccountData.maxLines,
+        paymentInfo: {
+          bankName: redAccountData.paymentInfo.bankName,
+          cardLastFour: redAccountData.paymentInfo.cardLastFour,
+          cardExpiry: redAccountData.paymentInfo.cardExpiry
+        }
+      }).unwrap();
+
+    /*  // Récupérer l'ID du compte créé
       const newAccountId = result.data.id;
       console.log(formData.lines)
-      
+
       // Créer les lignes si nécessaire
       if (formData.lines.length > 0) {
-        
+
         await createLines(newAccountId);
-      }
+      }*/
       
       // Si tout s'est bien passé, on peut fermer le dialogue
       if (onSubmit) onSubmit();

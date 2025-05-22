@@ -87,13 +87,6 @@ const ModernAccountManagement = () => {
   // Gérer la création d'un nouveau compte
   const handleCreateAccount = async (accountData) => {
     try {
-      await createRedAccount({
-        id: accountData.name,
-        password: accountData.password,
-        email: accountData.email,
-        agencyId: parseInt(accountData.agencyId),
-      }).unwrap();
-      
       setIsNewAccountDialogOpen(false);
       showSnackbar('Compte créé avec succès', 'success');
     } catch (err) {

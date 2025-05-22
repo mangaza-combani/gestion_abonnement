@@ -8,7 +8,7 @@ export const apiSlice = createApi({
     baseUrl: config.api.baseURL,
     prepareHeaders: (headers, { getState }) => {
       // Ajout du token d'authentification
-      const token = getState().auth.token;
+      const token = localStorage.getItem('token') || getState().auth.token;
       if (token) {
         headers.set('authorization', `Bearer ${token}`);
       }

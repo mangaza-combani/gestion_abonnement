@@ -34,9 +34,22 @@ const drawerWidth = 280;
 const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const { user, role } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { role } = useSelector((state) => {
+        const localStorageUser = localStorage.getItem('user');
+        if (!localStorageUser) {
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          return { role: null };
+        }
+        const parsedUser = JSON.parse(localStorageUser);
+        const user = parsedUser || user;
+    return {
+      role: user ? user.role : null,
+    };
+  });
 
   // Utiliser le hook de déconnexion de RTK Query
   const [logout] = useLogoutMutation();
@@ -51,18 +64,10 @@ const MainLayout = () => {
         { text: 'Utilisateur', icon: <Settings />, path: '/user' },
       ]
     : [
-        { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-        { text: 'Clients', icon: <People />, path: '/clients' },
-        { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
-        { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' },
-
-          //TODO need to be deleted
-
-      { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
-      { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
-      { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
-      { text: 'Paramètres', icon: <Settings />, path: '/settings' },
-      { text: 'Utilisateur', icon: <Settings />, path: '/user' },
+              { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+              { text: 'Clients', icon: <People />, path: '/clients' },
+              { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
+              { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' },
       ];
 
   const handleDrawerToggle = () => {

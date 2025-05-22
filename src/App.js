@@ -36,8 +36,18 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const RoleBasedRoute = ({ supervisorComponent, agencyComponent }) => {
-  const { role } = useSelector((state) => state.auth);
-  console.log('RoleBasedRoutes', (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === "SUPERVISOR") ? supervisorComponent : agencyComponent);
+  const user = JSON.parse(localStorage.getItem('user'));
+
+  const { role } = useSelector((state) => {
+    return {
+      role: user ? user.role : null,
+    };
+  });
+    if (!role) {
+      localStorage.removeItem('user')
+      localStorage.removeItem('token')
+      return <Navigate to="/login" />;
+    }
   return (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === "SUPERVISOR") ? supervisorComponent : agencyComponent;
 };
 
