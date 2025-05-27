@@ -6,18 +6,25 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
         endpoints: (builder) => ({
                 getPhones: builder.query({
                         query: (id) => ({
-                                url: `/agencies/${id}/users`,
+                                url: `/phones`,
                         }),
-                        providesTags: ['Phone'],
+                        providesTags: (result, error, id) => {
+                                return result
+                                        ? [
+                                                ...result.map(({ id }) => ({ type: 'Phone', id })),
+                                                { type: 'Phone', id: 'LIST' },
+                                        ]
+                                        : [{ type: 'Phone', id: 'LIST' }];
+                        },
                         invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
                 }),
                 getPhoneById: builder.query({
-                        query: (id) => `/auth/get-user/${id}`,
+                        query: (id) => `/phones/${id}`,
                         providesTags: (result, error, id) => [{ type: 'Phone', id }],
                 }),
                 createPhone: builder.mutation({
                         query: (client) => ({
-                                url: '/auth/register',
+                                url: '/phones',
                                 method: 'POST',
                                 body: client,
                         }),
@@ -25,11 +32,39 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
                 }),
                 updatePhone: builder.mutation({
                         query: ({ id, ...patch }) => ({
-                                url: `/auth/user/${id}`,
+                                url: `/phones/${id}`,
                                 method: 'PATCH',
                                 body: patch,
                         }),
                         invalidatesTags: (result, error, { id }) => [{ type: 'Phone', id }],
+                }),
+                deletePhone: builder.mutation({
+                        query: (id) => ({
+                                url: `/phones/${id}`,
+                                method: 'DELETE',
+                        }),
+                        invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
+                }),
+                blockPhone: builder.mutation({
+                        query: (id) => ({
+                                url: `/phones/${id}/block`,
+                                method: 'POST',
+                        }),
+                        invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
+                }),
+                unblockPhone: builder.mutation({
+                        query: (id) => ({
+                                url: `/phones/${id}/unblock`,
+                                method: 'POST',
+                        }),
+                        invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
+                }),
+                deactivatePhone: builder.mutation({
+                        query: (id) => ({
+                                url: `/phones/${id}/deactivate`,
+                                method: 'POST',
+                        }),
+                        invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
                 }),
         }),
 });
@@ -39,6 +74,10 @@ export const {
         useGetPhoneByIdQuery,
         useCreatePhoneMutation,
         useUpdatePhoneMutation,
+        useDeletePhoneMutation,
+        useBlockPhoneMutation,
+        useUnblockPhoneMutation,
+        useDeactivatePhoneMutation,
 } = phoneApiSlice;
 
 // Slice Redux pour la gestion d'état locale des phone

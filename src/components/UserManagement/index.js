@@ -54,7 +54,7 @@ const PasswordDisplay = ({ password }) => {
 
 // Composant pour afficher le statut avec une icône
 const StatusDisplay = ({ status }) => {
-  const isActive = status === 'ACTIF';
+  const isActive = status === true;
   
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -96,7 +96,7 @@ const ModernUserTable = ({ users, selectedUser, onUserSelect }) => {
           Liste des utilisateurs
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {users.length} utilisateur(s)
+          {users?.length} utilisateur(s)
         </Typography>
       </Box>
       
@@ -106,12 +106,12 @@ const ModernUserTable = ({ users, selectedUser, onUserSelect }) => {
             <TableRow>
               <TableCell>NOM D'UTILISATEUR</TableCell>
               <TableCell>EMAIL</TableCell>
-              <TableCell>MOT DE PASSE</TableCell>
+              <TableCell>Clé secrète</TableCell>
               <TableCell>TÉLÉPHONE</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.length === 0 ? (
+            {users?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                   <Typography variant="body2" color="text.secondary">
@@ -120,7 +120,7 @@ const ModernUserTable = ({ users, selectedUser, onUserSelect }) => {
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => (
+              users?.map((user) => (
                 <Fade key={user.id} in={true} timeout={300}>
                   <TableRow
                     hover
@@ -139,7 +139,7 @@ const ModernUserTable = ({ users, selectedUser, onUserSelect }) => {
                   >
                     <TableCell>
                       <Typography variant="body2" fontWeight={selectedUser?.id === user.id ? 'bold' : 'regular'}>
-                        {user.username}
+                        {user.firstname} {user.lastname}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -151,13 +151,13 @@ const ModernUserTable = ({ users, selectedUser, onUserSelect }) => {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <PasswordDisplay password="MotDePasse123" /> {/* Mot de passe fictif */}
+                      <PasswordDisplay password={user.secretKey} /> {/* Mot de passe fictif */}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <PhoneIcon fontSize="small" color="action" />
                         <Typography variant="body2">
-                          {user.telephone}
+                          {user.phoneNumber || 'N/C'}
                         </Typography>
                       </Box>
                     </TableCell>

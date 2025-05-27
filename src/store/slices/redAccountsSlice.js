@@ -94,7 +94,7 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
     // Créer une nouvelle ligne sur un compte
     createLine: builder.mutation({
       query: ({ accountId, lineData }) => ({
-        url: `/red-accounts/${accountId}/lines`,
+        url: `/phones/`,
         method: 'POST',
         body: lineData
       }),

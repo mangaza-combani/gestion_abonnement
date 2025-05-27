@@ -11,6 +11,11 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
       providesTags: ['Client'],
       invalidatesTags: (result, error, id) => [{ type: 'Client', id }],
     }),
+    getAllUsers: builder.query({
+        query: () => '/auth/get-users',
+        providesTags: (result) =>
+            result ? [...result.map(({ id }) => ({ type: 'Client', id })), { type: 'Client', id: 'LIST' }] : [{ type: 'Client', id: 'LIST' }],
+    }),
     getClientById: builder.query({
       query: (id) => `/auth/get-user/${id}`,
       providesTags: (result, error, id) => [{ type: 'Client', id }],
@@ -36,6 +41,7 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
 
 export const {
   useGetClientsQuery,
+    useGetAllUsersQuery,
   useGetClientByIdQuery,
   useCreateClientMutation,
   useUpdateClientMutation,

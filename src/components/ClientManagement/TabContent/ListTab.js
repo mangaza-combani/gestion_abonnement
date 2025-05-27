@@ -11,14 +11,17 @@ const ListTab = ({
   onStatusChange,
   clients,
   selectedClient,
-  onClientSelect
+  onClientSelect,
+    setCurrentTab,
+    currentTab,
+    tabs
 }) => {
   return (
     <Stack spacing={2}>
       <ClientSearch 
         searchTerm={searchTerm}
         onSearchChange={onSearchChange}
-        resultCount={clients.length}
+        resultCount={clients?.length}
       />
       <StatusFilters
         selectedStatus={selectedStatus}

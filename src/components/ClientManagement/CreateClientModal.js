@@ -61,6 +61,8 @@ import {
   Paid as PaidIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
+import { useDispatch, useSelector } from 'react-redux';
+import { useGetAllUsersQuery } from "../../store/slices/clientsSlice";
 
 // Style personnalisé pour le Stepper
 const CustomStepConnector = styled(StepConnector)(({ theme }) => ({
@@ -77,6 +79,7 @@ const CustomStepConnector = styled(StepConnector)(({ theme }) => ({
     borderRadius: 1,
   },
 }));
+
 
 const CustomStepIconRoot = styled('div')(({ theme, ownerState }) => ({
   backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : '#ccc',
@@ -160,15 +163,20 @@ const ClientPreview = ({ client }) => {
               fontWeight: 'bold'
             }}
           >
-            {client.prenom?.[0]}{client.nom?.[0]}
+            {client.firstname?.[0]}{client.lastname?.[0]}
           </Avatar>
           <Box>
             <Typography variant="h5" color="primary.main" fontWeight="bold">
-              {client.nom} {client.prenom}
+              {client.firstname} {client.lastname}
             </Typography>
-            {client.dateNaissance && (
+            {client.email && (
               <Typography variant="body2" color="text.secondary">
-                Né(e) le {client.dateNaissance}
+                Email: {client.email}
+              </Typography>
+            )}
+            {client.role && (
+              <Typography variant="body2" color="text.secondary">
+                Role: {client.role}
               </Typography>
             )}
           </Box>
@@ -177,23 +185,23 @@ const ClientPreview = ({ client }) => {
         <Divider sx={{ my: 2 }} />
         
         <Grid container spacing={2}>
-          {client.ville && (
+          {client.role && (
             <Grid item xs={12} sm={6}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <LocationCityIcon color="primary" />
                 <Typography variant="body1">
-                  {client.ville}
+                  {client.role}
                 </Typography>
               </Box>
             </Grid>
           )}
           
-          {client.telephone && (
+          {client.phoneNumber && (
             <Grid item xs={12} sm={6}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <PhoneIcon color="primary" />
                 <Typography variant="body1">
-                  {client.telephone}
+                  {client.phoneNumber}
                 </Typography>
               </Box>
             </Grid>
@@ -214,15 +222,6 @@ const ClientPreview = ({ client }) => {
     </Zoom>
   );
 };
-
-// Données mock pour les clients existants
-const mockExistingClients = [
-  { id: 1, nom: "ABDOU", prenom: "Céline", dateNaissance: "15/05/1985", ville: "Mamoudzou", telephone: "0612346363", email: "celine.abdou@gmail.com" },
-  { id: 2, nom: "ABDOU", prenom: "Omar", dateNaissance: "22/11/1990", ville: "Koungou", telephone: "0644446363", email: "omar.abdou@gmail.com" },
-  { id: 3, nom: "SAID", prenom: "Mohamed", dateNaissance: "03/07/1978", ville: "Dzaoudzi", telephone: "0644466364", email: "momo.said@gmail.com" },
-  { id: 4, nom: "YASSINE", prenom: "David", dateNaissance: "12/12/1995", ville: "Combani", telephone: "0644465778", email: "david.yassine@gmail.com" },
-  { id: 5, nom: "MARTIN", prenom: "Sophie", dateNaissance: "28/02/1988", ville: "Mamoudzou", telephone: "0644466999", email: "sophie.martin@gmail.com" },
-];
 
 // Style pour bouton animé
 const AnimatedButton = styled(Button)(({ theme }) => ({
@@ -252,20 +251,21 @@ const AnimatedButton = styled(Button)(({ theme }) => ({
 }));
 
 // Composant principal
-const CreateClientModal = ({ open, onClose, onClientCreated }) => {
+const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
   const theme = useTheme();
-  
+  const { data: users } = useGetAllUsersQuery();
+
   // États pour les étapes et le formulaire
   const [activeStep, setActiveStep] = useState(0);
   const [clientInputValue, setClientInputValue] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [newClient, setNewClient] = useState({
-    nom: '',
-    prenom: '',
-    dateNaissance: '',
-    ville: '',
-    telephone: '',
+    lastname: '',
+    firstname: '',
+    birthday: '',
+    city: '',
+    phoneNumber: '',
     email: ''
   });
   const [isNewClientMode, setIsNewClientMode] = useState(false);
@@ -275,7 +275,7 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
   });
   const [paymentInfo, setPaymentInfo] = useState({
     simCard: 10,
-    subscription: 0,
+    subscription: 19,
     total: 10,
     paymentMethod: 'complet',
     partialPayment: 0,
@@ -329,12 +329,28 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
         }
         
         if (isNewClientMode) {
-          if (!newClient.nom) {
-            newErrors.nom = "Le nom est requis";
+          if (!newClient.firstname) {
+            newErrors.firstname = "Le nom est requis";
             isValid = false;
           }
-          if (!newClient.prenom) {
-            newErrors.prenom = "Le prénom est requis";
+
+          if (!newClient.lastname) {
+            newErrors.lastname = "Le prénom est requis";
+            isValid = false;
+          }
+
+          if (!newClient.birthday) {
+            newErrors.birthday = "La date de naissance est requise";
+            isValid = false;
+          }
+
+          if (!newClient.city) {
+            newErrors.city = "La ville est requise";
+            isValid = false;
+          }
+
+          if (!newClient.email) {
+            newErrors.email = "L'email est requis";
             isValid = false;
           }
         }
@@ -411,11 +427,11 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
     setSelectedClient(null);
     setClientInputValue('');
     setNewClient({
-      nom: '',
-      prenom: '',
-      dateNaissance: '',
-      ville: '',
-      telephone: '',
+      lastname: '',
+      firstname: '',
+      birthday: '',
+      city: '',
+      phoneNumber: '',
       email: ''
     });
     setIsNewClientMode(false);
@@ -438,7 +454,7 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
   // Fonction pour formater le texte d'option de l'autocomplete
   const getOptionLabel = (option) => {
     if (typeof option === 'string') return option;
-    return `${option.nom} ${option.prenom} (${option.ville})`;
+    return `${option.firstname} ${option.lastname} (${option.email})`;
   };
 
   // Rendu du contenu spécifique à chaque étape
@@ -499,10 +515,10 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                         <TextField
                           fullWidth
                           label="Nom"
-                          value={newClient.nom}
-                          onChange={(e) => setNewClient({ ...newClient, nom: e.target.value })}
-                          error={!!formErrors.nom}
-                          helperText={formErrors.nom}
+                          value={newClient.lastname}
+                          onChange={(e) => setNewClient({ ...newClient, lastname: e.target.value })}
+                          error={!!formErrors.lastname}
+                          helperText={formErrors.lastname}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -523,10 +539,10 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                         <TextField
                           fullWidth
                           label="Prénom"
-                          value={newClient.prenom}
-                          onChange={(e) => setNewClient({ ...newClient, prenom: e.target.value })}
-                          error={!!formErrors.prenom}
-                          helperText={formErrors.prenom}
+                          value={newClient.firstname}
+                          onChange={(e) => setNewClient({ ...newClient, firstname: e.target.value })}
+                          error={!!formErrors.firstname}
+                          helperText={formErrors.firstname}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -547,8 +563,10 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                         <TextField
                           fullWidth
                           label="Date de naissance"
-                          value={newClient.dateNaissance}
-                          onChange={(e) => setNewClient({ ...newClient, dateNaissance: e.target.value })}
+                          value={newClient.birthday}
+                          onChange={(e) => setNewClient({ ...newClient, birthday: e.target.value })}
+                          error={!!formErrors.birthday}
+                          helperText={formErrors.birthday}
                           placeholder="JJ/MM/AAAA"
                           InputProps={{
                             startAdornment: (
@@ -569,8 +587,10 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                         <TextField
                           fullWidth
                           label="Ville"
-                          value={newClient.ville}
-                          onChange={(e) => setNewClient({ ...newClient, ville: e.target.value })}
+                          value={newClient.city}
+                          onChange={(e) => setNewClient({ ...newClient, city: e.target.value })}
+                          error={!!formErrors.city}
+                            helperText={formErrors.city}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -590,8 +610,10 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                         <TextField
                           fullWidth
                           label="Téléphone"
-                          value={newClient.telephone}
-                          onChange={(e) => setNewClient({ ...newClient, telephone: e.target.value })}
+                          value={newClient.phoneNumber}
+                          onChange={(e) => setNewClient({ ...newClient, phoneNumber: e.target.value })}
+                            error={!!formErrors.phoneNumber}
+                            helperText={formErrors.phoneNumber}
                           placeholder="06XXXXXXXX"
                           InputProps={{
                             startAdornment: (
@@ -615,6 +637,8 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                           type="email"
                           value={newClient.email}
                           onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                            error={!!formErrors.email}
+                            helperText={formErrors.email}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -632,7 +656,7 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                       </Grid>
                     </Grid>
                     
-                    {(newClient.nom && newClient.prenom) && (
+                    {(newClient.lastname && newClient.firstname) && (
                       <ClientPreview client={newClient} />
                     )}
                   </Box>
@@ -642,7 +666,7 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                   <Box>
                     <Autocomplete
                       fullWidth
-                      options={mockExistingClients}
+                      options={users}
                       getOptionLabel={getOptionLabel}
                       inputValue={clientInputValue}
                       onInputChange={(event, newInputValue) => {
@@ -659,13 +683,13 @@ const CreateClientModal = ({ open, onClose, onClientCreated }) => {
                       noOptionsText="Aucun client trouvé"
                       isOptionEqualToValue={(option, value) => option.id === value?.id}
                       renderOption={(props, option) => (
-                        <li {...props}>
+                        <li {...props} key={option.id}>
                           <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                             <Typography variant="body1">
-                              {option.nom} {option.prenom}
+                              {option.firstname} {option.lastname}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {option.ville} • {option.telephone}
+                              {option.email} • {option.role}
                             </Typography>
                           </Box>
                         </li>

@@ -125,8 +125,8 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
   const isFormValid = () => {
     if (!formData.phoneNumber) return false;
     if (formData.assignToClient && !formData.clientId) return false;
-    if (formData.assignSimNow && !formData.simCardId) return false;
-    return true;
+    return !(formData.assignSimNow && !formData.simCardId);
+
   };
 
   return (

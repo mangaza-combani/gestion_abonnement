@@ -48,6 +48,7 @@ import {
   VpnKey as KeyIcon,
   School as SchoolIcon
 } from '@mui/icons-material';
+import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
 
 // Boîte d'information pour afficher une paire clé-valeur
 const InfoBox = ({ icon, label, value, iconBgColor = "primary.light" }) => {
@@ -399,9 +400,12 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
   const [agencyDialogOpen, setAgencyDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusAction, setStatusAction] = useState('');
+  const {
+          data: agenciesData = [],
+  } = useGetAgenciesQuery()
   
   // Sécuriser l'accès aux propriétés
-  const isActive = user?.status === 'ACTIF';
+  const isActive = user?.isActive;
   const selectedAgencies = editedUser?.userAgencies || [];
   
   // Mettre à jour editedUser lorsque user change
@@ -426,13 +430,13 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
     setEditedUser({ ...user, userAgencies: user?.userAgencies || [] });
     setIsEditing(false);
   };
-  
-  const handleAgenciesSave = (selectedAgencies) => {
-    setEditedUser(prev => ({
-      ...prev,
-      userAgencies: selectedAgencies
-    }));
-  };
+
+        const handleAgenciesSave = (selectedAgencies) => {
+                setEditedUser(prev => ({
+                        ...prev,
+                        userAgencies: selectedAgencies
+                }));
+        };
   
   const handleStatusChange = () => {
     const newStatus = isActive ? 'INACTIF' : 'ACTIF';
@@ -497,7 +501,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                       boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                     }}
                   >
-                    {user?.username ? user.username.charAt(0).toUpperCase() : '?'}
+                    {user?.firstname ? user.firstname.charAt(0).toUpperCase() : '?'}
                   </Avatar>
                   <Box>
                     <Typography 
@@ -508,7 +512,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                         color: 'text.primary'
                       }}
                     >
-                      {user?.username || 'Utilisateur'}
+                      {user?.firstname + " " + user?.lastname || 'Utilisateur'}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                       <Chip 
@@ -643,9 +647,9 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                   <Stack spacing={3}>
                     <TextField
                       fullWidth
-                      label="Nom d'utilisateur"
-                      name="username"
-                      value={editedUser?.username || ''}
+                      label="Prénom"
+                      name="firstname"
+                      value={editedUser?.firstname || ''}
                       onChange={handleInputChange}
                       variant="outlined"
                       InputProps={{
@@ -653,6 +657,18 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                       }}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
+                  <TextField
+                      fullWidth
+                      label="Nom"
+                      name="lastname"
+                      value={editedUser?.lastname || ''}
+                      onChange={handleInputChange}
+                      variant="outlined"
+                      InputProps={{
+                              startAdornment: <PersonIcon color="action" sx={{ mr: 1 }} />,
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
                     <TextField
                       fullWidth
                       label="Email"
@@ -683,7 +699,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                       label="Mot de passe"
                       type={showPassword ? 'text' : 'password'}
                       name="password"
-                      value={editedUser?.password || ''}
+                      value={editedUser?.secureKey || ''}
                       onChange={handleInputChange}
                       variant="outlined"
                       InputProps={{
@@ -705,7 +721,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                     <InfoBox 
                       icon={<PersonIcon color="primary" fontSize="small" />}
                       label="Nom d'utilisateur"
-                      value={user?.username}
+                      value={user?.firstname + " " + user?.lastname || 'Non défini'}
                       iconBgColor="primary.light"
                     />
                     <Divider variant="fullWidth" sx={{ my: 0.5 }} />
@@ -719,7 +735,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                     <InfoBox 
                       icon={<PhoneIcon color="primary" fontSize="small" />}
                       label="Téléphone"
-                      value={user?.telephone}
+                      value={user?.phoneNumber || 'Non défini'}
                       iconBgColor="primary.light"
                     />
                     <Divider variant="fullWidth" sx={{ my: 0.5 }} />
@@ -949,34 +965,28 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                         <BusinessIcon color="primary" fontSize="small" />
                         Agences attribuées
                       </Typography>
-                      
-                      <Box sx={{ 
-                        mt: 2, 
-                        display: 'flex', 
-                        flexWrap: 'wrap', 
-                        gap: 1,
-                        minHeight: 40
-                      }}>
-                        {selectedAgencies && selectedAgencies.length > 0 ? (
-                          selectedAgencies.map((agency) => (
-                            <Chip
-                              key={agency?.id || Math.random()}
-                              label={agency?.name || ''}
-                              size="medium"
-                              sx={{ 
-                                borderRadius: '8px',
-                                fontWeight: 'medium',
-                                bgcolor: safeAlpha(theme?.palette?.primary?.main, 0.1),
-                                px: 1
-                              }}
-                            />
-                          ))
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            Aucune agence attribuée
-                          </Typography>
-                        )}
-                      </Box>
+
+                            <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1, minHeight: 40 }}>
+                                    {selectedAgencies && selectedAgencies.length > 0 ? (
+                                        selectedAgencies.map((agency) => (
+                                            <Chip
+                                                key={agency?.id || Math.random()}
+                                                label={agency?.name || ''}
+                                                size="medium"
+                                                sx={{
+                                                        borderRadius: '8px',
+                                                        fontWeight: 'medium',
+                                                        bgcolor: safeAlpha(theme?.palette?.primary?.main, 0.1),
+                                                        px: 1
+                                                }}
+                                            />
+                                        ))
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary">
+                                                Aucune agence attribuée
+                                        </Typography>
+                                    )}
+                            </Box>
                     </Paper>
                     
                     <Box>
@@ -1065,7 +1075,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
         open={agencyDialogOpen}
         handleClose={() => setAgencyDialogOpen(false)}
         selectedAgencies={selectedAgencies}
-        availableAgencies={agencies}
+        availableAgencies={agenciesData}
         onSave={handleAgenciesSave}
       />
       

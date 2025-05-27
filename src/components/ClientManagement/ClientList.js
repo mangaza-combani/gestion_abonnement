@@ -11,6 +11,7 @@ import {
   Chip 
 } from '@mui/material';
 import StatusChip from './StatusChip';
+import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
 
 const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = false }) => {
 
@@ -26,7 +27,8 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 <TableCell>TELEPHONE</TableCell>
               )}
             
-              <TableCell>ETAT CLIENT</TableCell>
+              <TableCell>ETAT PAIEMENT</TableCell>
+              <TableCell>ETAT TÉLÉPHONE</TableCell>
               {!isOrderView && (
                 <TableCell>ACTION</TableCell>
               )}
@@ -34,21 +36,24 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
             </TableRow>
           </TableHead>
           <TableBody>
-            {clients.map((client) => (
+            {clients?.map((client) => (
               <TableRow
                 key={client.id}
                 hover
-                selected={selectedClient?.id === client.id}
+                selected={selectedClient?.id === client?.user?.id}
                 onClick={() => onClientSelect(client)}
                 sx={{ cursor: 'pointer' }}
               >
-                <TableCell>{client.nom}</TableCell>
-                <TableCell>{client.prenom}</TableCell>
+                <TableCell>{client?.user?.lastname}</TableCell>
+                <TableCell>{client?.user?.firstname}</TableCell>
                 {isOrderView &&(
-                        <TableCell>{client.telephone}</TableCell>
+                        <TableCell>{client.phoneNumber || 'N/C'}</TableCell>
                 )}
                 <TableCell>
-                  <StatusChip status={client.status} />
+                  <StatusChip status={formatPaymentAndStatusToHumanReadable(client.paymentStatus)} />
+                </TableCell>
+                <TableCell>
+                  <StatusChip status={formatPaymentAndStatusToHumanReadable(client.phoneStatus)} />
                 </TableCell>
                 {!isOrderView &&(
                            <TableCell>

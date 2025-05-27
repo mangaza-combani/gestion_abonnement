@@ -24,51 +24,23 @@ import {
 import ModernUserTable from '../../components/UserManagement';
 import UserDetails from '../../components/UserManagement/UserDetails';
 import NewUserDialog from '../../components/UserManagement/NewUserDialog';
-
-// Données de test
-const mockUsers = [
-  { 
-    id: 1, 
-    username: 'Soibhadimy', 
-    email: 'abdou.celine@gmail.com', 
-    telephone: '0253114152', 
-    role: 'Collaborateur', 
-    agency: 'Agence 1',
-    status: 'ACTIF'
-  },
-  { 
-    id: 2, 
-    username: 'Mohamadi', 
-    email: 'marie@yahoo.fr', 
-    telephone: '1862136545', 
-    role: 'Manager', 
-    agency: 'Agence 2',
-    status: 'ACTIF'
-  },
-  { 
-    id: 3, 
-    username: 'Anis', 
-    email: 'david99@gmail.com', 
-    telephone: '8650333642', 
-    role: 'Collaborateur', 
-    agency: 'Agence 3',
-    status: 'INACTIF'
-  }
-];
-
-const mockAgencies = [
-  { id: 1, name: 'Agence 1' },
-  { id: 2, name: 'Agence 2' },
-  { id: 3, name: 'Agence 3' }
-];
+import {useCreateClientMutation, useGetAllUsersQuery} from "../../store/slices/clientsSlice";
+import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
 
 const UsersManagement = () => {
   const theme = useTheme();
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { data: agencies } = useGetAgenciesQuery()
+  const [createClient] = useCreateClientMutation()
+
+  const {
+    error: usersError,
+    data: usersData
+  } = useGetAllUsersQuery()
 
   // Filtrer les utilisateurs en fonction des critères de recherche
   const filteredUsers = users.filter(user => {
@@ -90,6 +62,10 @@ const UsersManagement = () => {
     setUsers([...users, newUser]);
     setIsNewUserDialogOpen(false);
     showSnackbar('Utilisateur créé avec succès', 'success');
+
+    createClient({
+        ...userData
+    })
   };
 
   // Afficher un message snackbar
@@ -158,7 +134,7 @@ const UsersManagement = () => {
                 Gestion des Utilisateurs
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {filteredUsers.length} utilisateur(s)
+                {usersData?.length || 0} utilisateur(s)
               </Typography>
             </Box>
           </Box>
@@ -211,7 +187,7 @@ const UsersManagement = () => {
         }}>
           {/* Liste des utilisateurs */}
           <ModernUserTable 
-            users={filteredUsers}
+            users={usersData}
             selectedUser={selectedUser}
             onUserSelect={setSelectedUser}
           />
@@ -226,7 +202,7 @@ const UsersManagement = () => {
                   user={selectedUser}
                   onUpdateUser={handleUpdateUser}
                   onDeleteUser={handleDeleteUser}
-                  agencies={mockAgencies}
+                  agencies={agencies}
                 />
               </div>
             </Fade>
@@ -260,7 +236,7 @@ const UsersManagement = () => {
         open={isNewUserDialogOpen}
         onClose={() => setIsNewUserDialogOpen(false)}
         onSubmit={handleCreateUser}
-        agencies={mockAgencies}
+        agencies={agencies}
       />
 
       {/* Snackbar pour les notifications */}

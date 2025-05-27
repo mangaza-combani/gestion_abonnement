@@ -6,10 +6,7 @@ import {
   Typography, 
   Avatar, 
   Stack, 
-  Button, 
-  Divider, 
-  Grid, 
-  Paper , 
+  Button,
   Tooltip,
   Alert,
   AlertTitle,
@@ -20,64 +17,82 @@ import {
   VisibilityOutlined as VisibilityIcon,
   CheckCircle as CheckCircleIcon,
   CalendarMonth as CalendarIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
-  EuroSymbol as EuroIcon,
-  Schedule as ScheduleIcon,
   Block as BlockIcon,
   Cancel as CancelIcon,
   Timer as TimerIcon, // Ajoutez cet import
   AccountCircle as AccountCircleIcon,
-  Business as BusinessIcon,
   VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import RedAccountManagement from '../RedAccountManagement';
+import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
+import { PHONE_STATUS, PAYMENT_STATUS } from "./constant";
+import dayjs from "dayjs";
 
 
-const NotesCard = () => (
-  <Card>
+const NotesCard = ({simCard, agency}) => (
+  <Card sx={{ mt: 2, mb: 3 }}>
     <CardContent>
       <Typography variant="h6" gutterBottom>
         NOTES /EVENEMENT EN COURS
       </Typography>
       <Stack spacing={2}>
-        <Box>
+        {simCard ? (
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">
+                {dayjs(simCard?.createdAt).format('ddd, D MMM YYYY HH:mm')}
+              </Typography>
+              <Typography>
+                Carte sim avec iccid {simCard?.iccid} a été défini.
+              </Typography>
+            </Box>
+        ) : <Box>
           <Typography variant="subtitle2" color="text.secondary">
-            20/10/2024
+            {dayjs().format('ddd, D MMM YYYY HH:mm')}
           </Typography>
           <Typography>
-            A mettre en pause avant la prochaine échéance.
+            Aucune carte sim n'a été définie pour ce client.
           </Typography>
-        </Box>
-        <Box>
-          <Typography variant="subtitle2" color="text.secondary">
-            03/10/2024
-          </Typography>
-          <Typography>
-            Le client demande une nouvelle carte SIM
-          </Typography>
-        </Box>
+        </Box>}
+
+        {agency ? (
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">
+                {dayjs(agency?.createdAt).format('ddd, D MMM YYYY HH:mm')}
+              </Typography>
+              <Typography>
+                Le client à été associé à l'agence: {agency?.name}.
+              </Typography>
+            </Box>
+        ) : (
+            <Box>
+              <Typography>
+                Le client n'a pas d'agence attribuée.
+              </Typography>
+            </Box>
+        )}
       </Stack>
     </CardContent>
   </Card>
 );
 
 
-const ClientHeader = ({ client }) => (
+const ClientHeader = ({ client, simCard }) => (
   <Card sx={{ mb: 3, p: 2, bgcolor: 'primary.light' }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <Avatar sx={{ width: 60, height: 60, bgcolor: 'primary.main' }}>
-        {client.prenom[0]}{client.nom[0]}
+        {client.user?.firstname[0].toUpperCase()}{client.user?.lastname[0].toUpperCase()}
       </Avatar>
       <Box sx={{ flex: 1 }}>
         <Typography variant="h5" color="white" gutterBottom>
-          {client.prenom} {client.nom}
+          {client.user?.firstname} {client.user?.lastname}
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center">
-          <StatusChip status={client.status} />
+          <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.paymentStatus)} />
+          <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.phoneStatus)} />
           <Typography variant="body4" color="text.secondary">
-            {client.telephone}
+            {client.phoneNumber || 'N/C'}
           </Typography>
         </Stack>
       </Box>
@@ -92,26 +107,29 @@ const ClientHeader = ({ client }) => (
   </Card>
 );
 
-const SubscriptionCard = ({ client }) => {
-  if (!client?.red) return null;
+const SubscriptionCard = ({ client, simCard }) => {
+  if (!client?.agency) return null;
 
   const {
-    status,
+    paymentStatus,
+      phoneStatus,
     basePrice,
     features,
     dueAmount = 0,
     lastPaymentDate,
     unpaidMonths = [],
-    terminationDate
-  } = client.red;
+    updatedAt,
+  } = client;
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('fr-FR');
   };
 
   const getStatusInfo = () => {
+    const status = phoneStatus === PHONE_STATUS.SUSPENDED ? phoneStatus : paymentStatus;
+
     switch(status) {
-      case 'blocked':
+      case PHONE_STATUS.SUSPENDED:
         return {
           icon: <BlockIcon />,
           label: 'Ligne bloquée',
@@ -120,12 +138,12 @@ const SubscriptionCard = ({ client }) => {
         };
       case 'late':
         return {
-          icon: <WarningIcon />,
+          icon: PAYMENT_STATUS.OVERDUE,
           label: 'En retard',
           color: 'warning',
           severity: 'warning'
         };
-      case 'terminated':
+      case PAYMENT_STATUS.DISCONNECTED:
         return {
           icon: <CancelIcon />,
           label: 'Résilié',
@@ -134,7 +152,7 @@ const SubscriptionCard = ({ client }) => {
         };
       default:
         return {
-          icon: <CheckCircleIcon />,
+          icon: PAYMENT_STATUS.UP_TO_DATE,
           label: 'À jour',
           color: 'success',
           severity: 'success'
@@ -145,10 +163,10 @@ const SubscriptionCard = ({ client }) => {
   const statusInfo = getStatusInfo();
 
   const getPaymentDetails = () => {
-    if (status === 'terminated') {
+    if (paymentStatus === PAYMENT_STATUS.CANCELLED) {
       return {
         message: "Abonnement résilié",
-        details: [`Date de résiliation: ${formatDate(terminationDate)}`]
+        details: [`Date de résiliation: ${formatDate(updatedAt)}`]
       };
     }
     
@@ -171,14 +189,16 @@ const SubscriptionCard = ({ client }) => {
   const paymentDetails = getPaymentDetails();
 
   return (
-    <Card elevation={1}>
+    <Card elevation={1} sx={{
+      my: 2,
+    }}>
       <CardContent>
         {/* Header */}
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          mb: 2 
+          mb: 2,
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h6">
@@ -197,7 +217,7 @@ const SubscriptionCard = ({ client }) => {
               color={dueAmount > 0 ? "error.main" : "primary.main"}
               sx={{ mr: 1 }}
             >
-              {status === 'terminated' ? '--' : `${dueAmount > 0 ? dueAmount : basePrice}€`}
+              {phoneStatus === PHONE_STATUS.SUSPENDED ? '--' : `${dueAmount > 0 ? dueAmount : client?.agency?.prixAbonnement}€`}
             </Typography>
             <Tooltip
               title={
@@ -221,22 +241,22 @@ const SubscriptionCard = ({ client }) => {
         </Box>
 
         {/* Alerte pour les impayés ou la résiliation */}
-        {(dueAmount > 0 || status === 'terminated') && (
+        {(dueAmount > 0 || phoneStatus === PHONE_STATUS.SUSPENDED) && (
           <Alert 
             severity={statusInfo.severity}
             icon={statusInfo.icon}
             sx={{ mb: 2 }}
           >
             <AlertTitle>
-              {status === 'terminated' 
+              {phoneStatus === PHONE_STATUS.SUSPENDED
                 ? 'Abonnement résilié' 
-                : status === 'blocked' 
+                : (paymentStatus === PAYMENT_STATUS.CANCELLED || paymentStatus === PAYMENT_STATUS.OVERDUE)
                   ? 'Ligne bloquée - Paiement requis'
                   : 'Paiement en retard'}
             </AlertTitle>
-            {status === 'terminated' ? (
+            {phoneStatus === PHONE_STATUS.SUSPENDED ? (
               <Typography variant="body2">
-                Résilié le {formatDate(terminationDate)}
+                Résilié le {formatDate(updatedAt)}
               </Typography>
             ) : dueAmount > 0 && (
               <Stack spacing={1}>
@@ -272,12 +292,12 @@ const SubscriptionCard = ({ client }) => {
               }}
             >
               <CheckCircleIcon 
-                color={status === 'terminated' ? 'disabled' : 'success'} 
+                color={paymentStatus === PAYMENT_STATUS.CANCELLED ? 'disabled' : 'success'}
                 fontSize="small" 
               />
               <Typography 
                 variant="body2" 
-                color={status === 'terminated' ? 'text.disabled' : 'text.primary'}
+                color={paymentStatus === PAYMENT_STATUS.CANCELLED ? 'text.disabled' : 'text.primary'}
               >
                 {feature}
               </Typography>
@@ -286,7 +306,7 @@ const SubscriptionCard = ({ client }) => {
         </Stack>
 
         {/* Indicateur de dernier paiement */}
-        {status === 'active' && lastPaymentDate && (
+        {paymentStatus === PAYMENT_STATUS.UP_TO_DATE && lastPaymentDate && (
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
             <Typography variant="body2" color="text.secondary">
               Dernier paiement : {formatDate(lastPaymentDate)}
@@ -298,7 +318,7 @@ const SubscriptionCard = ({ client }) => {
   );
 };
 
-const AccountDetails = ({ redAccount = { id: 'RED_123456', password: 'SecurePass123' } }) => {
+const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'SecurePass123' } }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [remainingTime, setRemainingTime] = useState(30);
 
@@ -327,7 +347,7 @@ const AccountDetails = ({ redAccount = { id: 'RED_123456', password: 'SecurePass
           <Box display="flex" alignItems="center" gap={1}>
             <AccountCircleIcon color="primary" />
             <Typography variant="h6" color="primary">
-              agence combani
+              Agence : {agency?.name}
             </Typography>
           </Box>
 
@@ -344,7 +364,7 @@ const AccountDetails = ({ redAccount = { id: 'RED_123456', password: 'SecurePass
                   Identifiant :
                 </Typography>
                 <Typography variant="body1" fontWeight="medium">
-                  {redAccount.id}
+                  {redAccount?.redAccountId || 'N/A'}
                 </Typography>
               </Box>
 
@@ -354,7 +374,7 @@ const AccountDetails = ({ redAccount = { id: 'RED_123456', password: 'SecurePass
                 </Typography>
                 <Box display="flex" alignItems="center" gap={1}>
                   <Typography variant="body1" fontFamily="monospace" fontWeight="medium">
-                    {showPassword ? redAccount.password : '••••••••••'}
+                    {showPassword ? redAccount?.password : '••••••••••'}
                   </Typography>
                   <IconButton 
                     size="small" 
@@ -399,24 +419,22 @@ const AccountDetails = ({ redAccount = { id: 'RED_123456', password: 'SecurePass
 
 const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
   if (!client) return null;
-
   return (
     <Card sx={{ width: '600px' }}>
       <Box sx={{ p: 3 }}>
         <ClientHeader client={client} />
-        
-        {currentTab === 'order' || currentTab === 'activate' ? (
+        {currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED ? (
           <RedAccountManagement client={client} />
         ) : (
           <>
-            {(currentTab === 'block' || currentTab === 'unblock') && (
+            {(currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || currentTab === PAYMENT_STATUS.UP_TO_DATE || currentTab === PHONE_STATUS.SUSPENDED || currentTab === PAYMENT_STATUS.OVERDUE || currentTab === PAYMENT_STATUS.CANCELLED || currentTab === PAYMENT_STATUS.DISPUTED) && (
               <AccountDetails 
                 redAccount={client.redAccount}
                 agency={client.agency}
               />
             )}
-            <SubscriptionCard client={client} />
-            <NotesCard />
+            <SubscriptionCard client={client} simCard={client?.simCard} />
+            <NotesCard simCard={client?.simCard} agency={client?.agency} />
           </>
         )}
       </Box>

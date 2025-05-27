@@ -10,207 +10,17 @@ import ClientDetails from '../../components/ClientManagement/ClientDetails';
 import ClientActions from '../../components/ClientManagement/ClientActions';
 import ActivateTab from '../../components/ClientManagement/TabContent/ActivateTab';
 import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
+import {useGetPhonesQuery, useCreatePhoneMutation} from "../../store/slices/linesSlice";
+import {useGetAllUsersQuery} from "../../store/slices/clientsSlice";
+import { useCreateClientMutation } from "../../store/slices/clientsSlice";
+import { useCreateSimCardMutation } from "../../store/slices/simCardsSlice";
+import { PHONE_STATUS, PAYMENT_STATUS} from "../../components/ClientManagement/constant";
 
 // Mock data
-const mockClients = [
- 
-  {
-    id: 1,
-    nom: "ABDOU",
-    prenom: "Céline",
-    telephone: "0612346363",
-    status: "A JOUR",
-    compte: "celine.abdou",
-    email: "celine.abdou@gmail.com",
-    red: {
-      id: "celine.id.dtct",
-      psw: "t5743L2K",
-      status: 'active',
-      lastPaymentDate: '2024-02-15',
-      basePrice: 19,
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-  {
-    id: 2,
-    nom: "ABDOU",
-    prenom: "Omar",
-    telephone: "0644446363",
-    status: "EN RETARD",
-    compte: "ABDOU.OMAR",
-    email: "omar.abdou@gmail.com",
-    red: {
-      id: "djos.id.dtct",
-      psw: "t5743L2K",
-      status: 'late',
-      dueAmount: 38,
-      basePrice: 19,
-      lastPaymentDate: '2024-01-15',
-      unpaidMonths: [
-        { month: 'Janvier', year: 2024, amount: 19 },
-        { month: 'Février', year: 2024, amount: 19 }
-      ],
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-  {
-    id: 3,
-    nom: "SAID",
-    prenom: "Mohamed",
-    telephone: "0644466364",
-    status: "DETTE",
-    compte: "mohamed.msa",
-    email: "momo.said@gmail.com",
-    actions: [{
-      type: 'to_block',
-      reason: 'Nouveau client en attente de carte SIM',
-      priority: 1
-    }],
-    red: {
-      id: "mohamed.msa",
-      psw: "t5743L2K",
-      status: 'blocked',
-      dueAmount: 57,
-      basePrice: 19,
-      lastPaymentDate: '2023-12-15',
-      unpaidMonths: [
-        { month: 'Décembre', year: 2023, amount: 19 },
-        { month: 'Janvier', year: 2024, amount: 19 },
-        { month: 'Février', year: 2024, amount: 19 }
-      ],
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-  {
-    id: 6,
-    nom: "YASSINE",
-    prenom: "David",
-    telephone: "0644465778",
-    compte: "yassine.david",
-    status: "PAUSE",
-    email: "david.yassine@gmail.com",
-    actions: [{
-      type: 'to_unblock',
-      reason: 'Nouveau client en attente de carte SIM',
-      priority: 1
-    },
-    ],
-    red: {
-      id: "yassine.david",
-      psw: "t2343und1",
-      status: 'terminated',
-      basePrice: 19,
-      lastPaymentDate: '2024-02-10',
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-  {
-    id: 5,
-    nom: "MARTIN",
-    prenom: "Sophie",
-    telephone: "0644466999",
-    status: "RESILIE",
-    compte: "yassine.david",
-    email: "sophie.martin@gmail.com",
-    actions: [],
-    terminationDate: "2024-01-15", // Date de résiliation ajoutée
-    red: {
-      id: "yassine.david",
-      psw: "t2343und2",
-      status: 'terminated',
-      basePrice: 19,
-      terminationDate: '2024-01-15',
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-
-  {
-    id: 10,
-    nom: "ISSOUF",
-    prenom: "VOLA",
-    telephone: "",
-    status: "NOUVEAU CLIENT",
-    agency: {
-      id: 'COMBANI_01',
-    },
-    compte: "yassine.david",
-    email: "david.yassine@gmail.com",
-    actions: [{
-      type: 'to_order',
-      reason: 'NOUVEAU CLIENT',
-      iccid : undefined,
-    },
-  ],
-    red: {
-      id: "yassine.david",
-      psw: "t2343und1",
-      lineStatus: 'pending',
-      paymentStatus: 'pending',
-      basePrice: 19,
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-  {
-    id: 4,
-    nom: "YASSINE",
-    prenom: "David",
-    telephone: "",
-    status: "NOUVEAU CLIENT",
-    agency: {
-      id: 'COMBANI_01',
-    },
-    compte: "yassine.david",
-    email: "david.yassine@gmail.com",
-    simCCID: "8933150319xxxx",
-    actions: [{
-      type: 'to_activate',
-      reason: 'NOUVEAU CLIENT',
-      iccid : undefined,
-    },
-  ],
-    red: {
-      id: "yassine.david",
-      psw: "t2343und1",
-      lineStatus: 'pending',
-      paymentStatus: 'pending',
-      basePrice: 19,
-      features: [
-        "Appels illimités en France",
-        "SMS/MMS illimités",
-        "Internet 100Go"
-      ]
-    }
-  },
-];
-
 const tabs = [
   { id: TAB_TYPES.LIST, label: 'LISTE DES CLIENTS' },
   { id: TAB_TYPES.TO_UNBLOCK, label: 'A DEBLOQUER' },
-  { id: TAB_TYPES.TO_BLOCK, label: 'A BLOQUER' },
+  { id: TAB_TYPES.TO_BLOCK, label: 'EN RETARD' },
   { id: TAB_TYPES.TO_ORDER, label: 'A COMMANDER' },
   { id: TAB_TYPES.TO_ACTIVATE, label: 'A ACTIVER' },
 ];
@@ -222,45 +32,117 @@ const ClientManagement = () => {
   const [selectedStatus, setSelectedStatus] = useState(CLIENT_STATUSES.ALL);
   const [selectedOrderFilter, setSelectedOrderFilter] = useState(null);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
-  
-  const handleNewClient = (clientData) => {
-    console.log('Nouveau client créé:', clientData);
-    // Ici on pourrait ajouter le client à la liste des clients
-    // et le sélectionner automatiquement
+    const [createClient] = useCreateClientMutation();
+    const [createPhone] = useCreatePhoneMutation();
+    const [createSimCard] = useCreateSimCardMutation();
+
+  const {
+    data: linesData,
+  } = useGetPhonesQuery()
+
+  const handleNewClient = async (data) => {
+   let newId = 0;
+    if(data?.client?.id) {
+      // si le client à déjà un id on ne fait pas de requête pour le créer
+      // on le sélectionne directement
+      const fullData = linesData.find(client => client.id === data?.client?.id);
+      setSelectedClient(fullData);
+    } else {
+        // sinon on simule la création d'un nouveau client
+        // en ajoutant un id aléatoire pour la démo
+        const newClient = {
+            user: data.client,
+            id: Math.random().toString(36).substr(2, 9), // Génération d'un ID aléatoire
+            phoneStatus: PHONE_STATUS.NEEDS_TO_BE_ACTIVATED, // Par défaut, le statut du téléphone est actif
+            paymentStatus: PAYMENT_STATUS.UP_TO_DATE, // Par défaut, le statut de paiement est à jour
+        };
+
+        // utilisation de la mutation pour créer l'user
+        const newClientData = await createClient({
+          ...data.client,
+          password: "wezo976", // mot de passe par défaut pour la démo
+        });
+
+        console.log('New client created:', newClientData);
+
+        newId = newClientData?.data?.user?.id
+
+        setSelectedClient(newClient)
+    }
+
+    if(data?.payment) {
+      // si on as des informations de paiement, on vas créer un enregistrement dans la facturation
+      console.log('Ready for create billing record', data.payment);
+    }
+
+    if(data?.simCard?.simCCID) {
+        // if yes, associate it with the new phone of client
+        const existingSimCard = linesData.find(sim => sim.iccid === data.simCard.simCCID);
+
+        if(existingSimCard && data.simCard.simCCID !== 'in_attribution') {
+                alert('Cette carte SIM est déjà attribuée à un autre client.');
+        }
+    } else {
+        const newSimCard = {
+            iccid: 'in_attribution', // Indique que la carte SIM est en attribution
+            status: "INACTIVE", // Par défaut, le statut de la carte SIM est en attribution
+            agencyId: JSON?.parse(localStorage.getItem('user'))?.agencyId || 1, // Agence par défaut
+        }
+
+        const newSimCardData = await createSimCard(newSimCard);
+
+        // si on n'as pas de carte SIM, on crée un téléphone sans carte SIM
+        const newPhone = {
+            phoneNumber: data?.client?.phoneNumber || '0000000000', // Numéro de téléphone par défaut
+            userId: newId || data?.client?.id || null,
+            simCardId: newSimCardData?.data?.id, // Associer la nouvelle carte SIM au téléphone
+            phoneStatus: PHONE_STATUS.NEEDS_TO_BE_ACTIVATED, // Par défaut, le statut du téléphone est à activer
+            redAccountId: 5,
+            phoneType: "POSTPAID", // Type de téléphone par défaut
+        };
+        const createdPhone = await createPhone(newPhone);
+
+        console.log('New phone created:', createdPhone);
+        console.log("data", data);
+
+    }
   };
 
-  const handleChangeTabs = (e, newValue)=>{
+  const handleChangeTabs = (e, newValue)=> {
     setSelectedClient(null)
     setCurrentTab(newValue)
   }
 
   const getFilteredClients = () => {
-    return mockClients.filter(client => {
+    return linesData?.filter(client => {
       const matchesSearch = !searchTerm ? true :
-        client.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.telephone.includes(searchTerm);
-      
+        client?.user?.firstname.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+        client?.user?.lastname.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+        client?.user?.email.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+        client?.user?.phoneNumber?.includes(searchTerm);
+
       if (currentTab === TAB_TYPES.LIST) {
         // Pour la vue liste, on garde la logique existante si nécessaire
-        const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL || 
-          client.status === selectedStatus;
+        const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL ||
+          client?.phoneStatus === selectedStatus || client?.paymentStatus === selectedStatus;
         return matchesSearch && matchesStatus;
       }
-  
-      // Vérifie si le client a des actions
-      const hasActions = Array.isArray(client.actions) && client.actions.length > 0;
-      
+
+      //TODO : mettre a jour les filtres pour les autres onglets
       // Filtres basés sur les actions pour chaque onglet
       switch (currentTab) {
+        case TAB_TYPES.LIST:
+            return matchesSearch && (client?.phoneStatus === PHONE_STATUS.ACTIVE || client?.paymentStatus === PAYMENT_STATUS.UP_TO_DATE);
+        case TAB_TYPES.LATE:
+            return matchesSearch && (client?.phoneStatus === PHONE_STATUS.SUSPENDED && (client.paymentStatus === PAYMENT_STATUS.PAST_DUE || client.paymentStatus === PAYMENT_STATUS.OVERDUE));
         case TAB_TYPES.TO_BLOCK:
-          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_block');
+          return matchesSearch && (client?.phoneStatus === PHONE_STATUS.SUSPENDED && client.paymentStatus === PAYMENT_STATUS.OVERDUE);
         case TAB_TYPES.TO_UNBLOCK:
-          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_unblock');
+          return matchesSearch && (client?.phoneStatus === PHONE_STATUS.SUSPENDED && client.paymentStatus === PAYMENT_STATUS.UP_TO_DATE);
         case TAB_TYPES.TO_ORDER:
-          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_order');
+          return matchesSearch && (client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED && client.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED);
         case TAB_TYPES.TO_ACTIVATE:
-          return matchesSearch && hasActions && client.actions.some(action => action.type === 'to_activate');
+          return matchesSearch && (client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED && client.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED);
         default:
           // Pour l'onglet par défaut, on affiche tous les clients qui correspondent à la recherche
           // y compris ceux qui n'ont pas d'actions
@@ -271,10 +153,9 @@ const ClientManagement = () => {
 
   const renderTabContent = () => {
     const filteredClients = getFilteredClients();
-
     switch (currentTab) {
       case TAB_TYPES.LIST:
-        
+
         return (
           <ListTab
             searchTerm={searchTerm}
@@ -284,6 +165,9 @@ const ClientManagement = () => {
             clients={filteredClients}
             selectedClient={selectedClient}
             onClientSelect={setSelectedClient}
+            setCurrentTab={setCurrentTab}
+            tabs={tabs}
+            currentTab={currentTab}
           />
         );
       case TAB_TYPES.TO_BLOCK:
@@ -339,7 +223,7 @@ const ClientManagement = () => {
   return (
     <Box sx={{ bgcolor: 'grey.50', minHeight: '100vh' }}>
       <Box sx={{ bgcolor: 'white', boxShadow: 1, position: 'relative' }}>
-        <Tabs 
+        <Tabs
           value={currentTab}
           onChange={(e, newValue) => handleChangeTabs(e, newValue)}
           variant="scrollable"
@@ -351,17 +235,17 @@ const ClientManagement = () => {
             }
           }}
         >
-          {tabs.map((tab) => (
+          {tabs?.map((tab) => (
             <Tab key={tab.id} value={tab.id} label={tab.label} />
           ))}
         </Tabs>
         <Tooltip title="Créer un nouveau client" placement="left">
-          <IconButton 
+          <IconButton
             color="primary"
-            sx={{ 
-              position: 'absolute', 
-              right: 16, 
-              top: '50%', 
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: '50%',
               transform: 'translateY(-50%)',
               backgroundColor: 'rgba(255,255,255,0.8)',
               '&:hover': { backgroundColor: 'rgba(255,255,255,0.9)' }
@@ -378,18 +262,18 @@ const ClientManagement = () => {
         </Box>
         {selectedClient && (
           <>
-            <ClientDetails 
+            <ClientDetails
               client={selectedClient}
               currentTab={currentTab}
             />
-            <ClientActions 
-              client={selectedClient}  
+            <ClientActions
+              client={selectedClient}
               currentTab={currentTab}
             />
           </>
         )}
       </Box>
-      
+
       {/* Modal de création/sélection de client */}
       <CreateClientModal
         open={isNewClientModalOpen}

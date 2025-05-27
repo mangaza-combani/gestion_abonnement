@@ -4,7 +4,7 @@ import { Box, Tabs, Tab } from '@mui/material';
 const tabs = [
   { id: 'list', label: 'LISTE DES CLIENTS' },
   { id: 'unblock', label: 'A DEBLOQUER' },
-  { id: 'block', label: 'A BLOQUER' },
+  { id: 'block', label: 'EN RETARD' },
   { id: 'order', label: 'A COMMANDER' },
   { id: 'late', label: 'RETARD' }
 ];
