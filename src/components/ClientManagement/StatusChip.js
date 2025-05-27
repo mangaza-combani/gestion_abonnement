@@ -31,7 +31,7 @@ const StatusChip = ({ status }) => {
       case CLIENT_STATUSES.UNATTRIBUTED: // 'NON ATTRIBUÉ'
         return 'default';
       case CLIENT_STATUSES.REIMBURSED: // 'REMBOURSÉ'
-        return 'success';
+        return 'warning';
       case CLIENT_STATUSES.REFUNDED: // 'REMBOURSEMENT'
         return 'info';
       case CLIENT_STATUSES.DISPUTED: // 'CONTESTÉ'

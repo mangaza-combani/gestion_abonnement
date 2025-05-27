@@ -529,7 +529,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                         }}
                       />
                       <Chip
-                        icon={user?.role === 'Manager' ? <SchoolIcon /> : <BadgeIcon />}
+                        icon={user?.role === 'SUPER_ADMIN' ? <SchoolIcon /> : <BadgeIcon />}
                         label={user?.role || 'Non défini'}
                         variant="outlined"
                         color="primary"
@@ -685,8 +685,8 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                     <TextField
                       fullWidth
                       label="Téléphone"
-                      name="telephone"
-                      value={editedUser?.telephone || ''}
+                      name="phoneNumber"
+                      value={editedUser?.phoneNumber || ''}
                       onChange={handleInputChange}
                       variant="outlined"
                       InputProps={{
@@ -740,7 +740,7 @@ const UserDetails = ({ user = {}, onUpdateUser = () => {}, onDeleteUser = () => 
                     />
                     <Divider variant="fullWidth" sx={{ my: 0.5 }} />
                     <InfoBox 
-                      icon={user?.role === 'Manager' ? <SchoolIcon color="primary" fontSize="small" /> : <BadgeIcon color="primary" fontSize="small" />}
+                      icon={user?.role === 'SUPER_ADMIN' ? <SchoolIcon color="primary" fontSize="small" /> : <BadgeIcon color="primary" fontSize="small" />}
                       label="Rôle"
                       value={user?.role}
                       iconBgColor="primary.light"
