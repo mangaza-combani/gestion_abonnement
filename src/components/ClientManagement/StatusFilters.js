@@ -104,31 +104,33 @@ const StatusFilters = ({ selectedStatus, onStatusChange }) => {
     }
   };
 
+  // Filtres essentiels seulement
+  const essentialFilters = [
+    CLIENT_STATUSES.ALL,
+    CLIENT_STATUSES.TERMINATED,     // RÉSILIÉ
+    CLIENT_STATUSES.OVERDUE,        // EN RETARD
+    CLIENT_STATUSES.SUSPENDED,      // DETTE
+    CLIENT_STATUSES.ACTIVE,         // ACTIF
+    CLIENT_STATUSES.NEEDS_TO_BE_DEACTIVATED  // DÉSACTIVER
+  ];
+
   return (
       <Stack direction="row" spacing={1} flexWrap="wrap">
-        <Chip
-            label={CLIENT_STATUSES.ALL}
-            onClick={() => onStatusChange(CLIENT_STATUSES.ALL)}
-            variant={selectedStatus === CLIENT_STATUSES.ALL ? 'filled' : 'outlined'}
-            color={selectedStatus === CLIENT_STATUSES.ALL ? 'primary' : 'default'}
-        />
-        {Object.values(CLIENT_STATUSES)
-            .filter(status => status !== CLIENT_STATUSES.ALL)
-            .map((status) => (
-                <Chip
-                    key={status}
-                    label={status}
-                    icon={getStatusIcon(status)}
-                    onClick={() => onStatusChange(getKeyFromValue(CLIENT_STATUSES, status))}
-                    variant={selectedStatus === status ? 'filled' : 'outlined'}
-                    color={getStatusColor(status)}
-                    sx={{
-                      '&:hover': {
-                        backgroundColor: selectedStatus === status ? undefined : 'rgba(0, 0, 0, 0.04)'
-                      }
-                    }}
-                />
-            ))}
+        {essentialFilters.map((status) => (
+          <Chip
+              key={status}
+              label={status}
+              icon={status === CLIENT_STATUSES.ALL ? null : getStatusIcon(status)}
+              onClick={() => onStatusChange(status === CLIENT_STATUSES.ALL ? CLIENT_STATUSES.ALL : getKeyFromValue(CLIENT_STATUSES, status))}
+              variant={selectedStatus === status ? 'filled' : 'outlined'}
+              color={status === CLIENT_STATUSES.ALL && selectedStatus === CLIENT_STATUSES.ALL ? 'primary' : getStatusColor(status)}
+              sx={{
+                '&:hover': {
+                  backgroundColor: selectedStatus === status ? undefined : 'rgba(0, 0, 0, 0.04)'
+                }
+              }}
+          />
+        ))}
       </Stack>
   );
 };

@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import RedAccountManagement from '../RedAccountManagement';
+import ClientDetailsModal from './ClientDetailsModal';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
 import { PHONE_STATUS, PAYMENT_STATUS } from "./constant";
 import dayjs from "dayjs";
@@ -78,11 +79,11 @@ const NotesCard = ({simCard, agency}) => (
 );
 
 
-const ClientHeader = ({ client, simCard }) => (
+const ClientHeader = ({ client, simCard, onOpenModal }) => (
   <Card sx={{ mb: 3, p: 2, bgcolor: 'primary.light' }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <Avatar sx={{ width: 60, height: 60, bgcolor: 'primary.main' }}>
-        {client.user?.firstname[0].toUpperCase()}{client.user?.lastname[0].toUpperCase()}
+        {client.user?.firstname?.[0]?.toUpperCase()}{client.user?.lastname?.[0]?.toUpperCase()}
       </Avatar>
       <Box sx={{ flex: 1 }}>
         <Typography variant="h5" color="white" gutterBottom>
@@ -100,6 +101,7 @@ const ClientHeader = ({ client, simCard }) => (
         startIcon={<VisibilityIcon />}
         variant="contained"
         size="small"
+        onClick={onOpenModal}
       >
         Détails
       </Button>
@@ -418,27 +420,47 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
 
 
 const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   if (!client) return null;
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
   return (
-    <Card sx={{ width: '600px' }}>
-      <Box sx={{ p: 3 }}>
-        <ClientHeader client={client} />
-        {currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED ? (
-          <RedAccountManagement client={client} />
-        ) : (
-          <>
-            {(currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || currentTab === PAYMENT_STATUS.UP_TO_DATE || currentTab === PHONE_STATUS.SUSPENDED || currentTab === PAYMENT_STATUS.OVERDUE || currentTab === PAYMENT_STATUS.CANCELLED || currentTab === PAYMENT_STATUS.DISPUTED) && (
-              <AccountDetails 
-                redAccount={client.redAccount}
-                agency={client.agency}
-              />
-            )}
-            <SubscriptionCard client={client} simCard={client?.simCard} />
-            <NotesCard simCard={client?.simCard} agency={client?.agency} />
-          </>
-        )}
-      </Box>
-    </Card>
+    <>
+      <Card sx={{ width: '600px' }}>
+        <Box sx={{ p: 3 }}>
+          <ClientHeader client={client} onOpenModal={handleOpenModal} />
+          {currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED ? (
+            <RedAccountManagement client={client} />
+          ) : (
+            <>
+              {(currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || currentTab === PAYMENT_STATUS.UP_TO_DATE || currentTab === PHONE_STATUS.SUSPENDED || currentTab === PAYMENT_STATUS.OVERDUE || currentTab === PAYMENT_STATUS.CANCELLED || currentTab === PAYMENT_STATUS.DISPUTED) && (
+                <AccountDetails 
+                  redAccount={client.redAccount}
+                  agency={client.agency}
+                />
+              )}
+              <SubscriptionCard client={client} simCard={client?.simCard} />
+              <NotesCard simCard={client?.simCard} agency={client?.agency} />
+            </>
+          )}
+        </Box>
+      </Card>
+
+      {/* Modal de fiche client détaillée */}
+      <ClientDetailsModal 
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        client={client}
+      />
+    </>
   );
 };
 

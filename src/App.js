@@ -22,10 +22,11 @@ import LinesManagement from './pages/supervisor/LinesManagement';
 import ClientsManagement from './pages/agency/ClientsManagement';
 import MyLines from './pages/agency/MyLines';
 import SimStock from './pages/agency/SimStock';
-import Settings from './pages/settings/Settings';
+import Settings from './pages/Settings';
 import CommissionWithdrawal from './pages/agency/CommissionWithdrawal';
 import AccountResign from './pages/supervisor/AccountResign';
 import UsersManagement from './pages/supervisor/UsersManagement';
+import SubscriptionsManagement from './pages/supervisor/SubscriptionsManagement';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 
@@ -97,6 +98,7 @@ const App = () => {
               {/* Routes Superviseur */}
               <Route path="agencies" element={<AgenciesManagement />} />
               <Route path="lines" element={<LinesManagement />} />
+              <Route path="subscriptions" element={<SubscriptionsManagement />} />
               <Route path="commissions" element={<CommissionWithdrawal />} />
               <Route path="accountresign" element={<AccountResign />} />
               <Route path="user" element={<UsersManagement />} />

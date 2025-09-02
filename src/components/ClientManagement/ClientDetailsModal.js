@@ -3,18 +3,23 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton,
+  DialogActions,
   Box,
   Typography,
   Grid,
   Card,
   CardContent,
+  Avatar,
   Chip,
+  Divider,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
   Button,
-  Stack,
-  TextField,
-  Tabs,
+  IconButton,
   Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -22,359 +27,313 @@ import {
   TableHead,
   TableRow,
   Paper,
-  TablePagination,
-  Divider
+  useTheme,
+  alpha
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  Edit as EditIcon,
-  Save as SaveIcon,
-  Download as DownloadIcon,
+  Person as PersonIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  LocationOn as LocationOnIcon,
+  DateRange as DateRangeIcon,
+  AccountCircle as AccountCircleIcon,
+  Payment as PaymentIcon,
+  History as HistoryIcon,
   CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
   Warning as WarningIcon,
-  PhoneAndroid as PhoneIcon,
+  Info as InfoIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
+import InvoiceGenerator from '../Billing/InvoiceGenerator';
 
-// Données de test
-const mockClient = {
-  firstName: "Jean",
-  lastName: "Dupont",
-  email: "jean.dupont@email.com",
-  address: "123 Avenue de la République, 75011 Paris",
-  phone: "0612345678",
-  agency: "Agence Paris Centre",
-  redAccountId: "RED123456",
-  lines: [
-    { 
-      number: "0612345678", 
-      status: "active", 
-      iccid: "8933150319xxxx",
-      activationDate: "2023-01-15",
-      lastPayment: "2024-02-01",
-      subscription: "Forfait 19€"
-    },
-    { 
-      number: "0687654321", 
-      status: "blocked", 
-      iccid: "8933150319yyyy",
-      activationDate: "2023-03-20",
-      lastPayment: "2024-01-15",
-      subscription: "Forfait 19€",
-      blockReason: "Retard de paiement"
-    },
-    { 
-      number: "0698765432", 
-      status: "active", 
-      iccid: "8933150319zzzz",
-      activationDate: "2023-06-10",
-      lastPayment: "2024-02-01",
-      subscription: "Forfait 19€"
-    },
-    { 
-      number: "0676543210", 
-      status: "active", 
-      iccid: "8933150319aaaa",
-      activationDate: "2023-08-05",
-      lastPayment: "2024-02-01",
-      subscription: "Forfait 19€"
-    },
-    { 
-      number: "0654321098", 
-      status: "terminated", 
-      iccid: "8933150319bbbb",
-      activationDate: "2023-02-01",
-      terminationDate: "2023-12-15",
-      subscription: "Forfait 19€"
-    }
-  ],
-  payments: Array.from({ length: 24 }, (_, i) => ({
-    id: i + 1,
-    date: new Date(2024, 1 - Math.floor(i/2), 15 - (i % 2) * 14).toISOString(),
-    amount: 19,
-    status: i < 2 ? 'paid' : i < 3 ? 'late' : 'paid',
-    invoiceRef: `FAC${String(2024 - Math.floor(i/12)).slice(-2)}${String(12 - (i % 12)).padStart(2, '0')}-${String(i + 1).padStart(3, '0')}`,
-    period: new Date(2024, 1 - Math.floor(i/2), 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-  }))
-};
-
-const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
+const ClientDetailsModal = ({ open, onClose, client }) => {
+  const theme = useTheme();
   const [currentTab, setCurrentTab] = useState(0);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedClient, setEditedClient] = useState(null);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [paymentsPage, setPaymentsPage] = useState(0);
-  const [paymentsPerPage, setPaymentsPerPage] = useState(10);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
-  React.useEffect(() => {
-    if (client) {
-      setEditedClient({
-        ...client,
-        firstname: client?.firstname || '',
-        lastname: client?.lastname || '',
-        email: client?.email || '',
-        address: client?.address || '',
-        phoneNumber: client?.phoneNumber || '',
+  if (!client) return null;
+
+  const handleOpenInvoice = () => {
+    setIsInvoiceModalOpen(true);
+  };
+
+  const handleCloseInvoice = () => {
+    setIsInvoiceModalOpen(false);
+  };
+
+  // Générer un historique de paiement simulé pour les 12 derniers mois
+  const generatePaymentHistory = () => {
+    const months = [];
+    const currentDate = new Date();
+    
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      
+      // Simulation de l'état des paiements
+      let status = 'paid';
+      if (client.paymentStatus === 'OVERDUE' && i < 2) {
+        status = 'unpaid';
+      } else if (client.paymentStatus === 'PAST_DUE' && i < 3) {
+        status = 'unpaid';
+      } else if (Math.random() > 0.8) { // 20% de chance d'impayé aléatoire
+        status = 'unpaid';
+      }
+
+      months.push({
+        month: monthNames[date.getMonth()],
+        year: date.getFullYear(),
+        fullDate: date,
+        status: status,
+        amount: status === 'paid' ? '25.00€' : '25.00€'
       });
     }
-  }, [client]);
-
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
+    return months;
   };
 
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
+  const paymentHistory = generatePaymentHistory();
 
-  const handlePaymentsPageChange = (event, newPage) => {
-    setPaymentsPage(newPage);
-  };
+  // Composant pour l'historique de paiement visuel
+  const PaymentHistoryVisual = () => (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+        <PaymentIcon color="primary" />
+        Historique des paiements (12 derniers mois)
+      </Typography>
+      
+      <Grid container spacing={1}>
+        {paymentHistory.map((month, index) => (
+          <Grid item xs={2} key={index}>
+            <Card
+              sx={{
+                minHeight: 60,
+                backgroundColor: month.status === 'paid' 
+                  ? alpha(theme.palette.success.main, 0.1)
+                  : alpha(theme.palette.error.main, 0.1),
+                border: `2px solid ${month.status === 'paid' 
+                  ? theme.palette.success.main
+                  : theme.palette.error.main}`,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                  boxShadow: 3
+                }
+              }}
+            >
+              <CardContent sx={{ p: 1, textAlign: 'center', '&:last-child': { pb: 1 } }}>
+                <Typography variant="caption" fontWeight="bold">
+                  {month.month}
+                </Typography>
+                <Typography variant="caption" display="block" color="text.secondary">
+                  {month.year}
+                </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  {month.status === 'paid' ? (
+                    <CheckCircleIcon fontSize="small" color="success" />
+                  ) : (
+                    <CancelIcon fontSize="small" color="error" />
+                  )}
+                </Box>
+                <Typography variant="caption" display="block" fontWeight="medium">
+                  {month.amount}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
 
-  const handlePaymentsPerPageChange = (event) => {
-    setPaymentsPerPage(parseInt(event.target.value, 10));
-    setPaymentsPage(0);
-  };
-
-  const handleTabChange = (event, newValue) => {
-    setCurrentTab(newValue);
-  };
-
-  const handleSaveChanges = () => {
-    console.log('Saving changes:', editedClient);
-    setIsEditing(false);
-  };
-
-  const handleDownloadInvoice = (invoice) => {
-    console.log('Downloading invoice:', invoice);
-  };
-
-  const renderClientInfo = () => (
-    <Card variant="outlined" sx={{ mb: 3 }}>
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">Informations Client</Typography>
-          <IconButton onClick={() => setIsEditing(!isEditing)}>
-            {isEditing ? <SaveIcon onClick={handleSaveChanges} /> : <EditIcon />}
-          </IconButton>
+      <Box sx={{ mt: 2, display: 'flex', gap: 2, justifyContent: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CheckCircleIcon fontSize="small" color="success" />
+          <Typography variant="body2">Payé</Typography>
         </Box>
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Nom"
-              value={isEditing ? editedClient.lastname : (client?.lastname || '')}
-              onChange={(e) => setEditedClient({ ...editedClient, lastname: e.target.value })}
-              disabled={!isEditing}
-              margin="dense"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Prénom"
-              value={isEditing ? editedClient.firstname : (client?.firstname || '')}
-              onChange={(e) => setEditedClient({ ...editedClient, firstname: e.target.value })}
-              disabled={!isEditing}
-              margin="dense"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Adresse"
-              value={isEditing ? editedClient.address : (client?.address || '')}
-              onChange={(e) => setEditedClient({ ...editedClient, address: e.target.value })}
-              disabled={!isEditing}
-              multiline
-              rows={2}
-              margin="dense"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Email"
-              value={isEditing ? editedClient.email : (client?.email || '')}
-              onChange={(e) => setEditedClient({ ...editedClient, email: e.target.value })}
-              disabled={!isEditing}
-              margin="dense"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Téléphone"
-              value={isEditing ? editedClient.phoneNumber : (client?.phoneNumber || '')}
-              onChange={(e) => setEditedClient({ ...editedClient, phoneNumber: e.target.value })}
-              disabled={!isEditing}
-              margin="dense"
-            />
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CancelIcon fontSize="small" color="error" />
+          <Typography variant="body2">Impayé</Typography>
+        </Box>
+      </Box>
+    </Box>
   );
 
-  const renderRedByInfo = () => (
-    <Card variant="outlined" sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>Informations Red by SFR</Typography>
+  // Informations générales du client
+  const ClientInfo = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={4}>
+        <Card elevation={2}>
+          <CardContent sx={{ textAlign: 'center', p: 3 }}>
+            <Avatar
+              sx={{
+                width: 80,
+                height: 80,
+                bgcolor: theme.palette.primary.main,
+                fontSize: '2rem',
+                mx: 'auto',
+                mb: 2
+              }}
+            >
+              {client.user?.firstname?.[0]}{client.user?.lastname?.[0]}
+            </Avatar>
+            <Typography variant="h6" gutterBottom>
+              {client.user?.firstname} {client.user?.lastname}
+            </Typography>
+            <Chip
+              label={client.phoneStatus}
+              color={
+                client.phoneStatus === 'ACTIVE' ? 'success' :
+                client.phoneStatus === 'SUSPENDED' ? 'error' :
+                client.phoneStatus === 'OVERDUE' ? 'warning' : 'default'
+              }
+              sx={{ mb: 1 }}
+            />
+            <Typography variant="body2" color="text.secondary">
+              Client depuis: {new Date(client.createdAt || Date.now()).toLocaleDateString()}
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      <Grid item xs={12} md={8}>
+        <Card elevation={2}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PersonIcon color="primary" />
+              Informations personnelles
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            <List dense>
+              <ListItem>
+                <ListItemIcon><EmailIcon /></ListItemIcon>
+                <ListItemText 
+                  primary="Email" 
+                  secondary={client.user?.email || 'Non renseigné'}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemIcon><PhoneIcon /></ListItemIcon>
+                <ListItemText 
+                  primary="Téléphone" 
+                  secondary={client.user?.phoneNumber || client.phoneNumber || 'Non renseigné'}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemIcon><LocationOnIcon /></ListItemIcon>
+                <ListItemText 
+                  primary="Ville" 
+                  secondary={client.user?.city || 'Non renseigné'}
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemIcon><DateRangeIcon /></ListItemIcon>
+                <ListItemText 
+                  primary="Date de naissance" 
+                  secondary={client.user?.birthday ? new Date(client.user.birthday).toLocaleDateString() : 'Non renseigné'}
+                />
+              </ListItem>
+            </List>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  // Lignes du client
+  const ClientLines = () => (
+    <Box>
+      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <PhoneIcon color="primary" />
+        Lignes téléphoniques
+      </Typography>
+
+      <TableContainer component={Paper} elevation={1}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell><strong>Numéro</strong></TableCell>
+              <TableCell><strong>Statut</strong></TableCell>
+              <TableCell><strong>Type</strong></TableCell>
+              <TableCell><strong>Date activation</strong></TableCell>
+              <TableCell><strong>Paiement</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {/* Ligne principale */}
+            <TableRow>
+              <TableCell>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PhoneIcon fontSize="small" />
+                  {client.phoneNumber || 'En attente'}
+                </Box>
+              </TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  label={client.phoneStatus || 'UNKNOWN'}
+                  color={
+                    client.phoneStatus === 'ACTIVE' ? 'success' :
+                    client.phoneStatus === 'SUSPENDED' ? 'error' :
+                    client.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' ? 'warning' : 'default'
+                  }
+                />
+              </TableCell>
+              <TableCell>{client.phoneType || 'POSTPAID'}</TableCell>
+              <TableCell>
+                {client.activationDate 
+                  ? new Date(client.activationDate).toLocaleDateString()
+                  : client.createdAt ? new Date(client.createdAt).toLocaleDateString() : 'N/A'
+                }
+              </TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  label={client.paymentStatus || 'UNKNOWN'}
+                  color={
+                    client.paymentStatus === 'UP_TO_DATE' ? 'success' :
+                    client.paymentStatus === 'OVERDUE' ? 'warning' :
+                    client.paymentStatus === 'PAST_DUE' ? 'error' : 'default'
+                  }
+                  variant="outlined"
+                />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Informations techniques */}
+      <Box sx={{ mt: 3 }}>
+        <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <InfoIcon color="primary" />
+          Informations techniques
+        </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <Typography variant="subtitle2" color="text.secondary">
-              Agence affiliée
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {client?.agency?.name || 'Aucune agence'}
-            </Typography>
+            <Card variant="outlined">
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">Carte SIM</Typography>
+                <Typography variant="body1">
+                  {client.activatedWithIccid || client.simCardId || 'Non assignée'}
+                </Typography>
+              </CardContent>
+            </Card>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography variant="subtitle2" color="text.secondary">
-              Identifiant Compte Red
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {client?.redAccountId || 'Non défini'}
-            </Typography>
+            <Card variant="outlined">
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">Compte RED</Typography>
+                <Typography variant="body1">
+                  {client.redAccountId || 'Non assigné'}
+                </Typography>
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
-      </CardContent>
-    </Card>
-  );
-
-  const renderPhoneLines = () => (
-    <Card variant="outlined" sx={{ mb: 3 }}>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>Lignes téléphoniques</Typography>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Numéro</TableCell>
-                <TableCell>ICCID</TableCell>
-                <TableCell>Date d'activation</TableCell>
-                <TableCell>Dernier paiement</TableCell>
-                <TableCell>Statut</TableCell>
-                <TableCell>Détails</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {client.lines
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((line, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{line.number}</TableCell>
-                    <TableCell>{line.iccid}</TableCell>
-                    <TableCell>{new Date(line.activationDate).toLocaleDateString('fr-FR')}</TableCell>
-                    <TableCell>{new Date(line.lastPayment).toLocaleDateString('fr-FR')}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={
-                          line.status === 'active' ? 'Active' : 
-                          line.status === 'blocked' ? 'Bloquée' : 
-                          'Résiliée'
-                        }
-                        color={
-                          line.status === 'active' ? 'success' : 
-                          line.status === 'blocked' ? 'error' : 
-                          'default'
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {line.blockReason && (
-                        <Typography variant="caption" color="error">
-                          {line.blockReason}
-                        </Typography>
-                      )}
-                      {line.terminationDate && (
-                        <Typography variant="caption">
-                          Résiliée le {new Date(line.terminationDate).toLocaleDateString('fr-FR')}
-                        </Typography>
-                      )}
-                    </TableCell>
-                  </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          component="div"
-          count={client.lines.length}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          labelRowsPerPage="Lignes par page"
-          labelDisplayedRows={({ from, to, count }) => `${from}-${to} sur ${count}`}
-        />
-      </CardContent>
-    </Card>
-  );
-
-  const renderPayments = () => (
-    <Card variant="outlined">
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">Historique des paiements</Typography>
-        </Box>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Référence</TableCell>
-                <TableCell>Période</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Montant</TableCell>
-                <TableCell>Statut</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {client.payments
-                .slice(paymentsPage * paymentsPerPage, paymentsPage * paymentsPerPage + paymentsPerPage)
-                .map((payment, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{payment.invoiceRef}</TableCell>
-                    <TableCell>{payment.period}</TableCell>
-                    <TableCell>{new Date(payment.date).toLocaleDateString('fr-FR')}</TableCell>
-                    <TableCell>{payment.amount}€</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={payment.status === 'paid' ? 'Payé' : 'En retard'}
-                        color={payment.status === 'paid' ? 'success' : 'error'}
-                        icon={payment.status === 'paid' ? <CheckCircleIcon /> : <WarningIcon />}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        startIcon={<DownloadIcon />}
-                        size="small"
-                        onClick={() => handleDownloadInvoice(payment)}
-                      >
-                        Facture
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          component="div"
-          count={client.payments.length}
-          page={paymentsPage}
-          onPageChange={handlePaymentsPageChange}
-          rowsPerPage={paymentsPerPage}
-          onRowsPerPageChange={handlePaymentsPerPageChange}
-          labelRowsPerPage="Factures par page"
-          labelDisplayedRows={({ from, to, count }) => `${from}-${to} sur ${count}`}
-        />
-      </CardContent>
-    </Card>
+      </Box>
+    </Box>
   );
 
   return (
@@ -383,33 +342,100 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
       onClose={onClose}
       maxWidth="lg"
       fullWidth
+      PaperProps={{
+        sx: {
+          minHeight: '80vh',
+          maxHeight: '90vh'
+        }
+      }}
     >
-      <DialogTitle>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          Détails du client
-          <IconButton onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
+      <DialogTitle 
+        sx={{ 
+          bgcolor: theme.palette.primary.main, 
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <AccountCircleIcon />
+          <Box>
+            <Typography variant="h6">
+              Fiche Client - {client.user?.firstname} {client.user?.lastname}
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              ID: {client.id} • {client.user?.email}
+            </Typography>
+          </Box>
         </Box>
+        <IconButton onClick={onClose} sx={{ color: 'white' }}>
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
-      <DialogContent>
-        <Tabs value={currentTab} onChange={handleTabChange} sx={{ mb: 3 }}>
-          <Tab label="Informations" />
-          <Tab label="Lignes & Services" />
-          <Tab label="Paiements" />
+
+      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs value={currentTab} onChange={(e, newValue) => setCurrentTab(newValue)}>
+          <Tab 
+            label="Informations" 
+            icon={<PersonIcon />} 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+          <Tab 
+            label="Lignes" 
+            icon={<PhoneIcon />} 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+          <Tab 
+            label="Paiements" 
+            icon={<PaymentIcon />} 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
         </Tabs>
+      </Box>
 
+      <DialogContent sx={{ p: 0 }}>
         {currentTab === 0 && (
-          <>
-            {renderClientInfo()}
-            {renderRedByInfo()}
-          </>
+          <Box sx={{ p: 3 }}>
+            <ClientInfo />
+          </Box>
         )}
-
-        {currentTab === 1 && renderPhoneLines()}
-
-        {currentTab === 2 && renderPayments()}
+        {currentTab === 1 && (
+          <Box sx={{ p: 3 }}>
+            <ClientLines />
+          </Box>
+        )}
+        {currentTab === 2 && (
+          <PaymentHistoryVisual />
+        )}
       </DialogContent>
+
+      <DialogActions sx={{ p: 2, bgcolor: 'grey.50' }}>
+        <Button onClick={onClose} variant="outlined">
+          Fermer
+        </Button>
+        <Button 
+          variant="outlined" 
+          startIcon={<ReceiptIcon />}
+          onClick={handleOpenInvoice}
+          color="secondary"
+        >
+          Générer Facture
+        </Button>
+        <Button variant="contained" color="primary">
+          Modifier
+        </Button>
+      </DialogActions>
+
+      {/* Modal de génération de facture */}
+      <InvoiceGenerator 
+        open={isInvoiceModalOpen}
+        onClose={handleCloseInvoice}
+        client={client}
+      />
     </Dialog>
   );
 };
