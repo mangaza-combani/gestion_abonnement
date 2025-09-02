@@ -30,14 +30,16 @@ import {
   useChangeLineStatusMutation,
   useCreateLineMutation,
   useCreateRedAccountMutation,
+  useUpdatePaymentInfoMutation,
   transformAccount,
   selectSelectedAccount,
   selectAccount
 } from '../../store/slices/redAccountsSlice';
 import { useDispatch, useSelector } from 'react-redux';
 
-// Import des agencies et clients
-import { mockAgencies, mockClients } from '../../components/AccountManagement/accountConstants';
+// Import real API hooks for agencies and clients
+import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
+import { useGetClientsQuery } from '../../store/slices/clientsSlice';
 
 const ModernAccountManagement = () => {
   const theme = useTheme();
@@ -59,10 +61,15 @@ const ModernAccountManagement = () => {
   // Get selected account from Redux state
   const selectedAccount = useSelector(selectSelectedAccount);
 
+  // Fetch agencies and clients data
+  const { data: agenciesData, isLoading: agenciesLoading } = useGetAgenciesQuery();
+  const { data: clientsData, isLoading: clientsLoading } = useGetClientsQuery();
+
   // Initialize mutations
   const [changeLineStatus] = useChangeLineStatusMutation();
   const [createLine] = useCreateLineMutation();
   const [createRedAccount] = useCreateRedAccountMutation();
+  const [updatePaymentInfo] = useUpdatePaymentInfoMutation();
 
   // Effect to show error in snackbar if API call fails
   useEffect(() => {
@@ -72,11 +79,11 @@ const ModernAccountManagement = () => {
   }, [isError, error]);
 
   // Filtrer les comptes en fonction des critères de recherche
-  const filteredAccounts = accounts?.redAccounts?.filter(account => {
+  const filteredAccounts = (accounts?.redAccounts || []).filter(account => {
     const matchesSearch = !searchTerm ? true : 
-      account.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      account.redAccountId?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.id?.toString().includes(searchTerm) ||
+      account.agency?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesAgency = !selectedAgency ? true : 
       account.agencyId === selectedAgency;
@@ -87,10 +94,19 @@ const ModernAccountManagement = () => {
   // Gérer la création d'un nouveau compte
   const handleCreateAccount = async (accountData) => {
     try {
+      // Appel API pour créer le compte
+      const result = await createRedAccount(accountData).unwrap();
+      
       setIsNewAccountDialogOpen(false);
-      showSnackbar('Compte créé avec succès', 'success');
+      showSnackbar('Compte RED créé avec succès ! Les données ont été actualisées.', 'success');
+      
+      // Optionnel : sélectionner automatiquement le nouveau compte créé
+      if (result.redAccount) {
+        dispatch(selectAccount(result.redAccount));
+      }
+      
     } catch (err) {
-      showSnackbar(`Erreur lors de la création du compte: ${err.message}`, 'error');
+      showSnackbar(`Erreur lors de la création du compte: ${err.data?.message || err.message}`, 'error');
     }
   };
 
@@ -164,6 +180,24 @@ const ModernAccountManagement = () => {
       showSnackbar(`Ligne ${line.phoneNumber} mise en pause`, 'info');
     } catch (err) {
       showSnackbar(`Erreur lors de la mise en pause: ${err.message}`, 'error');
+    }
+  };
+
+  // Gérer la mise à jour des informations de paiement
+  const handleUpdatePaymentInfo = async (paymentData) => {
+    if (!selectedAccount) return;
+    
+    try {
+      await updatePaymentInfo({
+        accountId: selectedAccount.id,
+        bankName: paymentData.bankName,
+        cardLastFour: paymentData.cardLastFour,
+        cardExpiry: paymentData.cardExpiry
+      }).unwrap();
+      
+      showSnackbar('Informations de paiement mises à jour avec succès', 'success');
+    } catch (err) {
+      showSnackbar(`Erreur lors de la mise à jour: ${err.data?.message || err.message}`, 'error');
     }
   };
 
@@ -262,7 +296,7 @@ const ModernAccountManagement = () => {
                 resultCount={filteredAccounts?.length || 0}
                 selectedAgency={selectedAgency}
                 onAgencyChange={setSelectedAgency}
-                agencies={mockAgencies}
+                agencies={agenciesData || []}
               />
             </div>
           </Fade>
@@ -288,11 +322,18 @@ const ModernAccountManagement = () => {
               <div style={{ width: '100%' }}>
                 <AccountDetails 
                   account={selectedAccount}
-                  onAddLine={() => setIsNewLineDialogOpen(true)}
+                  onAddLine={() => {
+                    if (!selectedAccount?.id) {
+                      showSnackbar('Veuillez sélectionner un compte RED avant d\'ajouter une ligne', 'warning');
+                      return;
+                    }
+                    setIsNewLineDialogOpen(true);
+                  }}
                   onActivateLine={handleActivateLine}
                   onBlockLine={handleBlockLine}
                   onPauseLine={handlePauseLine}
                   onDeleteLine={() => {}} // Cette fonctionnalité sera implémentée ultérieurement
+                  onUpdatePaymentInfo={handleUpdatePaymentInfo}
                 />
               </div>
             </Fade>
@@ -326,15 +367,15 @@ const ModernAccountManagement = () => {
         open={isNewAccountDialogOpen}
         onClose={() => setIsNewAccountDialogOpen(false)}
         onSubmit={handleCreateAccount}
-        agencies={mockAgencies}
+        agencies={agenciesData || []}
       />
 
       <NewLineDialog 
-        open={isNewLineDialogOpen}
+        open={isNewLineDialogOpen && !!selectedAccount?.id}
         onClose={() => setIsNewLineDialogOpen(false)}
         onSubmit={handleAddLine}
         accountId={selectedAccount?.id}
-        clients={mockClients}
+        clients={clientsData?.users || []}
       />
 
       {/* Snackbar pour les notifications */}

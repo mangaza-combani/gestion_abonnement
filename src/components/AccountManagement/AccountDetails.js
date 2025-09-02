@@ -40,7 +40,9 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Delete as DeleteIcon,
   History as HistoryIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  Edit as EditIcon,
+  CreditCard as CreditCardIcon
 } from '@mui/icons-material';
 
 // Import des constantes
@@ -51,6 +53,7 @@ import {
   CLIENT_TYPES
 } from './accountConstants';
 import {useGetAgenciesQuery, useGetAgencyByIdQuery} from "../../store/slices/agencySlice";
+import UpdatePaymentDialog from './UpdatePaymentDialog';
 
 // Composant pour afficher le statut de la ligne avec la couleur appropriée
 const LineStatusChip = ({ status }) => {
@@ -232,13 +235,14 @@ const isExpiredTermination = (line) => {
   return terminationDate < oneYearAgo;
 };
 
-const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
+const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentInfo }) => {
   const theme = useTheme();
   const [tab, setTab] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showExpiredLines, setShowExpiredLines] = useState(false);
   const [ca, setCurrentAgency] = useState(null);
   const [currentAgency, setCurrentAgencyWithPhones] = useState(null);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const agencies = useGetAgenciesQuery();
 
         useEffect(() => {
@@ -252,17 +256,17 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
 
   // Fonction pour déterminer si la ligne est attribuée à un client
   const isLineAssigned = (line) => {
-    return line.clientName && line.clientName !== UNASSIGNED_LINE_DISPLAY.CLIENT_NAME;
+    return line.userId !== null && line.userId !== undefined;
   };
   
   // Fonction pour filtrer les lignes selon les critères d'affichage
   const getFilteredLines = () => {
     if (showExpiredLines) {
-      return account.lines || [];
+      return account.phones || [];
     }
     
-    return (account.lines || []).filter(line => 
-      !(line?.phoneStatus === LINE_STATUSES.TERMINATED && isExpiredTermination(line))
+    return (account.phones || []).filter(line => 
+      !(line?.phoneStatus === 'INACTIVE' && line?.deactivationDate && isExpiredTermination({ terminationDate: line.deactivationDate }))
     );
   };
   
@@ -271,12 +275,12 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
   // Statistiques des lignes
   const stats = {
     total: filteredLines.length,
-    active: filteredLines.filter(line => line.phoneStatus === LINE_STATUSES.ACTIVE).length,
-    assigned: filteredLines.filter(line => isLineAssigned(line)).length,
-    unassigned: filteredLines.filter(line => !isLineAssigned(line)).length,
-    terminated: filteredLines.filter(line => line?.phoneStatus === LINE_STATUSES.TERMINATED).length,
-    expiredTerminations: (account.lines || []).filter(line => 
-      line?.phoneStatus === LINE_STATUSES.TERMINATED && isExpiredTermination(line)
+    active: filteredLines.filter(line => line.phoneStatus === 'ACTIVE').length,
+    assigned: filteredLines.filter(line => line.userId !== null).length,
+    unassigned: filteredLines.filter(line => line.userId === null).length,
+    terminated: filteredLines.filter(line => line?.phoneStatus === 'INACTIVE').length,
+    expiredTerminations: (account.phones || []).filter(line => 
+      line?.phoneStatus === 'INACTIVE' && line?.deactivationDate && isExpiredTermination({ terminationDate: line.deactivationDate })
     ).length
   };
   
@@ -518,7 +522,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       <StatItem 
                         icon={<SwapHorizIcon />} 
                         label="Non attribuées" 
-                        value={account?.maxLines - account?.activeLines}
+                        value={stats.unassigned}
                         color="info"
                       />
                     </Grid>
@@ -541,6 +545,109 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                       </Grid>
                     )}
                   </Grid>
+                </Paper>
+              </Grid>
+              
+              {/* Payment Information Section - Full width */}
+              <Grid item xs={12}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2.5,
+                    bgcolor: alpha(theme.palette.background.default, 0.7),
+                    borderRadius: 2,
+                    border: `1px solid ${theme.palette.divider}`
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                        Informations de paiement
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CreditCardIcon color="primary" fontSize="small" />
+                        <Typography variant="body1" fontWeight="medium">
+                          Carte de crédit rattachée
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Tooltip title="Modifier les informations de paiement">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => setIsPaymentDialogOpen(true)}
+                        color="primary"
+                        sx={{ 
+                          bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  {account?.bankName || account?.cardLastFour || account?.cardExpiry ? (
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={4}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Banque
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {account?.bankName || 'Non renseigné'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Carte
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {account?.cardLastFour ? `**** **** **** ${account.cardLastFour}` : 'Non renseigné'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Expiration
+                          </Typography>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight="medium"
+                            color={(() => {
+                              if (!account?.cardExpiry) return 'text.primary';
+                              const [month, year] = account.cardExpiry.split('/');
+                              const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
+                              const twoMonthsFromNow = new Date();
+                              twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
+                              return expiryDate <= twoMonthsFromNow ? 'warning.main' : 'text.primary';
+                            })()}
+                          >
+                            {account?.cardExpiry || 'Non renseigné'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Aucune information de paiement renseignée
+                      </Typography>
+                      <Button 
+                        variant="outlined" 
+                        size="small"
+                        startIcon={<CreditCardIcon />}
+                        onClick={() => setIsPaymentDialogOpen(true)}
+                        sx={{ mt: 1 }}
+                      >
+                        Ajouter une carte
+                      </Button>
+                    </Box>
+                  )}
                 </Paper>
               </Grid>
             </Grid>
@@ -639,8 +746,9 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                   </TableHead>
                   <TableBody>
                     {filteredLines.map((line) => {
-                      const isTerminated = line?.phoneStatus === LINE_STATUSES.TERMINATED;
-                      const isExpired = isExpiredTermination(line);
+                      const isTerminated = line?.phoneStatus === 'INACTIVE';
+                      const isExpired = line?.deactivationDate && isExpiredTermination({ terminationDate: line.deactivationDate });
+                      const isAssigned = line.userId !== null;
                       
                       return (
                         <TableRow 
@@ -648,12 +756,12 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                           sx={{ 
                             '&:last-child td, &:last-child th': { border: 0 },
                             '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.03) },
-                            cursor: isLineAssigned(line) && !isTerminated ? 'pointer' : 'default',
+                            cursor: isAssigned && !isTerminated ? 'pointer' : 'default',
                             transition: 'background-color 0.2s',
                             opacity: isExpired ? 0.7 : 1,
                             backgroundColor: isExpired ? alpha(theme.palette.grey[500], 0.05) : 'inherit'
                           }}
-                          onClick={() => isLineAssigned(line) && !isTerminated && onNavigateToLine && onNavigateToLine(line.id)}
+                          onClick={() => isAssigned && !isTerminated && onNavigateToLine && onNavigateToLine(line.id)}
                         >
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -690,7 +798,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                           </TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              {isLineAssigned(line) ? (
+                              {isAssigned ? (
                                 <>
                                   <Typography 
                                     variant="body2"
@@ -699,7 +807,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                                       color: isTerminated ? 'text.disabled' : 'text.primary'
                                     }}
                                   >
-                                    {line.clientName}
+                                    {line.user ? `${line.user.firstName} ${line.user.lastName}` : 'Client inconnu'}
                                   </Typography>
                                   {!isTerminated && (
                                     <Tooltip title="Voir les détails de la ligne">
@@ -728,15 +836,31 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
                             </Box>
                           </TableCell>
                           <TableCell align="center">
-                            <LineStatusChip 
-                              status={!isLineAssigned(line) && line?.phoneStatus !== LINE_STATUSES.UNASSIGNED ? 
-                                LINE_STATUSES.UNASSIGNED : line?.phoneStatus} 
+                            <Chip 
+                              label={line?.phoneStatus || 'UNKNOWN'} 
+                              color={
+                                line?.phoneStatus === 'ACTIVE' ? 'success' :
+                                line?.phoneStatus === 'INACTIVE' ? 'default' :
+                                line?.phoneStatus === 'SUSPENDED' ? 'error' :
+                                'info'
+                              }
+                              size="small"
+                              sx={{ fontWeight: 'medium', borderRadius: '4px' }}
                             />
                           </TableCell>
                           <TableCell align="center">
-                            <PaymentStatusChip 
-                              status={!isLineAssigned(line) ? 
-                                PAYMENT_STATUSES.UNASSIGNED : line.paymentStatus} 
+                            <Chip 
+                              label={line?.paymentStatus || 'UNKNOWN'} 
+                              color={
+                                line?.paymentStatus === 'UP_TO_DATE' ? 'success' :
+                                line?.paymentStatus === 'OVERDUE' ? 'warning' :
+                                line?.paymentStatus === 'PAST_DUE' ? 'error' :
+                                line?.paymentStatus === 'UNATTRIBUTED' ? 'info' :
+                                'default'
+                              }
+                              variant="outlined"
+                              size="small"
+                              sx={{ borderRadius: '4px' }}
                             />
                           </TableCell>
                          
@@ -796,6 +920,14 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine }) => {
           </Box>
         </Collapse>
       </CardContent>
+      
+      {/* Payment Information Update Dialog */}
+      <UpdatePaymentDialog
+        open={isPaymentDialogOpen}
+        onClose={() => setIsPaymentDialogOpen(false)}
+        onSubmit={onUpdatePaymentInfo}
+        account={account}
+      />
     </Card>
   );
 };

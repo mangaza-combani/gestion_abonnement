@@ -22,6 +22,8 @@ const StatusChip = ({ status }) => {
         return 'info';
       case CLIENT_STATUSES.NEEDS_TO_BE_ORDERED: // 'A COMMANDER'
         return 'warning';
+      case CLIENT_STATUSES.TEMPORARILY_ASSIGNED: // 'ATTRIBUÉ TEMPORAIREMENT'
+        return 'info';
       case CLIENT_STATUSES.ACTIVE: // 'ACTIF'
         return 'success';
       case CLIENT_STATUSES.INACTIVE: // 'INACTIF'

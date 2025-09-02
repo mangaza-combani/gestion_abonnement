@@ -20,6 +20,7 @@ import AgencyDashboard from './pages/dashboard/AgencyDashboard';
 import AgenciesManagement from './pages/supervisor/AgenciesManagement';
 import LinesManagement from './pages/supervisor/LinesManagement';
 import ClientsManagement from './pages/agency/ClientsManagement';
+import MyLines from './pages/agency/MyLines';
 import SimStock from './pages/agency/SimStock';
 import Settings from './pages/settings/Settings';
 import CommissionWithdrawal from './pages/agency/CommissionWithdrawal';
@@ -36,7 +37,16 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const RoleBasedRoute = ({ supervisorComponent, agencyComponent }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
+  const userData = localStorage.getItem('user');
+  let user = null;
+  
+  try {
+    user = userData ? JSON.parse(userData) : null;
+  } catch (error) {
+    console.error('Invalid user data in localStorage:', error);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+  }
 
   const { role } = useSelector((state) => {
     return {
@@ -93,6 +103,7 @@ const App = () => {
 
               {/* Routes Agence */}
               <Route path="clients" element={<ClientsManagement />} />
+              <Route path="my-lines" element={<MyLines />} />
               <Route path="sim-stock" element={<SimStock />} />
 
               {/* Route commune */}

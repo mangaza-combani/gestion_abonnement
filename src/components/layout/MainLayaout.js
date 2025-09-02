@@ -11,23 +11,22 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Badge,
   Avatar,
   Menu,
   MenuItem,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Notifications as NotificationsIcon,
   Dashboard,
   People,
   PhoneAndroid,
   Settings,
   ExitToApp,
-  AccountBalanceWallet
+  Phone as PhoneIcon
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { logOut, useLogoutMutation } from '../../store/slices/authSlice';
+import NotificationCenter from '../notifications/NotificationCenter';
 
 const drawerWidth = 280;
 
@@ -44,7 +43,17 @@ const MainLayout = () => {
           localStorage.removeItem('token');
           return { role: null };
         }
-        const parsedUser = JSON.parse(localStorageUser);
+        
+        let parsedUser = null;
+        try {
+          parsedUser = JSON.parse(localStorageUser);
+        } catch (error) {
+          console.error('Invalid user data in localStorage:', error);
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          return { role: null };
+        }
+        
         const user = parsedUser || user;
     return {
       role: user ? user.role : null,
@@ -53,6 +62,7 @@ const MainLayout = () => {
 
   // Utiliser le hook de déconnexion de RTK Query
   const [logout] = useLogoutMutation();
+  
 
   const menuItems = role === 'SUPERVISOR' || role === 'ADMIN' || role === 'SUPER_ADMIN'
     ? [
@@ -66,8 +76,8 @@ const MainLayout = () => {
     : [
               { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
               { text: 'Clients', icon: <People />, path: '/clients' },
+              { text: 'Mes Lignes', icon: <PhoneIcon />, path: '/my-lines' },
               { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
-              { text: 'Commissions', icon: <AccountBalanceWallet />, path: '/commissions' },
       ];
 
   const handleDrawerToggle = () => {
@@ -81,6 +91,7 @@ const MainLayout = () => {
   const handleProfileMenuClose = () => {
     setAnchorEl(null);
   };
+
 
   const handleLogout = async () => {
     try {
@@ -166,11 +177,7 @@ const MainLayout = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN" ? 'Superviseur' : "Agence"}
           </Typography>
-          <IconButton color="inherit">
-            <Badge badgeContent={3} color="error">
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+          <NotificationCenter />
           <IconButton
             onClick={handleProfileMenuOpen}
             sx={{ ml: 1 }}
@@ -179,6 +186,7 @@ const MainLayout = () => {
               {user?.firstname?.[0]?.toUpperCase()}
             </Avatar>
           </IconButton>
+          {/* Menu de profil */}
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -191,6 +199,7 @@ const MainLayout = () => {
               <ListItemText primary="Déconnexion" />
             </MenuItem>
           </Menu>
+
         </Toolbar>
       </AppBar>
       <Box

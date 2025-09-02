@@ -47,6 +47,7 @@ import {
   Sort as SortIcon
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
+import AgencyCreationStepperModal from '../../components/AgencyCreation/StepperModal';
 import { 
   useGetAgenciesQuery, 
   useGetAgencyByIdQuery, 
@@ -193,14 +194,24 @@ const AgenciesManagement = () => {
     }));
   };
 
-  const handleCreateAgency = async () => {
+  const handleCreateAgency = async (stepperData) => {
     try {
-      const result = await createAgency({
+      // Adapter les données du stepper au format API
+      const agencyData = {
+        name: stepperData.name,
+        email: stepperData.email,
+        phone: stepperData.phone,
+        address: stepperData.address,
+        contactFirstName: stepperData.contactFirstName,
+        contactLastName: stepperData.contactLastName,
+        password: stepperData.password,
         status: 'ACTIVE',
-        tax_rate: formData.taxRate,
-        ...formData,
+        tax_rate: 0, // Valeur par défaut
+        prixAbonnement: 0, // Valeur par défaut
         manager: "WEZO"
-      }).unwrap();
+      };
+
+      const result = await createAgency(agencyData).unwrap();
       setCreateModalOpen(false);
       setNotification({
         open: true,
@@ -775,109 +786,13 @@ const AgenciesManagement = () => {
         </DialogActions>
       </Dialog>
       
-      {/* Create agency modal */}
-      <Dialog
+      {/* Create agency modal with stepper */}
+      <AgencyCreationStepperModal
         open={createModalOpen}
         onClose={handleCloseModals}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            Créer une nouvelle agence
-            <IconButton onClick={handleCloseModals}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField
-                name="name"
-                label="Nom de l'agence"
-                fullWidth
-                required
-                value={formData.name}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                name="email"
-                label="Email"
-                type="email"
-                fullWidth
-                value={formData.email}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                name="phone"
-                label="Téléphone"
-                fullWidth
-                value={formData.phone}
-                onChange={handleInputChange}
-                margin="normal"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                name="address"
-                label="Adresse"
-                fullWidth
-                value={formData.address}
-                onChange={handleInputChange}
-                margin="normal"
-                multiline
-                rows={2}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                name="taxRate"
-                label="Taux de commission (%)"
-                type="number"
-                fullWidth
-                value={formData.taxRate}
-                onChange={handleInputChange}
-                margin="normal"
-                InputProps={{
-                  endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                name="prixAbonnement"
-                label="Prix d'abonnement (€)"
-                type="number"
-                fullWidth
-                value={formData.prixAbonnement}
-                onChange={handleInputChange}
-                margin="normal"
-                InputProps={{
-                  endAdornment: <InputAdornment position="end">€</InputAdornment>,
-                }}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseModals}>Annuler</Button>
-          <Button 
-            onClick={handleCreateAgency} 
-            variant="contained" 
-            startIcon={<SaveIcon />}
-            disabled={!formData.name || isCreating}
-          >
-            {isCreating ? <CircularProgress size={24} /> : 'Créer'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onSubmit={handleCreateAgency}
+        loading={isCreating}
+      />
       
       {/* Edit agency modal */}
       <Dialog

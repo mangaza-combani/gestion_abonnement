@@ -110,11 +110,11 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
     if (client) {
       setEditedClient({
         ...client,
-        firstName: client.firstName || '',
-        lastName: client.lastName || '',
-        email: client.email || '',
-        address: client.address || '',
-        phone: client.phone || '',
+        firstname: client?.firstname || '',
+        lastname: client?.lastname || '',
+        email: client?.email || '',
+        address: client?.address || '',
+        phoneNumber: client?.phoneNumber || '',
       });
     }
   }, [client]);
@@ -164,8 +164,8 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
             <TextField
               fullWidth
               label="Nom"
-              value={isEditing ? editedClient.lastName : client.lastName}
-              onChange={(e) => setEditedClient({ ...editedClient, lastName: e.target.value })}
+              value={isEditing ? editedClient.lastname : (client?.lastname || '')}
+              onChange={(e) => setEditedClient({ ...editedClient, lastname: e.target.value })}
               disabled={!isEditing}
               margin="dense"
             />
@@ -174,8 +174,8 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
             <TextField
               fullWidth
               label="Prénom"
-              value={isEditing ? editedClient.firstName : client.firstName}
-              onChange={(e) => setEditedClient({ ...editedClient, firstName: e.target.value })}
+              value={isEditing ? editedClient.firstname : (client?.firstname || '')}
+              onChange={(e) => setEditedClient({ ...editedClient, firstname: e.target.value })}
               disabled={!isEditing}
               margin="dense"
             />
@@ -184,7 +184,7 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
             <TextField
               fullWidth
               label="Adresse"
-              value={isEditing ? editedClient.address : client.address}
+              value={isEditing ? editedClient.address : (client?.address || '')}
               onChange={(e) => setEditedClient({ ...editedClient, address: e.target.value })}
               disabled={!isEditing}
               multiline
@@ -196,7 +196,7 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
             <TextField
               fullWidth
               label="Email"
-              value={isEditing ? editedClient.email : client.email}
+              value={isEditing ? editedClient.email : (client?.email || '')}
               onChange={(e) => setEditedClient({ ...editedClient, email: e.target.value })}
               disabled={!isEditing}
               margin="dense"
@@ -206,8 +206,8 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
             <TextField
               fullWidth
               label="Téléphone"
-              value={isEditing ? editedClient.phone : client.phone}
-              onChange={(e) => setEditedClient({ ...editedClient, phone: e.target.value })}
+              value={isEditing ? editedClient.phoneNumber : (client?.phoneNumber || '')}
+              onChange={(e) => setEditedClient({ ...editedClient, phoneNumber: e.target.value })}
               disabled={!isEditing}
               margin="dense"
             />
@@ -227,7 +227,7 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
               Agence affiliée
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {client.agency}
+              {client?.agency?.name || 'Aucune agence'}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -235,7 +235,7 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
               Identifiant Compte Red
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {client.redAccountId}
+              {client?.redAccountId || 'Non défini'}
             </Typography>
           </Grid>
         </Grid>
@@ -408,4 +408,10 @@ const ClientDetailsModal = ({ open, onClose, client = mockClient }) => {
 
         {currentTab === 1 && renderPhoneLines()}
 
-        {currentTab === 2 &&
+        {currentTab === 2 && renderPayments()}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default ClientDetailsModal;

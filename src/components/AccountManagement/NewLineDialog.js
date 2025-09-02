@@ -24,7 +24,11 @@ import {
   Close as CloseIcon,
   Phone as PhoneIcon,
   ContactPhone as ContactPhoneIcon,
-  SimCard as SimCardIcon
+  SimCard as SimCardIcon,
+  Schedule as ScheduleIcon,
+  Notes as NotesIcon,
+  History as HistoryIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 
 // Import de la mutation depuis redAccountsSlice
@@ -39,7 +43,11 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
     phoneNumber: '',
     simCardId: '',
     assignSimNow: false,
-    assignToClient: false
+    assignToClient: false,
+    orderDate: new Date().toISOString().split('T')[0], // Date du jour par défaut
+    trackingNotes: '',
+    isHistoricalLine: false, // Mode ligne historique
+    skipOrderTracking: false // Ignorer le suivi de commande
   });
 
   const handleChange = (e) => {
@@ -49,17 +57,52 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
 
   const handleSwitchChange = (e) => {
     const { name, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: checked }));
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: checked,
+      // Logique spéciale pour les modes
+      ...(name === 'assignSimNow' && checked && {
+        skipOrderTracking: true, // Si on assigne une SIM maintenant, on peut ignorer le suivi
+        orderDate: null
+      }),
+      ...(name === 'assignSimNow' && !checked && {
+        skipOrderTracking: false,
+        orderDate: new Date().toISOString().split('T')[0]
+      }),
+      ...(name === 'isHistoricalLine' && checked && {
+        skipOrderTracking: true,
+        orderDate: null
+      }),
+      ...(name === 'isHistoricalLine' && !checked && {
+        skipOrderTracking: false,
+        orderDate: new Date().toISOString().split('T')[0]
+      })
+    }));
   };
 
   const handlePhoneNumberChange = (e) => {
     let value = e.target.value.replace(/\D/g, '');
     if (value.length > 10) value = value.slice(0, 10);
-    // Format as 06XX XX XX XX
-    if (value.length > 2) value = value.slice(0, 2) + ' ' + value.slice(2);
-    if (value.length > 5) value = value.slice(0, 5) + ' ' + value.slice(5);
-    if (value.length > 8) value = value.slice(0, 8) + ' ' + value.slice(8);
-    setFormData(prev => ({ ...prev, phoneNumber: value }));
+    
+    // Vérifier la validité seulement si on a au moins 2 chiffres
+    if (value.length >= 2) {
+      const prefix = value.slice(0, 2);
+      // Rejeter seulement si ce n'est pas un préfixe français valide
+      if (!['01', '02', '03', '04', '05', '06', '07', '09'].includes(prefix)) {
+        // Si on a déjà une valeur existante, garder seulement le premier chiffre
+        if (formData.phoneNumber) {
+          value = formData.phoneNumber.replace(/\D/g, '').slice(0, 1) + value.slice(-1);
+        }
+      }
+    }
+    
+    // Format as 0X XX XX XX XX
+    let formattedValue = value;
+    if (value.length > 2) formattedValue = value.slice(0, 2) + ' ' + value.slice(2);
+    if (formattedValue.length > 5) formattedValue = formattedValue.slice(0, 5) + ' ' + formattedValue.slice(5);
+    if (formattedValue.length > 8) formattedValue = formattedValue.slice(0, 8) + ' ' + formattedValue.slice(8);
+    
+    setFormData(prev => ({ ...prev, phoneNumber: formattedValue }));
   };
 
   const handleSubmit = async (e) => {
@@ -67,6 +110,32 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
     
     if (!accountId) {
       console.error("ID de compte manquant pour créer une ligne");
+      if (window.showNotification) {
+        window.showNotification('Erreur : Aucun compte RED sélectionné', 'error');
+      }
+      return;
+    }
+
+    // Validation côté frontend
+    const phoneNumberClean = formData.phoneNumber.replace(/\s/g, '');
+    if (!phoneNumberClean || phoneNumberClean.length < 10) {
+      if (window.showNotification) {
+        window.showNotification('Le numéro de téléphone doit contenir au moins 10 chiffres', 'error');
+      }
+      return;
+    }
+
+    if (formData.assignToClient && !formData.clientId) {
+      if (window.showNotification) {
+        window.showNotification('Veuillez sélectionner un client', 'error');
+      }
+      return;
+    }
+
+    if (formData.assignSimNow && (!formData.simCardId || formData.simCardId.length < 15)) {
+      if (window.showNotification) {
+        window.showNotification('Veuillez saisir un ICCID valide (minimum 15 caractères)', 'error');
+      }
       return;
     }
     
@@ -78,11 +147,17 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
       phoneNumber: formData.phoneNumber.replace(/\s/g, ''), // Supprimer les espaces
       clientId: formData.assignToClient ? formData.clientId : null,
       simCardId: formData.assignSimNow ? formData.simCardId : null,
+      orderDate: formData.skipOrderTracking ? null : (formData.orderDate || null),
+      trackingNotes: formData.trackingNotes.trim() || null,
+      isHistoricalLine: formData.isHistoricalLine,
+      skipOrderTracking: formData.skipOrderTracking,
       status
     };
 
     try {
       // Utilisation de la mutation du redAccountsSlice
+      console.log("Tentative de création de ligne:", { accountId, lineData });
+      
       const result = await createLine({
         accountId,
         lineData
@@ -100,9 +175,42 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
       
       resetForm();
       onClose();
+      
+      // Notification de succès
+      if (window.showNotification) {
+        window.showNotification('Ligne créée avec succès !', 'success');
+      }
+      
     } catch (err) {
       console.error("Erreur lors de la création de la ligne:", err);
-      // Vous pourriez ajouter ici une gestion d'erreur supplémentaire si nécessaire
+      console.log("Détails de l'erreur:", {
+        status: err?.status,
+        data: err?.data,
+        originalStatus: err?.originalStatus,
+        error: err?.error
+      });
+      
+      // Gestion spécifique des erreurs selon le code
+      let userMessage = "Une erreur inconnue est survenue.";
+      
+      if (err?.data?.error === 'PHONE_NUMBER_EXISTS') {
+        userMessage = `Le numéro ${formData.phoneNumber} est déjà enregistré. Veuillez choisir un autre numéro.`;
+      } else if (err?.data?.error === 'MISSING_PHONE_NUMBER') {
+        userMessage = "Veuillez saisir un numéro de téléphone.";
+      } else if (err?.data?.error === 'RED_ACCOUNT_NOT_FOUND') {
+        userMessage = "Le compte RED sélectionné n'existe pas.";
+      } else if (err?.data?.error === 'USER_NOT_FOUND') {
+        userMessage = "Le client sélectionné n'existe pas.";
+      } else if (err?.data?.error === 'UNAUTHORIZED') {
+        userMessage = "Vous devez être connecté pour effectuer cette action.";
+      } else if (err?.data?.error === 'FORBIDDEN') {
+        userMessage = "Vous n'avez pas les permissions nécessaires.";
+      }
+      
+      // Affichage d'une notification toast si disponible
+      if (window.showNotification) {
+        window.showNotification(userMessage, 'error');
+      }
     }
   };
 
@@ -112,7 +220,11 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
       phoneNumber: '',
       simCardId: '',
       assignSimNow: false,
-      assignToClient: false
+      assignToClient: false,
+      orderDate: new Date().toISOString().split('T')[0],
+      trackingNotes: '',
+      isHistoricalLine: false,
+      skipOrderTracking: false
     });
   };
 
@@ -148,12 +260,70 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
             <Alert 
               severity="error" 
               sx={{ mb: 3 }}
+              action={
+                error?.data?.details?.phoneNumber && (
+                  <Button 
+                    color="inherit" 
+                    size="small"
+                    onClick={() => setFormData(prev => ({ ...prev, phoneNumber: '' }))}
+                  >
+                    Effacer
+                  </Button>
+                )
+              }
             >
+              <strong>
+                {error?.data?.error === 'PHONE_NUMBER_EXISTS' ? 'Numéro déjà utilisé' :
+                 error?.data?.error === 'MISSING_PHONE_NUMBER' ? 'Numéro manquant' :
+                 error?.data?.error === 'RED_ACCOUNT_NOT_FOUND' ? 'Compte RED introuvable' :
+                 error?.data?.error === 'USER_NOT_FOUND' ? 'Client introuvable' :
+                 error?.data?.error === 'UNAUTHORIZED' ? 'Non autorisé' :
+                 error?.data?.error === 'FORBIDDEN' ? 'Permissions insuffisantes' :
+                 'Erreur'}
+              </strong>
+              <br />
               {error?.data?.message || "Une erreur est survenue lors de la création de la ligne."}
+              
+              {error?.data?.details && (
+                <Box component="pre" sx={{ mt: 1, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  {Object.entries(error.data.details).map(([key, value]) => (
+                    <div key={key}>{key}: {value}</div>
+                  ))}
+                </Box>
+              )}
             </Alert>
           )}
           
           <Grid container spacing={3}>
+
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.isHistoricalLine}
+                    onChange={handleSwitchChange}
+                    name="isHistoricalLine"
+                    color="secondary"
+                  />
+                }
+                label={
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <HistoryIcon color={formData.isHistoricalLine ? "secondary" : "disabled"} />
+                    <Typography>
+                      Mode ligne historique (données d'avant le système)
+                    </Typography>
+                  </Box>
+                }
+              />
+              {formData.isHistoricalLine && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  <Typography variant="body2">
+                    Mode historique activé : La date de commande et le suivi ne seront pas requis.
+                  </Typography>
+                </Alert>
+              )}
+            </Grid>
+            
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -162,11 +332,71 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handlePhoneNumberChange}
-                placeholder="06XX XX XX XX"
-                helperText="Format: 06XX XX XX XX"
+                placeholder="06 XX XX XX XX"
+                helperText="Format français: 06/07 (mobile) ou 01/02/03/04/05/09 (fixe)"
                 InputProps={{
                   startAdornment: (
                     <PhoneIcon color="primary" sx={{ mr: 1 }} />
+                  )
+                }}
+              />
+            </Grid>
+
+            {!formData.skipOrderTracking && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Date de commande sur RED BY"
+                  name="orderDate"
+                  value={formData.orderDate || ''}
+                  onChange={handleChange}
+                  helperText={
+                    formData.assignSimNow 
+                      ? "Optionnel - La ligne a déjà une carte SIM" 
+                      : "Date à laquelle la ligne a été commandée (utilisée pour estimer la livraison)"
+                  }
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <ScheduleIcon color="primary" sx={{ mr: 1 }} />
+                    )
+                  }}
+                />
+                {formData.assignSimNow && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      Carte SIM assignée immédiatement - Le suivi de commande est optionnel
+                    </Typography>
+                  </Alert>
+                )}
+              </Grid>
+            )}
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label={formData.isHistoricalLine ? "Notes sur cette ligne historique" : "Notes de suivi (optionnel)"}
+                name="trackingNotes"
+                value={formData.trackingNotes}
+                onChange={handleChange}
+                placeholder={
+                  formData.isHistoricalLine 
+                    ? "Informations sur cette ligne existante..." 
+                    : "Notes sur la commande, remarques particulières..."
+                }
+                helperText={
+                  formData.isHistoricalLine 
+                    ? "Informations utiles sur cette ligne d'avant le système" 
+                    : "Informations utiles pour le suivi de cette ligne"
+                }
+                InputProps={{
+                  startAdornment: (
+                    <NotesIcon color="primary" sx={{ mr: 1, alignSelf: 'flex-start', mt: 1 }} />
                   )
                 }}
               />

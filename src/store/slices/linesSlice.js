@@ -5,9 +5,25 @@ import { apiSlice } from '../api/apiSlice';
 export const phoneApiSlice = apiSlice.injectEndpoints({
         endpoints: (builder) => ({
                 getPhones: builder.query({
-                        query: (id) => ({
-                                url: `/phones`,
-                        }),
+                        query: (id) => {
+                                // Récupérer les informations utilisateur pour déterminer le scope
+                                const userData = localStorage.getItem('user');
+                                let isSupervisor = false;
+                                
+                                try {
+                                        const parsedUser = JSON.parse(userData);
+                                        isSupervisor = parsedUser?.role === 'SUPERVISOR';
+                                } catch (error) {
+                                        console.warn('Erreur lors du parsing des données utilisateur:', error);
+                                }
+                                
+                                // Si superviseur, récupérer toutes les agences, sinon seulement l'agence de l'utilisateur
+                                const queryParams = isSupervisor ? 'all_agencies=true' : '';
+                                const url = `/phones?${queryParams}&_t=${Date.now()}`;
+                                
+                                
+                                return { url };
+                        },
                         providesTags: (result, error, id) => {
                                 return result
                                         ? [

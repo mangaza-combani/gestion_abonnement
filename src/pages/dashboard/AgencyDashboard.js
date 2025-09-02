@@ -32,10 +32,10 @@ import {
 import StatCard from '../../components/common/StatCard';
 import ClientSearch from '../../components/common/ClientSearch';
 import StatusOverview from '../../components/common/StatusOverview';
-import NewClientDialog from '../../components/common/NewClientDialog';
+import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
 import { useGetClientsQuery } from "../../store/slices/clientsSlice";
 import { useWhoIAmQuery } from "../../store/slices/authSlice";
-import {useGetAgencySimCardsQuery} from "../../store/slices/agencySlice";
+import {useGetAgencySimCardsQuery, useGetAgencyCommissionsQuery} from "../../store/slices/agencySlice";
 
 const AgencyDashboard = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -44,22 +44,12 @@ const AgencyDashboard = () => {
   const [error, setError] = useState('');
   const connectedUser = useWhoIAmQuery();
   const client =  useGetClientsQuery(connectedUser?.currentData?.user?.agencyId);
-  const agencySimCardStock = useGetAgencySimCardsQuery(connectedUser?.currentData?.user?.agencyId)
+  const agencySimCardStock = useGetAgencySimCardsQuery(connectedUser?.currentData?.user?.agencyId);
+  const agencyCommissions = useGetAgencyCommissionsQuery(connectedUser?.currentData?.user?.agencyId);
   // États pour le modal de création de client
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
 //States for payment modal
 
-  const mockData = {
-    stats: {
-      totalClients: 50,
-      simStock: 3,
-      agencyRevenue: {
-        total: '250 €',
-        commissions: '890 €'
-      },
-      supervisorCommission: '750 €'
-    }
-  };
 
   const handlePaymentSubmit = () => {
     if (!paymentAmount || isNaN(parseInt(paymentAmount)) || paymentAmount <= 0) {
@@ -103,7 +93,7 @@ const AgencyDashboard = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Revenu Mensuel agence"
-            value={mockData.stats.agencyRevenue.total}
+            value={agencyCommissions.isLoading ? "Chargement..." : `${agencyCommissions.data?.total_commissions || 0} €`}
             icon={<Wallet />}
             color="success"
           />
@@ -111,7 +101,7 @@ const AgencyDashboard = () => {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Commission Superviseur"
-            value={mockData.stats.supervisorCommission}
+            value={agencyCommissions.isLoading ? "Chargement..." : `${agencyCommissions.data?.supervisor_commissions || 0} €`}
             icon={<Payment />}
             color="info"
             onAction={() => setIsPaymentModalOpen(true)}
@@ -220,15 +210,15 @@ const AgencyDashboard = () => {
         </DialogActions>
       </Dialog>
 
-      <NewClientDialog 
+      <CreateClientModal 
         open={isNewClientModalOpen}
         onClose={() => setIsNewClientModalOpen(false)}
         onClientCreated={(newClient) => {
-          mockData.stats.totalClients += 1;
-          // Ici vous pourriez ajouter le client à votre state ou faire un appel API
+          // Client créé via API - les données se mettront à jour automatiquement
           console.log('Nouveau client créé:', newClient);
+          setIsNewClientModalOpen(false);
         }}
-        agencyName="Agence Paris"
+        agencyMode={true}
       />
     </Box>
   );

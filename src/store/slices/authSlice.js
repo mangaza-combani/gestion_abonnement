@@ -61,6 +61,7 @@ export const authApiSlice = apiSlice.injectEndpoints({
         url: "/auth/who-i-am",
         method: "GET",
       }),
+      transformResponse: (response) => response.user,
       providesTags: ['User'],
       invalidatesTags: ['User'],
     }),

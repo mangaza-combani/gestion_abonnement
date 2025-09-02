@@ -17,7 +17,7 @@ export const apiSlice = createApi({
   }),
   tagTypes: [
     'User', 'Agency', 'Client', 'RedAccount', 
-    'Line', 'SimCard', 'Invoice', 'Payment'
+    'Line', 'SimCard', 'Invoice', 'Payment', 'LineReservationQuota'
   ],
   endpoints: () => ({}), 
 });

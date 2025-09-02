@@ -3,12 +3,12 @@ import { apiSlice } from '../api/apiSlice';
 
 // Status constants
 export const LINE_STATUSES = {
-  ATTRIBUTED: "attributed",
-  UNATTRIBUTED: "UNATTRIBUTED",
-  TERMINATED: "terminated",
-  BLOCKED: "blocked",
-  PAUSED: "paused",
-  WAITING_SIM: "waiting_for_sim"
+  ATTRIBUTED: "UP_TO_DATE",
+  UNATTRIBUTED: "UNATTRIBUTED", 
+  TERMINATED: "CANCELLED",
+  BLOCKED: "SUSPENDED",
+  PAUSED: "DISCONNECTED",
+  WAITING_SIM: "NEEDS_TO_BE_ACTIVATED"
 };
 
 // Fonction utilitaire pour vérifier si une ligne résiliée est disponible (plus d'un an)
@@ -88,7 +88,11 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
         method: 'POST',
         body: accountData
       }),
-      invalidatesTags: [{ type: '/RedAccount', id: 'LIST' }]
+      invalidatesTags: [
+        { type: 'RedAccount', id: 'LIST' },
+        // Invalider aussi les lignes disponibles car un nouveau compte peut affecter les disponibilités
+        { type: 'LineReservation', id: 'AVAILABLE' }
+      ]
     }),
     
     // Créer une nouvelle ligne sur un compte
@@ -96,11 +100,29 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
       query: ({ accountId, lineData }) => ({
         url: `/phones/`,
         method: 'POST',
-        body: lineData
+        body: {
+          phoneNumber: lineData.phoneNumber,
+          phoneType: 'POSTPAID', // Type par défaut pour les lignes RED
+          userId: lineData.clientId || null,
+          agencyId: null, // Sera défini par le backend selon l'utilisateur connecté
+          simCardId: lineData.simCardId || null,
+          redAccountId: accountId,
+          orderDate: lineData.orderDate,
+          trackingNotes: lineData.trackingNotes,
+          isHistoricalLine: lineData.isHistoricalLine || false,
+          skipOrderTracking: lineData.skipOrderTracking || false
+        }
       }),
-      invalidatesTags: (result, error, { accountId }) => [
-        { type: 'RedAccount', id: accountId }
-      ]
+      invalidatesTags: (result, error, { accountId }) => {
+        console.log('Invalidating tags for createLine:', { result, error, accountId });
+        return [
+          { type: 'RedAccount', id: accountId },
+          { type: 'RedAccount', id: 'LIST' },
+          // Invalider aussi les lignes disponibles pour réservation
+          { type: 'LineReservation', id: 'AVAILABLE' },
+          { type: 'Phone', id: 'LIST' }
+        ];
+      }
     }),
     
     // Changer le statut d'une ligne
@@ -152,6 +174,28 @@ export const redAccountsApiSlice = apiSlice.injectEndpoints({
         { type: 'Client', id: clientId },
         { type: 'SimCard', id: 'LIST' }
       ]
+    }),
+    
+    // Mettre à jour les informations de paiement d'un compte
+    updatePaymentInfo: builder.mutation({
+      query: ({ accountId, bankName, cardLastFour, cardExpiry }) => ({
+        url: `/red-accounts/${accountId}/payment-info`,
+        method: 'PATCH',
+        body: { bankName, cardLastFour, cardExpiry }
+      }),
+      invalidatesTags: (result, error, { accountId }) => [
+        { type: 'RedAccount', id: accountId },
+        { type: 'RedAccount', id: 'LIST' }
+      ]
+    }),
+
+    // Suggérer des lignes possibles pour une carte SIM reçue
+    suggestLinesForSim: builder.mutation({
+      query: ({ simReceivedDate, marginDays = 2 }) => ({
+        url: `/phones/suggest-lines-for-sim`,
+        method: 'POST',
+        body: { simReceivedDate, marginDays }
+      })
     })
   })
 });
@@ -166,7 +210,9 @@ export const {
   useChangeLineStatusMutation,
   useAssignLineMutation,
   useTerminateLineMutation,
-  useOrderSimCardMutation
+  useOrderSimCardMutation,
+  useUpdatePaymentInfoMutation,
+  useSuggestLinesForSimMutation
 } = redAccountsApiSlice;
 
 // Slice local pour la gestion de l'état UI

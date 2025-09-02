@@ -30,6 +30,8 @@ export const formatPaymentAndStatusToHumanReadable = (status) => {
                         return "DOIT ÊTRE REMPLACÉ";
                 case 'NEEDS_TO_BE_ORDERED':
                         return "DOIT ÊTRE COMMANDÉ";
+                case 'TEMPORARILY_ASSIGNED':
+                        return "ATTRIBUÉ TEMPORAIREMENT";
                 case 'ACTIVE':
                         return "ACTIF";
                 case 'INACTIVE':

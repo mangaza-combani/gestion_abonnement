@@ -11,8 +11,13 @@ const UnblockTab = ({
   onClientSelect
 }) => {
   useEffect(()=>{
-    onClientSelect(clients[0])
-  },[])
+    if (clients && clients.length > 0 && !selectedClient) {
+      const timer = setTimeout(() => {
+        onClientSelect(clients[0]);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [clients?.length, selectedClient])
 
   return (
     <Stack spacing={2}>

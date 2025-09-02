@@ -28,24 +28,14 @@ import {
   Warning as WarningIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import NewClientDialog from '../../components/common/NewClientDialog';
-import {useGetClientsQuery} from "../../store/slices/clientsSlice";
+import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
+import { useGetClientsQuery } from "../../store/slices/clientsSlice";
+import { useGetPhonesQuery } from "../../store/slices/linesSlice";
+import { useWhoIAmQuery } from "../../store/slices/authSlice";
 
-const activeLines = [
-  { number: '06 12 34 56 78', status: 'active', lastPayment: '2024-01-15' },
-  { number: '06 98 76 54 32', status: 'late', lastPayment: '2023-12-01' }
-]
-
-const paymentHistory = [
-  { date: '2024-01-15', amount: 38, status: 'paid' },
-  { date: '2023-12-01', amount: 38, status: 'late' }
-]
-
-// Mock data avec informations étendues
-
-const ClientCard = ({ client, onViewDetails }) => {
-  const totalActiveLines = activeLines.length;
-  const hasLateLine = activeLines.some(line => line.status === 'late');
+const ClientCard = ({ client, clientLines = [], onViewDetails }) => {
+  const totalActiveLines = clientLines.length;
+  const hasLateLine = clientLines.some(line => line.paymentStatus === 'OVERDUE' || line.phoneStatus === 'SUSPENDED');
 
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -53,11 +43,11 @@ const ClientCard = ({ client, onViewDetails }) => {
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box display="flex" gap={2} alignItems="center">
             <Avatar sx={{ bgcolor: hasLateLine ? 'error.light' : 'primary.light' }}>
-              {client.firstname[0]}{client.lastname[0]}
+              {client.firstname?.[0]?.toUpperCase()}{client.lastname?.[0]?.toUpperCase()}
             </Avatar>
             <Box>
               <Typography variant="h6" component="div">
-                {client.firstName} {client.lastName}
+                {client.firstname} {client.lastname}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {client.email}
@@ -84,14 +74,14 @@ const ClientCard = ({ client, onViewDetails }) => {
         </Stack>
 
         <Typography variant="body2" color="text.secondary" mt={2}>
-          Dernier paiement: {new Date(paymentHistory[0].date).toLocaleDateString('fr-FR')}
+          Téléphone: {client.phoneNumber || 'Non renseigné'}
         </Typography>
       </CardContent>
     </Card>
   );
 };
 
-const ClientDetailsDialog = ({ client, open, onClose }) => {
+const ClientDetailsDialog = ({ client, clientLines = [], open, onClose }) => {
   if (!client) return null;
 
   return (
@@ -124,8 +114,11 @@ const ClientDetailsDialog = ({ client, open, onClose }) => {
                 <Typography variant="body2" gutterBottom>
                   <strong>Email:</strong> {client.email}
                 </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Téléphone:</strong> {client.phoneNumber || 'Non renseigné'}
+                </Typography>
                 <Typography variant="body2">
-                  <strong>Adresse:</strong> {client.address}
+                  <strong>Rôle:</strong> {client.role}
                 </Typography>
               </CardContent>
             </Card>
@@ -139,30 +132,39 @@ const ClientDetailsDialog = ({ client, open, onClose }) => {
                   Lignes téléphoniques
                 </Typography>
                 <Stack spacing={2}>
-                  {activeLines?.map((line, index) => (
-                    <Box key={index} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography variant="body1">{line.number}</Typography>
-                        <Chip
-                          size="small"
-                          label={line.status === 'active' ? 'Actif' : 'En retard'}
-                          color={line.status === 'active' ? 'success' : 'error'}
-                        />
+                  {clientLines?.length > 0 ? clientLines.map((line, index) => {
+                    const isActive = line.phoneStatus !== 'SUSPENDED' && line.paymentStatus !== 'CANCELLED';
+                    const isLate = line.paymentStatus === 'OVERDUE';
+                    return (
+                      <Box key={index} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                          <Typography variant="body1">{line.phoneNumber || 'Numéro à définir'}</Typography>
+                          <Chip
+                            size="small"
+                            label={isActive ? (isLate ? 'En retard' : 'Actif') : 'Suspendu'}
+                            color={isActive ? (isLate ? 'warning' : 'success') : 'error'}
+                          />
+                        </Box>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            Statut: {line.paymentStatus} | {line.phoneStatus}
+                          </Typography>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color={isActive ? 'warning' : 'primary'}
+                            disabled
+                          >
+                            Gérer
+                          </Button>
+                        </Box>
                       </Box>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
-                        <Typography variant="body2" color="text.secondary">
-                          Dernier paiement: {new Date(line.lastPayment).toLocaleDateString('fr-FR')}
-                        </Typography>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color={line.status === 'active' ? 'error' : 'primary'}
-                        >
-                          {line.status === 'active' ? 'Désactiver' : 'Régulariser'}
-                        </Button>
-                      </Box>
-                    </Box>
-                  ))}
+                    );
+                  }) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Aucune ligne attribuée
+                    </Typography>
+                  )}
                 </Stack>
               </CardContent>
             </Card>
@@ -180,29 +182,9 @@ const ClientDetailsDialog = ({ client, open, onClose }) => {
                     Télécharger les factures
                   </Button>
                 </Box>
-                <Grid container spacing={2}>
-                  {paymentHistory?.map((payment, index) => (
-                    <Grid item xs={12} key={index}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" 
-                           sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                        <Typography variant="body2">
-                          {new Date(payment.date).toLocaleDateString('fr-FR')}
-                        </Typography>
-                        <Typography variant="body2">
-                          {payment.amount}€
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={payment.status === 'paid' ? 'Payé' : 'En retard'}
-                          color={payment.status === 'paid' ? 'success' : 'error'}
-                        />
-                        <Button size="small">
-                          Voir la facture
-                        </Button>
-                      </Box>
-                    </Grid>
-                  ))}
-                </Grid>
+                <Typography variant="body2" color="text.secondary">
+                  L'historique des paiements sera disponible prochainement.
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -225,23 +207,60 @@ const ModernClientsManagement = () => {
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState(STATUSES.ALL);
 
-  const connectedUser = JSON.parse(localStorage.getItem('user'));
-  const fetchClients = useGetClientsQuery(connectedUser?.agencyId)
-  const clients = fetchClients?.currentData?.users
+  // Récupérer l'utilisateur connecté
+  const { data: currentUser, isLoading: userLoading, error: userError } = useWhoIAmQuery();
+  
+  
+  // Récupérer les clients de l'agence
+  const { data: clientsData, isLoading: clientsLoading, error: clientsError } = useGetClientsQuery(
+    currentUser?.agencyId, 
+    { skip: !currentUser?.agencyId }
+  );
+  
+  
+  // Récupérer toutes les lignes pour pouvoir les associer aux clients
+  const { data: linesData, isLoading: linesLoading } = useGetPhonesQuery();
+  
+  const clients = clientsData?.users || [];
+  
+  // Fonction pour obtenir les lignes d'un client spécifique
+  const getClientLines = (clientId) => {
+    return linesData?.filter(line => line.clientId === clientId) || [];
+  };
 
   const filteredClients = clients?.filter(client => {
+    if (!client) return false;
+    
     const matchesSearch = 
-      `${client.firstName} ${client.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase());
+      `${client.firstname || ''} ${client.lastname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.phoneNumber || '').includes(searchTerm);
     
     if (statusFilter === STATUSES.ALL) {
       return matchesSearch;
     }
     
-    // Vérifie si le client a au moins une ligne dans l'état filtré
-    const hasLineWithStatus = client.activeLines.some(line => line.status === statusFilter);
-    return matchesSearch && hasLineWithStatus;
-  });
+    // Récupérer les lignes du client pour filtrer par statut
+    const clientLines = getClientLines(client.id);
+    
+    if (statusFilter === STATUSES.ACTIVE) {
+      // Client est "à jour" s'il a au moins une ligne active et à jour
+      const hasActiveLine = clientLines.some(line => 
+        line.phoneStatus !== 'SUSPENDED' && line.paymentStatus === 'UP_TO_DATE'
+      );
+      return matchesSearch && hasActiveLine;
+    }
+    
+    if (statusFilter === STATUSES.LATE) {
+      // Client est "en retard" s'il a au moins une ligne en retard
+      const hasLateLine = clientLines.some(line => 
+        line.paymentStatus === 'OVERDUE' || line.phoneStatus === 'SUSPENDED'
+      );
+      return matchesSearch && hasLateLine;
+    }
+    
+    return matchesSearch;
+  }) || [];
 
   const handleNewClient = (clientData) => {
     console.log('Nouveau client:', clientData);
@@ -268,7 +287,7 @@ const ModernClientsManagement = () => {
               <Box display="flex" alignItems="center" gap={1}>
                 <PhoneIcon color="primary" />
                 <Typography variant="body2">
-                  {clients?.reduce((acc, client) => acc + activeLines.length, 0)} lignes actives
+                  {linesData?.length || 0} lignes totales
                 </Typography>
               </Box>
             </Stack>
@@ -327,24 +346,52 @@ const ModernClientsManagement = () => {
         </Box>
       </Box>
 
-      {/* Clients grid */}
-      <Grid container spacing={3}>
-        {filteredClients?.map(client => (
-          <Grid item xs={12} sm={6} md={4} key={client.id}>
-            <ClientCard
-              client={client}
-              onViewDetails={(client) => {
-                setSelectedClient(client);
-                setIsDetailsOpen(true);
-              }}
-            />
-          </Grid>
-        ))}
-      </Grid>
+      {/* Loading and error states */}
+      {(userLoading || clientsLoading || linesLoading) && (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Typography>Chargement...</Typography>
+        </Box>
+      )}
+      
+      {clientsError && (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Typography color="error">
+            Erreur lors du chargement des clients: {clientsError.message}
+          </Typography>
+        </Box>
+      )}
+      
+      {!userLoading && !clientsLoading && !linesLoading && !clientsError && (
+        <Grid container spacing={3}>
+          {filteredClients.length > 0 ? filteredClients.map(client => (
+            <Grid item xs={12} sm={6} md={4} key={client.id}>
+              <ClientCard
+                client={client}
+                clientLines={getClientLines(client.id)}
+                onViewDetails={(client) => {
+                  setSelectedClient(client);
+                  setIsDetailsOpen(true);
+                }}
+              />
+            </Grid>
+          )) : (
+            <Grid item xs={12}>
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
+                  {searchTerm || statusFilter !== STATUSES.ALL 
+                    ? 'Aucun client ne correspond aux critères de recherche.' 
+                    : 'Aucun client dans votre agence.'}
+                </Typography>
+              </Box>
+            </Grid>
+          )}
+        </Grid>
+      )}
 
       {/* Dialogs */}
       <ClientDetailsDialog
         client={selectedClient}
+        clientLines={selectedClient ? getClientLines(selectedClient.id) : []}
         open={isDetailsOpen}
         onClose={() => {
           setIsDetailsOpen(false);
@@ -352,11 +399,11 @@ const ModernClientsManagement = () => {
         }}
       />
 
-      <NewClientDialog
+      <CreateClientModal
         open={isNewClientOpen}
         onClose={() => setIsNewClientOpen(false)}
         onClientCreated={handleNewClient}
-        agencyName="Agence Principale"
+        agencyMode={true}
       />
     </Box>
   );

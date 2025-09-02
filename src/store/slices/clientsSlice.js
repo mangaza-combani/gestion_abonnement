@@ -8,8 +8,10 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
       query: (id) => ({
         url: `/agencies/${id}/users`,
       }),
-      providesTags: ['Client'],
-      invalidatesTags: (result, error, id) => [{ type: 'Client', id }],
+      providesTags: (result, error, id) => [
+        { type: 'Client', id: `LIST_${id}` },
+        { type: 'Client', id: 'LIST' }
+      ],
     }),
     getAllUsers: builder.query({
         query: () => '/auth/get-users',
@@ -20,13 +22,33 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
       query: (id) => `/auth/get-user/${id}`,
       providesTags: (result, error, id) => [{ type: 'Client', id }],
     }),
+    getClientsToOrder: builder.query({
+      query: () => '/clients-to-order',
+      providesTags: ['ClientToOrder'],
+    }),
     createClient: builder.mutation({
       query: (client) => ({
-        url: '/auth/register',
+        url: '/clients',
         method: 'POST',
         body: client,
       }),
-      invalidatesTags: ['Client'],
+      invalidatesTags: (result, error, client) => [
+        { type: 'Client', id: 'LIST' },
+        { type: 'Client', id: `LIST_${client.agencyId}` },
+        'ClientToOrder'
+      ],
+    }),
+    associateClient: builder.mutation({
+      query: ({ clientId, agencyId }) => ({
+        url: '/clients/associate',
+        method: 'POST',
+        body: { clientId },
+      }),
+      invalidatesTags: (result, error, { clientId, agencyId }) => [
+        { type: 'Client', id: 'LIST' },
+        { type: 'Client', id: `LIST_${agencyId}` },
+        { type: 'Client', id: clientId }
+      ],
     }),
     updateClient: builder.mutation({
       query: ({ id, ...patch }) => ({
@@ -41,9 +63,11 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
 
 export const {
   useGetClientsQuery,
-    useGetAllUsersQuery,
+  useGetAllUsersQuery,
   useGetClientByIdQuery,
+  useGetClientsToOrderQuery,
   useCreateClientMutation,
+  useAssociateClientMutation,
   useUpdateClientMutation,
 } = clientsApiSlice;
 

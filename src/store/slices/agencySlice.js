@@ -143,9 +143,12 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
       query: (id) => `/agencies/${id}/sim_cards`,
       providesTags: (result, error, id) => [{ type: 'SimCards', id }]
     }),
-    // Récupérer l'inventaire des cartes SIM d'une agence
+    // Récupérer les commandes SIM d'une agence
     getAgencySimCardsOrder: builder.query({
-      query: (id) => `/sim-card-orders`,
+      query: (agencyId) => {
+        console.log('🔍 RTK Query getAgencySimCardsOrder appelée avec agencyId:', agencyId);
+        return `/sim-card-orders?agencyId=${agencyId}`;
+      },
       providesTags: (result, error, id) => [{ type: 'SimCardsOrders', id }]
     }),
 
@@ -176,12 +179,51 @@ export const agencyApiSlice = apiSlice.injectEndpoints({
     
     // Déclarer la réception d'une carte SIM
     receiveSimCard: builder.mutation({
-      query: ({ id, ...receptionData }) => ({
-        url: `/sim-card-receipt`,
+      query: (receptionData) => {
+        console.log('🔥 RTK Query receiveSimCard - Envoi vers API:', receptionData);
+        return {
+          url: `/sim-card-receipt`,
+          method: 'POST',
+          body: receptionData
+        };
+      },
+      transformResponse: (response) => {
+        console.log('🔥 RTK Query receiveSimCard - Réponse API:', response);
+        return response;
+      },
+      transformErrorResponse: (error) => {
+        console.error('❌ RTK Query receiveSimCard - Erreur API:', error);
+        return error;
+      },
+      invalidatesTags: ['SimCards', 'Agencies', 'SimCardsReceipt']
+    }),
+
+    // Récupérer les demandes de ligne d'une agence
+    getLineRequests: builder.query({
+      query: (agencyId) => {
+        console.log('🔍 RTK Query getLineRequests appelée avec agencyId:', agencyId);
+        return `/line-requests${agencyId ? `?agencyId=${agencyId}` : ''}`;
+      },
+      providesTags: (result, error, id) => [{ type: 'LineRequests', id }]
+    }),
+
+    // Créer une demande de ligne
+    createLineRequest: builder.mutation({
+      query: (requestData) => ({
+        url: '/line-requests',
         method: 'POST',
-        body: receptionData
+        body: requestData
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'SimCards', id }]
+      invalidatesTags: ['LineRequests', 'SimCards']
+    }),
+
+    // Annuler une demande de ligne
+    cancelLineRequest: builder.mutation({
+      query: (requestId) => ({
+        url: `/line-requests/${requestId}/cancel`,
+        method: 'PATCH'
+      }),
+      invalidatesTags: ['LineRequests']
     })
   }),
 });
@@ -202,7 +244,10 @@ export const {
     useGetAgencySimCardsOrderQuery,
     useGetAgencySimCardsReceiptQuery,
   useCreateSimCardOrderMutation,
-  useReceiveSimCardMutation
+  useReceiveSimCardMutation,
+  useGetLineRequestsQuery,
+  useCreateLineRequestMutation,
+  useCancelLineRequestMutation
 } = agencyApiSlice;
 
 // Sélecteurs

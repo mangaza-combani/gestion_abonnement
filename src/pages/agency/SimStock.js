@@ -38,49 +38,109 @@ import {
   useGetAgencySimCardsReceiptQuery
 } from "../../store/slices/agencySlice";
 import {useReceiveSimCardMutation} from "../../store/slices/agencySlice";
+import { useGetPhonesQuery } from "../../store/slices/linesSlice";
+import { 
+  useGetAvailableLinesQuery,
+  useActivateWithSimMutation 
+} from "../../store/slices/lineReservationsSlice";
 import dayjs from "dayjs";
 import {useCreateSimCardMutation} from "../../store/slices/simCardsSlice";
+import {useCreateSimCardOrderMutation} from "../../store/slices/agencySlice";
 
 const SimCardManagement = () => {
   // États
   const [showReceiveModal, setShowReceiveModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [selectedSim, setSelectedSim] = useState(null);
+  const [selectedLine, setSelectedLine] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [newICCID, setNewICCID] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [createSimCard] = useCreateSimCardMutation();
   const [receiveSimCard] = useReceiveSimCardMutation();
+  const [activateWithSim] = useActivateWithSimMutation();
+  const [createSimCardOrder] = useCreateSimCardOrderMutation();
 
-  const connectedUser = useWhoIAmQuery();
-  const client =  useGetClientsQuery(connectedUser?.currentData?.user?.agencyId);
-  const agencySimCardStock = useGetAgencySimCardsQuery(connectedUser?.currentData?.user?.agencyId)
-  const agencySimCardOrder = useGetAgencySimCardsOrderQuery(connectedUser?.currentData?.user?.agencyId)
-  const agencySimCardReceipt = useGetAgencySimCardsReceiptQuery(connectedUser?.currentData?.user?.agencyId)
+  // Récupération des données
+  const { data: connectedUser } = useWhoIAmQuery();
+  const { data: clientsData } = useGetClientsQuery(
+    connectedUser?.agencyId, 
+    { skip: !connectedUser?.agencyId }
+  );
+  const { data: agencySimCardStock } = useGetAgencySimCardsQuery(
+    connectedUser?.agencyId,
+    { skip: !connectedUser?.agencyId }
+  );
+  const { data: agencySimCardOrder } = useGetAgencySimCardsOrderQuery(
+    connectedUser?.agencyId,
+    { skip: !connectedUser?.agencyId }
+  );
+  const { data: agencySimCardReceipt } = useGetAgencySimCardsReceiptQuery(
+    connectedUser?.agencyId,
+    { skip: !connectedUser?.agencyId }
+  );
+  const { data: linesData } = useGetPhonesQuery();
+  const { data: availableLines } = useGetAvailableLinesQuery();
+  
+  // Filtrer les lignes réservées pour cette agence
+  const agencyReservedLines = linesData?.filter(line => {
+    const hasReservation = line.reservationStatus === 'RESERVED' || 
+                          line.user?.hasActiveReservation === true ||
+                          line.user?.reservationStatus === 'RESERVED';
+    
+    // Vérifier l'association agence via différents champs possibles
+    const isFromThisAgency = line.client?.agencyId === connectedUser?.agencyId ||
+                            line.user?.agencyId === connectedUser?.agencyId ||
+                            line.agencyId === connectedUser?.agencyId;
+                            
+    return hasReservation && isFromThisAgency;
+  }) || [];
 
-  // Données mockées
-  const simOrders = agencySimCardOrder?.currentData?.data || [
-    {
-      id: 1,
-      orderDate: '2024-02-01',
-      orderedBy: 'Superviseur A',
-      quantity: 10,
-      receivedQuantity: 7,
-    },
-    {
-      id: 2,
-      orderDate: '2024-02-08',
-      orderedBy: 'Superviseur B',
-      quantity: 5,
-      receivedQuantity: 0,
-    }
-  ];
+  // Debug temporaire
+  React.useEffect(() => {
+    console.log('🔍 DEBUG SimStock - Données reçues:', {
+      connectedUser,
+      agencySimCardStock,
+      agencySimCardOrder: {
+        raw: agencySimCardOrder,
+        data: agencySimCardOrder?.data,
+        status: agencySimCardOrder?.status,
+        length: agencySimCardOrder?.data?.length
+      },
+      agencySimCardReceipt,
+      linesData: linesData?.map(line => ({
+        id: line.id,
+        phoneNumber: line.phoneNumber,
+        reservationStatus: line.reservationStatus,
+        client: line.client,
+        user: line.user,
+        agencyId: line.agencyId,
+        clientAgencyId: line.client?.agencyId,
+        userAgencyId: line.user?.agencyId
+      }))
+    });
+    
+    // Debug spécifique pour lignes réservées
+    console.log('🔍 DEBUG Lignes réservées pour agence:', {
+      agencyId: connectedUser?.agencyId,
+      agencyReservedLines: linesData?.filter(line => 
+        line.reservationStatus === 'RESERVED' && 
+        line.client?.agencyId === connectedUser?.agencyId
+      )
+    });
+  }, [connectedUser, agencySimCardStock, agencySimCardOrder, agencySimCardReceipt, linesData]);
 
-  const simCards = agencySimCardStock?.currentData?.sim_cards || [
-    { id: 1, iccid: '8933150319xxxx', status: 'IN_USE', receivedDate: '2024-01-15', assignedTo: 'Client A' },
-    { id: 2, iccid: '8933150319yyyy', status: 'IN_STOCK', receivedDate: '2024-02-01', orderRef: 1 },
-    { id: 3, iccid: '8933150319zzzz', status: 'BLOCKED', receivedDate: '2024-01-10', reportDate: '2024-02-05' }
-  ];
+  // Données réelles
+  const simOrders = agencySimCardOrder?.data || [];
+  const simCards = agencySimCardStock?.sim_cards || [];
+  
+  console.log('🔍 DEBUG SimStock - Données traitées:', {
+    simOrders,
+    simCards,
+    simOrdersLength: simOrders.length,
+    simCardsLength: simCards.length
+  });
 
   // Statistiques
   const stats = {
@@ -94,37 +154,128 @@ const SimCardManagement = () => {
 
   // Gestionnaires d'événements
   const handleReceiveSubmit = async () => {
+    console.log('🚀 DEBUT handleReceiveSubmit - Données:', {
+      newICCID,
+      deliveryDate,
+      connectedUser: connectedUser?.agencyId,
+      simOrders: simOrders?.length,
+    });
 
-    if (!selectedOrder || !newICCID || !selectedOrder.id) {
-      console.error("Invalid order or ICCID", {
-        selectedOrder,
+    if (!newICCID) {
+      console.error("❌ Invalid ICCID", {
         newICCID
       });
       return;
     }
 
-    const receiveNewSimCardDate = await receiveSimCard({
-        sim_card_order_id: selectedOrder?.id,
-        quantity: 1,
-        received_date: dayjs().format('YYYY-MM-DD'),
-    })
+    // Utiliser la première commande en cours ou créer une commande par défaut
+    let availableOrder = simOrders?.find(order => (order.quantityReceived || 0) < order.quantity);
+    
+    console.log('📦 Commande disponible:', availableOrder);
+    
+    // Si aucune commande n'existe, créer une commande automatique
+    if (!availableOrder && simOrders.length === 0) {
+      console.log('⚠️ Aucune commande trouvée, création automatique d\'une commande...');
+      
+      try {
+        // Créer une commande automatique de 1 SIM
+        const newOrderResult = await createSimCardOrder({
+          quantity: 1,
+          agencyId: connectedUser?.agencyId,
+          orderDate: new Date().toISOString(),
+          status: 'PENDING'
+        });
+        
+        if (newOrderResult.data) {
+          console.log('✅ Commande automatique créée:', newOrderResult.data);
+          availableOrder = newOrderResult.data;
+        } else {
+          console.error('❌ Erreur création commande automatique:', newOrderResult.error);
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de création commande:', error);
+      }
+    }
+    
+    if (availableOrder) {
+      try {
+        console.log('⏳ Envoi receiveSimCard...', {
+          sim_card_order_id: availableOrder.id,
+          quantity: 1,
+          received_date: deliveryDate,
+        });
+        
+        const receiveNewSimCardDate = await receiveSimCard({
+            sim_card_order_id: availableOrder.id,
+            quantity: 1,
+            received_date: deliveryDate,
+        });
 
-    const newSimCard = await createSimCard({
-      iccid: newICCID,
-      status: "IN_STOCK",
-      simCardReceiptId: receiveNewSimCardDate?.data?.simCardReceipt?.id,
-      simCardOrderId: selectedOrder?.id,
-      agencyId: connectedUser?.currentData?.user?.agencyId,
-    })
+        console.log("✅ receiveSimCard réponse:", receiveNewSimCardDate);
 
+        console.log('⏳ Envoi createSimCard...', {
+          iccid: newICCID,
+          status: "IN_STOCK",
+          simCardReceiptId: receiveNewSimCardDate?.data?.simCardReceipt?.id,
+          simCardOrderId: availableOrder.id,
+          agencyId: connectedUser?.agencyId,
+        });
 
-    console.log("receiveNewSimCard", receiveNewSimCardDate)
-    console.log("newSimCard", newSimCard)
+        const newSimCard = await createSimCard({
+          iccid: newICCID,
+          status: "IN_STOCK",
+          simCardReceiptId: receiveNewSimCardDate?.data?.simCardReceipt?.id,
+          simCardOrderId: availableOrder.id,
+          agencyId: connectedUser?.agencyId,
+        });
+
+        console.log("✅ createSimCard réponse:", newSimCard);
+        
+        if (receiveNewSimCardDate?.error || newSimCard?.error) {
+          console.error("❌ Erreurs API:", {
+            receiveError: receiveNewSimCardDate?.error,
+            createError: newSimCard?.error
+          });
+        } else {
+          console.log("🎉 Déclaration de réception SIM réussie !");
+        }
+        
+      } catch (error) {
+        console.error("❌ Erreur lors de la déclaration:", error);
+      }
+    } else {
+      console.error("❌ Aucune commande disponible trouvée");
+    }
 
     setShowReceiveModal(false);
-    setShowConfirmModal(false);
-    setSelectedOrder(null);
     setNewICCID('');
+    setDeliveryDate(dayjs().format('YYYY-MM-DD'));
+  };
+
+  // Gestionnaire pour l'activation d'une ligne avec une SIM
+  const handleActivateWithSim = async () => {
+    if (!selectedSim || !selectedLine) {
+      console.error("SIM ou ligne non sélectionnée", {
+        selectedSim,
+        selectedLine
+      });
+      return;
+    }
+
+    try {
+      const result = await activateWithSim({
+        lineId: selectedLine.id,
+        iccid: selectedSim.iccid
+      });
+
+      console.log("Ligne activée avec succès:", result);
+      
+      setShowActivateModal(false);
+      setSelectedSim(null);
+      setSelectedLine(null);
+    } catch (error) {
+      console.error("Erreur lors de l'activation:", error);
+    }
   };
 
   const StatCard = ({ icon, title, value, color }) => (
@@ -171,52 +322,67 @@ const SimCardManagement = () => {
 
       {/* Cartes statistiques */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={2.4}>
+        <Grid item xs={12} sm={6} md={2}>
           <StatCard
             icon={<CreditCardIcon color="primary" />}
-            title="Total"
+            title="Total SIM"
             value={stats.total}
             color="primary"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
+        <Grid item xs={12} sm={6} md={2}>
           <StatCard
             icon={<PhoneAndroidIcon color="success" />}
-            title="Actives"
+            title="SIM Actives"
             value={stats.active}
             color="success"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
+        <Grid item xs={12} sm={6} md={2}>
           <StatCard
             icon={<InventoryIcon color="warning" />}
-            title="En Stock"
+            title="SIM En Stock"
             value={stats.stock}
             color="warning"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
+        <Grid item xs={12} sm={6} md={2}>
+          <StatCard
+            icon={<PhoneAndroidIcon color="info" />}
+            title="Lignes Réservées"
+            value={agencyReservedLines.length}
+            color="info"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={2}>
           <StatCard
             icon={<ErrorOutlineIcon color="error" />}
-            title="Perdues/Volées"
+            title="SIM Perdues"
             value={stats.lost}
             color="error"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
+        <Grid item xs={12} sm={6} md={2}>
           <StatCard
-            icon={<LocalShippingIcon color="info" />}
+            icon={<LocalShippingIcon color="secondary" />}
             title="En Attente"
             value={stats.ordered}
-            color="info"
+            color="secondary"
           />
         </Grid>
       </Grid>
 
-      {/* Alerte de stock bas */}
+      {/* Alertes */}
       {stats.stock < 10 && (
-        <Alert severity="warning" sx={{ mb: 3 }}>
+        <Alert severity="warning" sx={{ mb: 2 }}>
           Le stock de cartes SIM est bas (moins de 10 cartes). Veuillez commander de nouvelles cartes.
+        </Alert>
+      )}
+      
+      {agencyReservedLines.length > 0 && stats.stock > 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Vous avez {agencyReservedLines.length} ligne(s) réservée(s) et {stats.stock} carte(s) SIM en stock. 
+          Vous pouvez activer des lignes en attribuant des cartes SIM.
         </Alert>
       )}
 
@@ -312,10 +478,7 @@ const SimCardManagement = () => {
                   <Button
                     size="small"
                     color="primary"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setShowReceiveModal(true);
-                    }}
+                    onClick={() => setShowReceiveModal(true)}
                   >
                     Déclarer une réception
                   </Button>
@@ -324,6 +487,7 @@ const SimCardManagement = () => {
             ))}
         </Box>
       </Paper>
+
 
       {/* Tableau des cartes SIM */}
       <Paper>
@@ -363,11 +527,37 @@ const SimCardManagement = () => {
                       size="small"
                     />
                   </TableCell>
-                  <TableCell>{dayjs(sim.createdAt).format('dddd D MMMM YYYY')}</TableCell>
+                  <TableCell>{dayjs(sim.createdAt || sim.receivedDate).format('dddd D MMMM YYYY')}</TableCell>
                   <TableCell>
-                    {sim.orderedBy && `Assignée à: ${sim.orderedBy.firstname} ${sim.orderedBy.lastname}`}
-                    {sim.reportDate && `Date de déclaration: ${dayjs(sim.reportDate).format('dddd D MMMM YYYY')}`}
-                    {sim.id && `N° De Reçu #${sim.simCardReceiptId}`}
+                    <Stack spacing={0.5}>
+                      {sim.orderedBy && (
+                        <Typography variant="body2">
+                          Assignée à: {sim.orderedBy.firstname} {sim.orderedBy.lastname}
+                        </Typography>
+                      )}
+                      {sim.reportDate && (
+                        <Typography variant="body2">
+                          Date de déclaration: {dayjs(sim.reportDate).format('dddd D MMMM YYYY')}
+                        </Typography>
+                      )}
+                      {sim.simCardReceiptId && (
+                        <Typography variant="body2">
+                          N° De Reçu #${sim.simCardReceiptId}
+                        </Typography>
+                      )}
+                      {sim.status === 'IN_STOCK' && agencyReservedLines.length > 0 && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => {
+                            setSelectedSim(sim);
+                            setShowActivateModal(true);
+                          }}
+                        >
+                          Activer ligne
+                        </Button>
+                      )}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
@@ -399,31 +589,20 @@ const SimCardManagement = () => {
         <DialogContent>
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
-              Commande
+              Date de livraison
             </Typography>
             <TextField
-              select
               fullWidth
-              value={selectedOrder?.id || ''}
-              onChange={(e) => {
-                const order = simOrders?.find(o => o.id === Number(e.target.value));
-                setSelectedOrder(order);
-              }}
               size="small"
+              type="date"
+              value={deliveryDate}
+              onChange={(e) => setDeliveryDate(e.target.value)}
               sx={{ mb: 3 }}
-            >
-              <MenuItem value="">Sélectionnez une commande</MenuItem>
-              {simOrders
-                ?.filter(order => (order.quantityReceived || 0) < order.quantity)
-                ?.map(order => (
-                  <MenuItem key={order.id} value={order.id}>
-                    Commande #{order.id} - {order.orderedBy.firstname + ' ' + order.orderedBy.lastname} ({order.quantityReceived || 0}/{order.quantity})
-                  </MenuItem>
-                ))}
-            </TextField>
+              helperText="Date indiquée sur le courrier de livraison"
+            />
 
             <Typography variant="subtitle2" gutterBottom>
-              ICCID
+              ICCID de la carte SIM reçue
             </Typography>
             <TextField
               fullWidth
@@ -431,27 +610,22 @@ const SimCardManagement = () => {
               value={newICCID}
               onChange={(e) => setNewICCID(e.target.value)}
               placeholder="Entrez l'ICCID de la carte reçue"
+              inputProps={{ maxLength: 20 }}
               sx={{ mb: 2 }}
+              autoFocus
             />
 
-            {selectedOrder && (
-              <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Détails de la commande
-                </Typography>
-                <Stack spacing={1}>
-                  <Typography variant="body2">
-                    • Commandé par: {selectedOrder.orderedBy.firstname + ' ' + selectedOrder.orderedBy.lastname}
-                  </Typography>
-                  <Typography variant="body2">
-                    • Date de commande: {dayjs(selectedOrder.orderDate).format('dddd D MMMM YYYY')}
-                  </Typography>
-                  <Typography variant="body2">
-                    • Cartes reçues: {selectedOrder.quantityReceived || 0} sur {selectedOrder.quantity}
-                  </Typography>
-                </Stack>
-              </Box>
-            )}
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Information
+              </Typography>
+              <Typography variant="body2">
+                • La carte sera automatiquement ajoutée à votre stock
+              </Typography>
+              <Typography variant="body2">
+                • Date de livraison: {dayjs(deliveryDate).format('dddd D MMMM YYYY')}
+              </Typography>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -460,56 +634,137 @@ const SimCardManagement = () => {
           </Button>
           <Button
             variant="contained"
-            onClick={() => setShowConfirmModal(true)}
-            disabled={!selectedOrder || !newICCID}
+            onClick={handleReceiveSubmit}
+            disabled={!newICCID}
           >
-            Valider
+            Ajouter au stock
           </Button>
 
           </DialogActions>
       </Dialog>
 
-      {/* Dialog de confirmation */}
+
+      {/* Modal d'activation de ligne avec SIM */}
       <Dialog
-        open={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        maxWidth="sm"
+        open={showActivateModal}
+        onClose={() => {
+          setShowActivateModal(false);
+          setSelectedSim(null);
+          setSelectedLine(null);
+        }}
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle>
-          Confirmation de réception
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            Activer une ligne avec une carte SIM
+            <IconButton 
+              edge="end" 
+              color="inherit" 
+              onClick={() => {
+                setShowActivateModal(false);
+                setSelectedSim(null);
+                setSelectedLine(null);
+              }}
+              aria-label="close"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Veuillez confirmer les informations suivantes :
-            </Typography>
-            <Box sx={{ mt: 2, pl: 2 }}>
-              <Typography color="text.secondary" gutterBottom>
-                • La carte SIM avec l'ICCID : {newICCID}
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            {/* Sélection de ligne */}
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" gutterBottom>
+                Ligne à activer
               </Typography>
-              <Typography color="text.secondary" gutterBottom>
-                • Sera associée à la commande #{selectedOrder?.id}
+              <TextField
+                select
+                fullWidth
+                value={selectedLine?.id || ''}
+                onChange={(e) => {
+                  const line = agencyReservedLines.find(l => l.id === Number(e.target.value));
+                  setSelectedLine(line);
+                }}
+                size="small"
+                disabled={!!selectedLine && !!selectedSim} // Si on arrive depuis une ligne spécifique
+              >
+                <MenuItem value="">Sélectionnez une ligne</MenuItem>
+                {agencyReservedLines.map(line => (
+                  <MenuItem key={line.id} value={line.id}>
+                    {line.phoneNumber || 'Numéro à définir'} - {line.client?.firstname} {line.client?.lastname}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            
+            {/* Sélection de SIM */}
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" gutterBottom>
+                Carte SIM disponible
               </Typography>
-              <Typography color="text.secondary" gutterBottom>
-                • Commandée par : {selectedOrder?.orderedBy.firstname + " " + selectedOrder?.orderedBy.lastname}
+              <TextField
+                select
+                fullWidth
+                value={selectedSim?.id || ''}
+                onChange={(e) => {
+                  const sim = simCards.find(s => s.id === Number(e.target.value));
+                  setSelectedSim(sim);
+                }}
+                size="small"
+                disabled={!!selectedSim && !!selectedLine} // Si on arrive depuis une SIM spécifique
+              >
+                <MenuItem value="">Sélectionnez une carte SIM</MenuItem>
+                {simCards
+                  .filter(sim => sim.status === 'IN_STOCK')
+                  .map(sim => (
+                    <MenuItem key={sim.id} value={sim.id}>
+                      {sim.iccid}
+                    </MenuItem>
+                  ))
+                }
+              </TextField>
+            </Grid>
+          </Grid>
+
+          {/* Récapitulatif */}
+          {selectedLine && selectedSim && (
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Récapitulatif de l'activation
               </Typography>
-              <Typography color="text.secondary">
-                • Cette carte sera la {parseInt(selectedOrder?.quantityReceived + 1)} carte{selectedOrder?.quantityReceived + 1 > 1 ? "s" : ""} reçue sur {selectedOrder?.quantity} carte{selectedOrder?.quantity > 1 ? "s" : ""} commandée{selectedOrder?.quantity > 1 ? "s" : ""} commandé.
-              </Typography>
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  • Ligne: {selectedLine.phoneNumber || 'Numéro à définir'}
+                </Typography>
+                <Typography variant="body2">
+                  • Client: {selectedLine.client?.firstname} {selectedLine.client?.lastname}
+                </Typography>
+                <Typography variant="body2">
+                  • Carte SIM: {selectedSim.iccid}
+                </Typography>
+                <Typography variant="body2">
+                  • Date d'activation: {dayjs().format('dddd D MMMM YYYY')}
+                </Typography>
+              </Stack>
             </Box>
-          </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowConfirmModal(false)}>
+          <Button onClick={() => {
+            setShowActivateModal(false);
+            setSelectedSim(null);
+            setSelectedLine(null);
+          }}>
             Annuler
           </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleReceiveSubmit}
-            color="primary"
+          <Button
+            variant="contained"
+            onClick={handleActivateWithSim}
+            disabled={!selectedLine || !selectedSim}
           >
-            Confirmer
+            Activer la ligne
           </Button>
         </DialogActions>
       </Dialog>

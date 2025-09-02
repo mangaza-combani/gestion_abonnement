@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
-import {Box, Tabs, Tab, Tooltip, IconButton} from '@mui/material';
-import {PersonAdd as PersonAddIcon} from '@mui/icons-material';
+import {Box, Tabs, Tab, Tooltip, IconButton, Badge} from '@mui/material';
+import {PersonAdd as PersonAddIcon, Notifications as NotificationsIcon} from '@mui/icons-material';
 import {TAB_TYPES, CLIENT_STATUSES, ORDER_FILTERS} from '../../components/ClientManagement/constant';
 import ListTab from '../../components/ClientManagement/TabContent/ListTab';
 import BlockTab from '../../components/ClientManagement/TabContent//BlockTab';
@@ -10,10 +10,12 @@ import ClientDetails from '../../components/ClientManagement/ClientDetails';
 import ClientActions from '../../components/ClientManagement/ClientActions';
 import ActivateTab from '../../components/ClientManagement/TabContent/ActivateTab';
 import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
+import ActivationInfo from '../../components/ClientManagement/ActivationInfo';
 import {useGetPhonesQuery, useCreatePhoneMutation} from "../../store/slices/linesSlice";
-import {useGetAllUsersQuery} from "../../store/slices/clientsSlice";
+import {useGetAllUsersQuery, useGetClientsToOrderQuery} from "../../store/slices/clientsSlice";
 import {useCreateClientMutation} from "../../store/slices/clientsSlice";
 import {useCreateSimCardMutation} from "../../store/slices/simCardsSlice";
+import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
 import {PHONE_STATUS, PAYMENT_STATUS} from "../../components/ClientManagement/constant";
 
 // Mock data
@@ -37,10 +39,159 @@ const ClientManagement = () => {
         const [createSimCard] = useCreateSimCardMutation();
         const {
                 data: linesData,
+                isLoading: linesLoading
         } = useGetPhonesQuery()
+        
+        const {
+                data: agenciesData,
+                isLoading: agenciesLoading,
+                refetch: refetchAgencies
+        } = useGetAgenciesQuery()
+
+        // Hook pour récupérer les clients à commander (basé sur LineRequests PENDING)
+        const {
+                data: clientsToOrderData,
+                isLoading: clientsToOrderLoading,
+                refetch: refetchClientsToOrder
+        } = useGetClientsToOrderQuery()
+        
+        // Actualisation automatique des données toutes les 30 secondes
+        React.useEffect(() => {
+                const interval = setInterval(() => {
+                        refetchAgencies();
+                        refetchClientsToOrder();
+                }, 30000); // 30 secondes
+                
+                return () => clearInterval(interval);
+        }, [refetchAgencies, refetchClientsToOrder]);
+        
+        // Debug temporaire pour voir les données
+        React.useEffect(() => {
+                if (linesData && !linesLoading) {
+                        console.log('🔍 DONNÉES REÇUES du backend:', {
+                                totalLines: linesData.length,
+                                sampleLines: linesData.slice(0, 3),
+                                statusBreakdown: linesData.reduce((acc, line) => {
+                                        acc[line.phoneStatus || 'UNDEFINED'] = (acc[line.phoneStatus || 'UNDEFINED'] || 0) + 1;
+                                        return acc;
+                                }, {}),
+                                reservationBreakdown: linesData.reduce((acc, line) => {
+                                        const hasReservation = line?.user?.hasActiveReservation || line?.user?.reservationStatus === 'RESERVED';
+                                        acc[hasReservation ? 'HAS_RESERVATION' : 'NO_RESERVATION'] = (acc[hasReservation ? 'HAS_RESERVATION' : 'NO_RESERVATION'] || 0) + 1;
+                                        return acc;
+                                }, {})
+                        });
+                        
+                        // Debug spécifique pour xanderr imran
+                        const xanderrClient = linesData.find(client => 
+                                client?.user?.firstname?.toLowerCase().includes('xanderr') || 
+                                client?.user?.lastname?.toLowerCase().includes('imran')
+                        );
+                        
+                        if (xanderrClient) {
+                                console.log('🔍 CLIENT XANDERR TROUVÉ:', {
+                                        nom: `${xanderrClient.user?.firstname} ${xanderrClient.user?.lastname}`,
+                                        phoneStatus: xanderrClient.phoneStatus,
+                                        paymentStatus: xanderrClient.paymentStatus,
+                                        hasActiveReservation: xanderrClient.user?.hasActiveReservation,
+                                        reservationStatus: xanderrClient.user?.reservationStatus,
+                                        clientReservationStatus: xanderrClient.reservationStatus,
+                                        clientHasActiveReservation: xanderrClient.hasActiveReservation,
+                                        fullClient: xanderrClient
+                                });
+                        } else {
+                                console.log('❌ CLIENT XANDERR NON TROUVÉ dans les données');
+                        }
+                }
+        }, [linesData, linesLoading]);
+
+        // Calcul des notifications pour les cartes SIM disponibles
+        const notificationData = React.useMemo(() => {
+                if (!agenciesData || !linesData) return { count: 0, newReceptions: [] };
+                
+                // Compter les lignes réservées
+                const reservedLines = linesData.filter(line => {
+                        const hasActiveReservation = line?.user?.hasActiveReservation === true ||
+                                                   line?.user?.reservationStatus === 'RESERVED' ||
+                                                   line?.hasActiveReservation === true ||
+                                                   line?.reservationStatus === 'RESERVED';
+                        return hasActiveReservation;
+                });
+                
+                // Compter les cartes SIM disponibles et identifier les nouvelles réceptions
+                let totalAvailableSimCards = 0;
+                const newReceptions = [];
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                agenciesData.forEach(agency => {
+                        if (agency.simCards) {
+                                const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
+                                totalAvailableSimCards += availableSims.length;
+                                
+                                // Identifier les nouvelles réceptions (dernières 24h)
+                                const recentSims = agency.simCards.filter(sim => {
+                                        if (!sim.createdAt) return false;
+                                        const simDate = new Date(sim.createdAt);
+                                        return simDate >= yesterday && sim.status === 'IN_STOCK';
+                                });
+                                
+                                if (recentSims.length > 0) {
+                                        newReceptions.push({
+                                                agencyName: agency.name,
+                                                agencyId: agency.id,
+                                                count: recentSims.length,
+                                                sims: recentSims
+                                        });
+                                }
+                        }
+                });
+                
+                // Retourner le minimum entre lignes réservées et cartes SIM disponibles
+                const activatableLines = Math.min(reservedLines.length, totalAvailableSimCards);
+                
+                console.log('🔔 Calcul notification:', {
+                        reservedLinesCount: reservedLines.length,
+                        totalAvailableSimCards,
+                        activatableLines,
+                        newReceptionsCount: newReceptions.length,
+                        newReceptions
+                });
+                
+                return { 
+                        count: activatableLines,
+                        newReceptions,
+                        hasNewReceptions: newReceptions.length > 0
+                };
+        }, [agenciesData, linesData]);
 
         const handleNewClient = async (data) => {
+                // Vérification préventive de l'authentification
+                const token = localStorage.getItem('token');
+                const userData = localStorage.getItem('user');
+                
+                if (!token || !userData) {
+                        alert('Vous devez être connecté pour créer un client. Redirection...');
+                        window.location.href = '/login';
+                        return;
+                }
+                
                 let newId = 0;
+                
+                // Déterminer les statuts appropriés dès le début
+                let clientPhoneStatus, clientPaymentStatus;
+                
+                if (data?.simCard?.simCCID && data.simCard.simCCID !== 'in_attribution') {
+                        // Avec carte SIM - prêt à activer
+                        clientPhoneStatus = PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
+                        clientPaymentStatus = PAYMENT_STATUS.UP_TO_DATE; // Client peut payer normalement
+                } else {
+                        // Sans carte SIM - à commander
+                        clientPhoneStatus = PHONE_STATUS.NEEDS_TO_BE_ORDERED;
+                        clientPaymentStatus = PAYMENT_STATUS.UNATTRIBUTED; // Pas encore de service actif
+                }
+                
                 if (data?.client?.id) {
                         // si le client à déjà un id on ne fait pas de requête pour le créer
                         // on le sélectionne directement
@@ -52,15 +203,18 @@ const ClientManagement = () => {
                         const newClient = {
                                 user: data.client,
                                 id: Math.random().toString(36).substr(2, 9), // Génération d'un ID aléatoire
-                                phoneStatus: PHONE_STATUS.NEEDS_TO_BE_ACTIVATED, // Par défaut, le statut du téléphone est actif
-                                paymentStatus: PAYMENT_STATUS.UP_TO_DATE, // Par défaut, le statut de paiement est à jour
+                                phoneStatus: clientPhoneStatus, // Statut dynamique
+                                paymentStatus: clientPaymentStatus, // Statut dynamique
                         };
 
                         // utilisation de la mutation pour créer l'user
-                        const newClientData = await createClient({
+                        const clientPayload = {
                                 ...data.client,
                                 password: "wezo976", // mot de passe par défaut pour la démo
-                        });
+                        };
+                        console.log('Payload envoyé à createClient:', clientPayload);
+                        
+                        const newClientData = await createClient(clientPayload);
 
                         console.log('New client created:', newClientData);
 
@@ -74,37 +228,162 @@ const ClientManagement = () => {
                         console.log('Ready for create billing record', data.payment);
                 }
 
-                const newSimCard = {
-                        iccid: data?.simCard?.simCCID || 'in_attribution', // Indique que la carte SIM est en attribution
-                        status: "INACTIVE", // Par défaut, le statut de la carte SIM est en attribution
-                        agencyId: JSON?.parse(localStorage.getItem('user'))?.agencyId || 1, // Agence par défaut
+                // Récupérer l'agencyId de manière sûre
+                // L'admin appartient aussi à une agence (par défaut agence 1)
+                const getAgencyId = () => {
+                        try {
+                                const userData = localStorage.getItem('user');
+                                console.log('User data from localStorage:', userData);
+                                if (userData) {
+                                        const parsedUser = JSON.parse(userData);
+                                        console.log('Parsed user:', parsedUser);
+                                        const agencyId = parsedUser?.agencyId;
+                                        console.log('AgencyId récupéré:', agencyId, 'Type:', typeof agencyId);
+                                        
+                                        // Si l'admin n'a pas d'agencyId défini, on lui assigne l'agence 1 par défaut
+                                        if (!agencyId || agencyId === 'null' || agencyId === null) {
+                                                console.log('Admin sans agencyId, assignation à agence 1');
+                                                return 1;
+                                        }
+                                        return parseInt(agencyId);
+                                }
+                                console.log('Pas de userData, assignation à agence 1');
+                                return 1;
+                        } catch (error) {
+                                console.error('Invalid user data in localStorage:', error);
+                                return 1;
+                        }
+                };
+
+                const agencyId = getAgencyId();
+                console.log('AgencyId final pour SIM card:', agencyId);
+
+                let newSimCardData = null;
+                let phoneStatus = clientPhoneStatus; // Utiliser le statut défini plus haut
+                
+                // Vérifier si une carte SIM est disponible/fournie
+                if (data?.simCard?.simCCID && data.simCard.simCCID !== 'in_attribution') {
+                        // Carte SIM disponible - créer la carte SIM
+                        const newSimCard = {
+                                iccid: data.simCard.simCCID,
+                                status: "INACTIVE",
+                                agencyId: agencyId
+                        };
+                        newSimCardData = await createSimCard(newSimCard);
+                        phoneStatus = PHONE_STATUS.NEEDS_TO_BE_ACTIVATED; // Ligne prête à activer
+                } else if (data?.simCard?.simCCID === 'in_attribution') {
+                        // Carte SIM en cours de livraison - vérifier s'il y a des lignes non attribuées disponibles
+                        console.log('Carte SIM en cours de livraison - vérification des lignes disponibles');
+                        
+                        // TODO: Ici on pourrait vérifier s'il y a des lignes disponibles via l'API
+                        // Pour l'instant, on crée une demande mais le superviseur pourra attribuer une ligne existante
+                        phoneStatus = PHONE_STATUS.NEEDS_TO_BE_ACTIVATED; // Ligne prête pour attribution par superviseur
+                        newSimCardData = null;
+                } else {
+                        // Pas de carte SIM disponible - créer une DEMANDE DE LIGNE (pas encore de ligne physique)
+                        console.log('Aucune carte SIM disponible - création d\'une demande de ligne');
+                        
+                        // Pour une demande de ligne, on crée quand même un enregistrement "téléphone" 
+                        // mais avec un statut spécial et sans redAccountId (sera assigné plus tard par le superviseur)
+                        phoneStatus = PHONE_STATUS.NEEDS_TO_BE_ORDERED;
+                        newSimCardData = null;
                 }
 
-                const newSimCardData = await createSimCard(newSimCard);
+                let createdPhone;
 
-                // si on n'as pas de carte SIM, on crée un téléphone sans carte SIM
-                const newPhone = {
-                        phoneNumber: data?.client?.phoneNumber || '0000000000', // Numéro de téléphone par défaut
-                        userId: newId || data?.client?.id || null,
-                        simCardId: newSimCardData?.data?.id, // Associer la nouvelle carte SIM au téléphone
-                        phoneStatus: PHONE_STATUS.NEEDS_TO_BE_ACTIVATED, // Par défaut, le statut du téléphone est à activer
-                        redAccountId: 5,
-                        phoneType: "POSTPAID", // Type de téléphone par défaut
-                };
-                const createdPhone = await createPhone(newPhone);
+                if (phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED) {
+                        // DEMANDE DE LIGNE : Pas encore de ligne physique, juste une demande
+                        const lineRequest = {
+                                // Pas de phoneNumber - sera assigné lors de la commande
+                                phoneNumber: null, 
+                                userId: newId || data?.client?.id || null,
+                                simCardId: null, // Pas de carte SIM
+                                phoneStatus: PHONE_STATUS.NEEDS_TO_BE_ORDERED,
+                                redAccountId: null, // Sera choisi par le superviseur
+                                phoneType: "POSTPAID",
+                                agencyId: agencyId, // Agence qui fait la demande
+                                // Utiliser trackingNotes pour stocker des infos sur la demande
+                                trackingNotes: `Demande de ligne pour ${data.client?.firstname} ${data.client?.lastname} - Créée le ${new Date().toLocaleDateString()}`
+                        };
+                        
+                        console.log('Création demande de ligne:', lineRequest);
+                        
+                        try {
+                                createdPhone = await createPhone(lineRequest);
+                                console.log('Demande de ligne créée avec succès:', createdPhone);
+                        } catch (error) {
+                                console.error('Erreur lors de la création de la demande:', error);
+                                throw error;
+                        }
+                } else {
+                        // LIGNE AVEC CARTE SIM : Création normale
+                        const generateTempPhoneNumber = () => {
+                                const timestamp = Date.now().toString();
+                                return `TEMP${timestamp.slice(-8)}`;
+                        };
 
-                console.log('New phone created:', createdPhone);
-                console.log("data", data);
+                        const newPhone = {
+                                phoneNumber: data?.client?.phoneNumber || generateTempPhoneNumber(),
+                                userId: newId || data?.client?.id || null,
+                                simCardId: newSimCardData?.data?.id,
+                                phoneStatus: phoneStatus,
+                                redAccountId: 1, // Pour les lignes avec SIM, on utilise un compte par défaut
+                                phoneType: "POSTPAID",
+                        };
+                        
+                        console.log('Création ligne avec SIM:', newPhone);
+                        
+                        try {
+                                createdPhone = await createPhone(newPhone);
+                                console.log('Ligne avec SIM créée avec succès:', createdPhone);
+                        } catch (error) {
+                                console.error('Erreur lors de la création de la ligne:', error);
+                                throw error;
+                        }
+                }
+                
+                console.log('Processus terminé avec succès');
+                console.log("Données originales:", data);
 
         };
 
         const handleChangeTabs = (e, newValue) => {
-                setSelectedClient(null)
-                setCurrentTab(newValue)
+                // Utiliser un timeout pour éviter les conflits de rendu
+                setTimeout(() => {
+                        setSelectedClient(null)
+                        setCurrentTab(newValue)
+                }, 0)
         }
 
         const getFilteredClients = () => {
-                return linesData?.filter(client => {
+                // Pour l'onglet À COMMANDER, utiliser les données spécifiques
+                if (currentTab === TAB_TYPES.TO_ORDER) {
+                        if (!clientsToOrderData || clientsToOrderLoading) return [];
+                        return clientsToOrderData.data || [];
+                }
+                
+                if (!linesData) return [];
+                
+                const now = new Date();
+                const currentDay = now.getDate();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+
+                const filteredClients = linesData?.filter(client => {
+                        // Exclure les lignes non attribuées SAUF pour l'onglet À COMMANDER et À ACTIVER (si réservation)
+                        // Les demandes de lignes peuvent être UNATTRIBUTED mais doivent être visibles pour être commandées
+                        // Les clients avec réservations actives doivent être visibles dans À ACTIVER même si UNATTRIBUTED
+                        const hasActiveReservation = client?.user?.hasActiveReservation === true ||
+                                                   client?.user?.reservationStatus === 'RESERVED' ||
+                                                   client?.hasActiveReservation === true ||
+                                                   client?.reservationStatus === 'RESERVED';
+                        
+                        if (client?.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED && 
+                            currentTab !== TAB_TYPES.TO_ORDER && 
+                            !(currentTab === TAB_TYPES.TO_ACTIVATE && hasActiveReservation)) {
+                                return false;
+                        }
+
                         const matchesSearch = !searchTerm ? true :
                             client?.user?.firstname.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
                             client?.user?.lastname.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
@@ -112,33 +391,137 @@ const ClientManagement = () => {
                             client?.user?.phoneNumber?.includes(searchTerm);
 
                         if (currentTab === TAB_TYPES.LIST) {
-                                // Pour la vue liste, on garde la logique existante si nécessaire
+                                // Vue liste - clients actifs et à jour
                                 const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL ||
                                     client?.phoneStatus === selectedStatus || client?.paymentStatus === selectedStatus;
-                                return matchesSearch && matchesStatus;
+                                return matchesSearch && matchesStatus && 
+                                       (client?.phoneStatus === PHONE_STATUS.ACTIVE && client?.paymentStatus === PAYMENT_STATUS.UP_TO_DATE);
                         }
 
-                        //TODO : mettre a jour les filtres pour les autres onglets
-                        // Filtres basés sur les actions pour chaque onglet
+                        // Filtres basés sur la logique métier
                         switch (currentTab) {
-                                case TAB_TYPES.LIST:
-                                        return matchesSearch && (client?.phoneStatus === PHONE_STATUS.ACTIVE || client?.paymentStatus === PAYMENT_STATUS.UP_TO_DATE);
-                                case TAB_TYPES.LATE:
-                                        return matchesSearch && (client?.phoneStatus === PHONE_STATUS.SUSPENDED && (client.paymentStatus === PAYMENT_STATUS.PAST_DUE || client.paymentStatus === PAYMENT_STATUS.OVERDUE));
-                                case TAB_TYPES.TO_BLOCK:
-                                        return matchesSearch && (client?.phoneStatus === PHONE_STATUS.SUSPENDED && client.paymentStatus === PAYMENT_STATUS.OVERDUE);
                                 case TAB_TYPES.TO_UNBLOCK:
-                                        return matchesSearch && (client?.phoneStatus === PHONE_STATUS.SUSPENDED && client.paymentStatus === PAYMENT_STATUS.UP_TO_DATE);
+                                        // Lignes impayées 2 mois consécutifs après le 30 du mois
+                                        // Logique: si on est après le 30 et le client n'a pas payé pendant 2 mois
+                                        const hasUnpaidFor2Months = client?.unpaidMonthsCount >= 2;
+                                        const isAfter30th = currentDay > 30 || (currentDay === 30 && now.getHours() >= 23);
+                                        return matchesSearch && hasUnpaidFor2Months && isAfter30th &&
+                                               client?.phoneStatus === PHONE_STATUS.SUSPENDED;
+                                
+                                case TAB_TYPES.TO_BLOCK:
+                                        // En retard - clients qui n'ont pas payé au 27 du mois
+                                        const isAfter27th = currentDay >= 27;
+                                        const hasNotPaid = client?.paymentStatus === PAYMENT_STATUS.OVERDUE || 
+                                                          client?.paymentStatus === PAYMENT_STATUS.PAST_DUE;
+                                        return matchesSearch && isAfter27th && hasNotPaid &&
+                                               client?.phoneStatus !== PHONE_STATUS.SUSPENDED;
+                                
                                 case TAB_TYPES.TO_ORDER:
-                                        return matchesSearch && (client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED && client.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED);
+                                        // À commander: SEULEMENT les nouvelles demandes non traitées
+                                        // 1. Lignes avec statut NEEDS_TO_BE_ORDERED (pas de carte SIM disponible)
+                                        // 2. Lignes avec statut NEEDS_TO_BE_REPLACED (remplacements vol/perte)
+                                        // 3. Demandes nécessitant nouveau compte (NEEDS_NEW_ACCOUNT)
+                                        // ❌ EXCLUT: Les lignes réservées (elles passent dans "À activer")
+                                        const needsSimCard = client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED;
+                                        const needsReplacement = client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_REPLACED;
+                                        const needsNewAccount = client?.phoneStatus === PHONE_STATUS.NEEDS_NEW_ACCOUNT;
+                                        const isSimReplacement = client?.replacementReason === 'THEFT' || 
+                                                               client?.replacementReason === 'LOSS';
+                                        
+                                        // Vérifier que la ligne N'EST PAS réservée
+                                        // Une ligne réservée ne doit JAMAIS apparaître dans "À commander"
+                                        const hasActiveReservation = client?.user?.hasActiveReservation === true ||
+                                                                    client?.user?.reservationStatus === 'RESERVED' ||
+                                                                    client?.hasActiveReservation === true ||
+                                                                    client?.reservationStatus === 'RESERVED' ||
+                                                                    client?.phoneStatus === PHONE_STATUS.RESERVED_EXISTING_LINE ||
+                                                                    client?.phoneStatus === PHONE_STATUS.RESERVED_NEW_LINE;
+                                        
+                                        const isNotReserved = !hasActiveReservation;
+                                        
+                                        // Debug pour vérifier l'exclusion des lignes réservées
+                                        if (hasActiveReservation && (needsSimCard || needsReplacement || needsNewAccount)) {
+                                                console.log('🚨 DEBUG ligne réservée exclue de À COMMANDER:', {
+                                                        name: client?.user?.firstname + ' ' + client?.user?.lastname,
+                                                        phoneStatus: client?.phoneStatus,
+                                                        reservationStatus: client?.reservationStatus || client?.user?.reservationStatus,
+                                                        hasActiveReservation: client?.hasActiveReservation || client?.user?.hasActiveReservation,
+                                                        isNotReserved,
+                                                        hasActiveReservation: client?.hasActiveReservation,
+                                                        userReservationStatus: client?.user?.reservationStatus,
+                                                        userHasActiveReservation: client?.user?.hasActiveReservation,
+                                                        isNotReserved,
+                                                        needsSimCard,
+                                                        needsReplacement, 
+                                                        needsNewAccount,
+                                                        isSimReplacement,
+                                                        matchesSearch,
+                                                        fullClient: client,
+                                                        finalResult: matchesSearch && (needsSimCard || needsReplacement || needsNewAccount || isSimReplacement) && isNotReserved
+                                                });
+                                        }
+                                        
+                                        return matchesSearch && (needsSimCard || needsReplacement || needsNewAccount || isSimReplacement) && isNotReserved;
+                                
                                 case TAB_TYPES.TO_ACTIVATE:
-                                        return matchesSearch && (client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED && client.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED);
+                                        // À activer: 
+                                        // 1. Lignes avec statut NEEDS_TO_BE_ACTIVATED
+                                        // 2. Lignes avec réservation active MAIS PAS ENCORE ACTIVÉES (éviter les lignes déjà activées)
+                                        const needsActivation = client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
+                                        const hasReservation = client?.user?.hasActiveReservation === true ||
+                                                              client?.user?.reservationStatus === 'RESERVED' ||
+                                                              client?.hasActiveReservation === true ||
+                                                              client?.reservationStatus === 'RESERVED';
+                                        
+                                        // Exclure les lignes déjà activées (statut ACTIVE)
+                                        const isAlreadyActive = client?.phoneStatus === PHONE_STATUS.ACTIVE;
+                                        
+                                        const qualifies = (needsActivation || hasReservation) && !isAlreadyActive;
+                                        
+                                        // Identifier le type de ligne pour À ACTIVER
+                                        const isWaitingForSim = client.trackingNotes?.includes('EN ATTENTE DE SIM');
+                                        const hasIccid = client.activatedWithIccid || client.phoneNumber;
+                                        
+                                        // Debug détaillé pour comprendre la logique
+                                        if (needsActivation || hasReservation) {
+                                          console.log('🔍 LIGNE ANALYSÉE pour À ACTIVER:', {
+                                            id: client.id,
+                                            phoneNumber: client.phoneNumber,
+                                            needsActivation,
+                                            hasReservation,
+                                            isAlreadyActive,
+                                            phoneStatus: client.phoneStatus,
+                                            isWaitingForSim,
+                                            hasIccid,
+                                            qualifies: qualifies,
+                                            trackingNotes: client.trackingNotes,
+                                            user: {
+                                              id: client.user?.id,
+                                              firstname: client.user?.firstname,
+                                              lastname: client.user?.lastname,
+                                              hasActiveReservation: client.user?.hasActiveReservation,
+                                              reservationStatus: client.user?.reservationStatus
+                                            }
+                                          });
+                                        }
+                                        
+                                        // Afficher toutes les lignes qui ont besoin d'activation ou qui sont réservées
+                                        return matchesSearch && qualifies;
+                                
                                 default:
-                                        // Pour l'onglet par défaut, on affiche tous les clients qui correspondent à la recherche
-                                        // y compris ceux qui n'ont pas d'actions
                                         return matchesSearch;
                         }
                 });
+                
+                // Log temporaire pour debug
+                console.log(`🔍 FILTRAGE onglet ${currentTab}:`, {
+                        totalLines: linesData?.length || 0,
+                        filteredCount: filteredClients?.length || 0,
+                        tab: currentTab,
+                        sampleFiltered: filteredClients?.slice(0, 3)
+                });
+                
+                return filteredClients;
         };
 
         const renderTabContent = () => {
@@ -202,6 +585,7 @@ const ClientManagement = () => {
                                         clients={filteredClients}
                                         selectedClient={selectedClient}
                                         onClientSelect={setSelectedClient}
+                                        newReceptions={notificationData.newReceptions}
                                     />
                                 );
 
@@ -226,7 +610,41 @@ const ClientManagement = () => {
                                 }}
                             >
                                     {tabs?.map((tab) => (
-                                        <Tab key={tab.id} value={tab.id} label={tab.label}/>
+                                        <Tab 
+                                            key={tab.id} 
+                                            value={tab.id} 
+                                            label={
+                                                tab.id === TAB_TYPES.TO_ACTIVATE && (notificationData.count > 0 || notificationData.hasNewReceptions) ? (
+                                                    <Badge 
+                                                        badgeContent={notificationData.count > 0 ? notificationData.count : '!'} 
+                                                        color="secondary"
+                                                        sx={{
+                                                            '& .MuiBadge-badge': {
+                                                                backgroundColor: notificationData.hasNewReceptions ? '#FF5722' : '#4CAF50',
+                                                                color: 'white',
+                                                                fontWeight: 'bold',
+                                                                fontSize: '0.75rem',
+                                                                minWidth: '20px',
+                                                                height: '20px',
+                                                                borderRadius: '10px',
+                                                                animation: notificationData.hasNewReceptions ? 'pulse 2s infinite' : 'none'
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <NotificationsIcon sx={{ 
+                                                                fontSize: '1.1rem', 
+                                                                color: notificationData.hasNewReceptions ? '#FF5722' : '#4CAF50',
+                                                                animation: notificationData.hasNewReceptions ? 'bell-ring 1s ease-in-out infinite' : 'none'
+                                                            }} />
+                                                            {tab.label}
+                                                        </Box>
+                                                    </Badge>
+                                                ) : (
+                                                    tab.label
+                                                )
+                                            }
+                                        />
                                     ))}
                             </Tabs>
                             <Tooltip title="Créer un nouveau client" placement="left">
@@ -250,18 +668,23 @@ const ClientManagement = () => {
                             <Box sx={{flex: 1}}>
                                     {renderTabContent()}
                             </Box>
-                            {selectedClient && (
-                                <>
-                                        <ClientDetails
-                                            client={selectedClient}
-                                            currentTab={currentTab}
-                                        />
-                                        <ClientActions
-                                            client={selectedClient}
-                                            currentTab={currentTab}
-                                        />
-                                </>
-                            )}
+                            <Box sx={{ display: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? 'block' : 'none' }}>
+                                {selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_ACTIVATE && (
+                                        <>
+                                                <ClientDetails
+                                                    client={selectedClient}
+                                                    currentTab={currentTab}
+                                                />
+                                                <ClientActions
+                                                    client={selectedClient}
+                                                    currentTab={currentTab}
+                                                />
+                                        </>
+                                )}
+                                {currentTab === TAB_TYPES.TO_ACTIVATE && (
+                                    <ActivationInfo client={selectedClient} />
+                                )}
+                            </Box>
                     </Box>
 
                     {/* Modal de création/sélection de client */}

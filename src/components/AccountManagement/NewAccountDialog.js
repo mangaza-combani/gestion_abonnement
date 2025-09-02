@@ -54,7 +54,8 @@ const NewAccountDialog = ({
   open, 
   onClose, 
   onSubmit,
-  clients = []
+  clients = [],
+  preselectedAgency = null
 }) => {
   // Récupération des agences depuis Redux via le hook RTK Query
   const { data: agenciesData, isLoading: agenciesLoading, isError: agenciesError, refetch: refetchAgencies } = useGetAgenciesQuery();
@@ -70,7 +71,7 @@ const NewAccountDialog = ({
     // Étape 1: Informations de compte
     redId: '',
     password: '',
-    agencyId: '',
+    agencyId: preselectedAgency?.id?.toString() || '',
     maxLines: 5,
     
     // Étape 2: Informations de paiement
@@ -86,7 +87,7 @@ const NewAccountDialog = ({
   const [newLine, setNewLine] = useState({
     clientId: null,
     phoneNumber: '',
-    status: 'NON ATTRIBUÉ'
+    status: 'EN COURS DE LIVRAISON'
   });
   
   const [selectedClient, setSelectedClient] = useState(null);
@@ -109,33 +110,20 @@ const NewAccountDialog = ({
     }
   }, [isSuccess, isProcessing]);
 
-  // Liste des banques courantes en France
-  const banks = [
-    "Société Générale",
-    "BNP Paribas",
-    "Crédit Agricole",
-    "Banque Populaire",
-    "Caisse d'Épargne",
-    "CIC",
-    "LCL",
-    "Crédit Mutuel",
-    "BRED",
-    "HSBC France",
-    "La Banque Postale",
-    "Boursorama Banque",
-    "ING Direct",
-    "Hello Bank!",
-    "Fortuneo",
-    "Monabanq",
-    "N26"
-  ];
+  // Mettre à jour l'agencyId si une agence est présélectionnée
+  useEffect(() => {
+    if (preselectedAgency?.id) {
+      setFormData(prev => ({ 
+        ...prev, 
+        agencyId: preselectedAgency.id.toString() 
+      }));
+    }
+  }, [preselectedAgency]);
 
-  // Statuts possibles pour une ligne
+
+  // Statuts possibles pour une ligne (fixé à "EN COURS DE LIVRAISON" depuis ce modal)
   const lineStatuses = [
-    "NON ATTRIBUÉ",
-    "ACTIF",
-    "BLOQUÉ",
-    "PAUSE"
+    "EN COURS DE LIVRAISON"
   ];
 
   const handleChange = (e) => {
@@ -153,7 +141,7 @@ const NewAccountDialog = ({
     setNewLine(prev => ({ 
       ...prev, 
       clientId: client?.id || null,
-      status: client ? 'ACTIF' : 'NON ATTRIBUÉ'
+      status: 'EN COURS DE LIVRAISON' // Statut fixé
     }));
   };
 
@@ -200,7 +188,7 @@ const NewAccountDialog = ({
     setNewLine({
       clientId: null,
       phoneNumber: '',
-      status: 'NON ATTRIBUÉ'
+      status: 'EN COURS DE LIVRAISON'
     });
     setSelectedClient(null);
   };
@@ -284,12 +272,13 @@ const NewAccountDialog = ({
     // Mapper les statuts de l'UI vers les constantes de l'API dans redAccountsSlice.js
     const statusMap = {
       'NON ATTRIBUÉ': 'UNATTRIBUTED',
-      'ACTIF': 'attributed',
-      'BLOQUÉ': 'blocked',
-      'PAUSE': 'paused'
+      'ACTIF': 'UP_TO_DATE',
+      'BLOQUÉ': 'SUSPENDED',
+      'PAUSE': 'DISCONNECTED',
+      'EN COURS DE LIVRAISON': 'NEEDS_TO_BE_ACTIVATED'
     };
     
-    return statusMap[uiStatus] || 'UNATTRIBUTED';
+    return statusMap[uiStatus] || 'NEEDS_TO_BE_ACTIVATED';
   };
 
   const handleSubmit = async () => {
@@ -322,15 +311,19 @@ const NewAccountDialog = ({
         }
       }).unwrap();
 
-    /*  // Récupérer l'ID du compte créé
-      const newAccountId = result.data.id;
-      console.log(formData.lines)
+      // Récupérer l'ID du compte créé
+      const newAccountId = result.redAccount?.id;
+      console.log('Nouveau compte créé avec ID:', newAccountId);
+      console.log('Lignes à créer:', formData.lines);
 
       // Créer les lignes si nécessaire
-      if (formData.lines.length > 0) {
-
-        await createLines(newAccountId);
-      }*/
+      if (formData.lines.length > 0 && newAccountId) {
+        const linesCreated = await createLines(newAccountId);
+        if (!linesCreated) {
+          console.error('Erreur lors de la création des lignes');
+          return; // Ne pas fermer le modal en cas d'erreur
+        }
+      }
       
       // Si tout s'est bien passé, on peut fermer le dialogue
       if (onSubmit) onSubmit();
@@ -343,7 +336,7 @@ const NewAccountDialog = ({
     setFormData({
       redId: '',
       password: '',
-      agencyId: '',
+      agencyId: preselectedAgency?.id?.toString() || '',
       maxLines: 5,
       cardLastFour: '',
       cardExpiry: '',
@@ -354,7 +347,7 @@ const NewAccountDialog = ({
     setNewLine({
       clientId: null,
       phoneNumber: '',
-      status: 'NON ATTRIBUÉ'
+      status: 'EN COURS DE LIVRAISON'
     });
     setSelectedClient(null);
     setIsProcessing(false);
@@ -424,8 +417,11 @@ const NewAccountDialog = ({
                       options={agencies}
                       getOptionLabel={(option) => option.name}
                       value={agencies.find(a => a.id === parseInt(formData.agencyId)) || null}
+                      disabled={!!preselectedAgency}
                       onChange={(event, agency) => {
-                        setFormData(prev => ({ ...prev, agencyId: agency ? agency.id.toString() : '' }));
+                        if (!preselectedAgency) {
+                          setFormData(prev => ({ ...prev, agencyId: agency ? agency.id.toString() : '' }));
+                        }
                       }}
                       renderInput={(params) => (
                         <TextField
@@ -433,13 +429,17 @@ const NewAccountDialog = ({
                           required
                           label="Agence"
                           error={activeStep > 0 && !formData.agencyId}
-                          helperText={activeStep > 0 && !formData.agencyId ? "Ce champ est obligatoire" : ""}
+                          helperText={
+                            preselectedAgency 
+                              ? `Agence présélectionnée: ${preselectedAgency.name}`
+                              : (activeStep > 0 && !formData.agencyId ? "Ce champ est obligatoire" : "")
+                          }
                           InputProps={{
                             ...params.InputProps,
                             startAdornment: (
                               <>
                                 <InputAdornment position="start">
-                                  <BusinessIcon color="primary" />
+                                  <BusinessIcon color={preselectedAgency ? "secondary" : "primary"} />
                                 </InputAdornment>
                                 {params.InputProps.startAdornment}
                               </>
@@ -509,33 +509,23 @@ const NewAccountDialog = ({
 
               <Grid container spacing={3}>
                 <Grid item xs={12}>
-                  <Autocomplete
+                  <TextField
                     fullWidth
-                    options={banks}
-                    value={formData.bankName || null}
-                    onChange={(event, bank) => {
-                      setFormData(prev => ({ ...prev, bankName: bank || '' }));
+                    required
+                    label="Banque"
+                    name="bankName"
+                    value={formData.bankName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, bankName: e.target.value }))}
+                    placeholder="ex: Crédit Agricole, BNP Paribas, Société Générale..."
+                    error={activeStep > 1 && !formData.bankName}
+                    helperText={activeStep > 1 && !formData.bankName ? "Ce champ est obligatoire" : "Nom de la banque émettrice de la carte"}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <BankIcon color="primary" />
+                        </InputAdornment>
+                      ),
                     }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        required
-                        label="Banque"
-                        error={activeStep > 1 && !formData.bankName}
-                        helperText={activeStep > 1 && !formData.bankName ? "Ce champ est obligatoire" : ""}
-                        InputProps={{
-                          ...params.InputProps,
-                          startAdornment: (
-                            <>
-                              <InputAdornment position="start">
-                                <BankIcon color="primary" />
-                              </InputAdornment>
-                              {params.InputProps.startAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
                   />
                 </Grid>
                 
@@ -682,53 +672,30 @@ const NewAccountDialog = ({
                           </Grid>
                           
                           <Grid item xs={12} md={6}>
-                            <FormControl fullWidth>
-                              <InputLabel id="status-select-label">Statut</InputLabel>
-                              <Select
-                                labelId="status-select-label"
-                                name="status"
-                                value={newLine.status}
-                                onChange={handleLineChange}
-                                label="Statut"
-                              >
-                                {lineStatuses.map((status) => (
-                                  <MenuItem key={status} value={status}>
-                                    {status}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
+                            <TextField
+                              fullWidth
+                              label="Statut"
+                              value={newLine.status}
+                              disabled
+                              helperText="Statut fixé : lignes en cours de livraison"
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <PhoneIcon color="warning" />
+                                  </InputAdornment>
+                                ),
+                              }}
+                            />
                           </Grid>
                           
-                          {newLine.status !== 'NON ATTRIBUÉ' && (
-                            <Grid item xs={12}>
-                              <Autocomplete
-                                fullWidth
-                                options={clients}
-                                getOptionLabel={(option) => `${option.nom} ${option.prenom} (${option.telephone})`}
-                                value={selectedClient}
-                                onChange={handleClientChange}
-                                renderInput={(params) => (
-                                  <TextField
-                                    {...params}
-                                    required
-                                    label="Client"
-                                    InputProps={{
-                                      ...params.InputProps,
-                                      startAdornment: (
-                                        <>
-                                          <InputAdornment position="start">
-                                            <AccountCircleIcon color="primary" />
-                                          </InputAdornment>
-                                          {params.InputProps.startAdornment}
-                                        </>
-                                      ),
-                                    }}
-                                  />
-                                )}
-                              />
-                            </Grid>
-                          )}
+                          <Grid item xs={12}>
+                            <Alert severity="info" sx={{ mb: 2 }}>
+                              <Typography variant="body2">
+                                💡 <strong>Ligne en cours de livraison :</strong> Le numéro exact sera révélé à la réception de la carte SIM. 
+                                Vous pourrez attribuer la ligne à un client lors de l'activation.
+                              </Typography>
+                            </Alert>
+                          </Grid>
                           
                           {/* Aperçu du client sélectionné */}
                           {selectedClient && (

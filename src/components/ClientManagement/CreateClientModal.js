@@ -62,7 +62,8 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
-import { useGetAllUsersQuery } from "../../store/slices/clientsSlice";
+import { useGetAllUsersQuery, useGetClientsQuery, useCreateClientMutation, useAssociateClientMutation } from "../../store/slices/clientsSlice";
+import { useWhoIAmQuery } from "../../store/slices/authSlice";
 
 // Style personnalisé pour le Stepper
 const CustomStepConnector = styled(StepConnector)(({ theme }) => ({
@@ -251,9 +252,30 @@ const AnimatedButton = styled(Button)(({ theme }) => ({
 }));
 
 // Composant principal
-const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
+const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false }) => {
   const theme = useTheme();
-  const { data: users } = useGetAllUsersQuery();
+  const { data: currentUser } = useWhoIAmQuery();
+  const [createClient] = useCreateClientMutation();
+  const [associateClient] = useAssociateClientMutation();
+  
+  // Détection automatique du mode agence basé sur le rôle utilisateur
+  const isAgencyMode = agencyMode || (currentUser?.role === 'AGENCY');
+  const autoSelectedAgencyId = isAgencyMode ? currentUser?.agencyId : null;
+  
+  
+  // Récupérer les données selon le rôle
+  const { data: allUsers } = useGetAllUsersQuery(undefined, {
+    skip: isAgencyMode // Ne pas récupérer tous les utilisateurs si on est une agence
+  });
+  
+  const { data: agencyClientsData, refetch: refetchAgencyClients } = useGetClientsQuery(
+    autoSelectedAgencyId,
+    { skip: !isAgencyMode || !autoSelectedAgencyId }
+  );
+  
+  
+  // Utiliser soit tous les utilisateurs (superviseur) soit les clients de l'agence
+  const users = isAgencyMode ? (agencyClientsData?.users || []) : (allUsers || []);
 
   // États pour les étapes et le formulaire
   const [activeStep, setActiveStep] = useState(0);
@@ -268,7 +290,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
     phoneNumber: '',
     email: ''
   });
-  const [isNewClientMode, setIsNewClientMode] = useState(false);
+  const [isNewClientMode, setIsNewClientMode] = useState(false); // Permettre la recherche même en mode agence
   const [simCardInfo, setSimCardInfo] = useState({
     hasSIM: false,
     simCCID: ''
@@ -283,9 +305,17 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
   });
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // États pour la gestion des clients existants
+  const [existingClientInfo, setExistingClientInfo] = useState(null);
+  const [showAssociationDialog, setShowAssociationDialog] = useState(false);
 
   // Définition des étapes
-  const steps = ['Sélection du client', 'Information de carte SIM', 'Paiement'];
+  const steps = [
+    isAgencyMode ? 'Client de l\'agence' : 'Sélection du client', 
+    'Information de carte SIM', 
+    'Paiement'
+  ];
 
   // Simuler un processus de recherche
   const simulateSearch = () => {
@@ -329,28 +359,24 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
         }
         
         if (isNewClientMode) {
-          if (!newClient.firstname) {
-            newErrors.firstname = "Le nom est requis";
+          if (!newClient.firstname?.trim()) {
+            newErrors.firstname = "Le prénom est requis";
             isValid = false;
           }
 
-          if (!newClient.lastname) {
-            newErrors.lastname = "Le prénom est requis";
+          if (!newClient.lastname?.trim()) {
+            newErrors.lastname = "Le nom est requis";
             isValid = false;
           }
 
-          if (!newClient.birthday) {
-            newErrors.birthday = "La date de naissance est requise";
+          if (!newClient.phoneNumber?.trim()) {
+            newErrors.phoneNumber = "Le téléphone est requis";
             isValid = false;
           }
 
-          if (!newClient.city) {
-            newErrors.city = "La ville est requise";
-            isValid = false;
-          }
-
-          if (!newClient.email) {
-            newErrors.email = "L'email est requis";
+          // Validation email optionnelle
+          if (newClient.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.email)) {
+            newErrors.email = "Format d'email invalide";
             isValid = false;
           }
         }
@@ -376,6 +402,46 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
     return isValid;
   };
 
+  // Association d'un client existant
+  const handleAssociateExistingClient = async () => {
+    if (!existingClientInfo?.existingClient) return;
+    
+    setIsSubmitting(true);
+    try {
+      const result = await associateClient({ 
+        clientId: existingClientInfo.existingClient.id,
+        agencyId: autoSelectedAgencyId
+      }).unwrap();
+      
+      console.log('Client associé avec succès:', result);
+      
+      // Rafraîchir la liste des clients de l'agence - forçage multiple
+      if (refetchAgencyClients) {
+        console.log('Refetching agency clients...');
+        await refetchAgencyClients();
+      }
+      
+      // Le cache devrait maintenant être correctement invalidé
+      
+      onClientCreated(existingClientInfo.existingClient);
+      handleCloseAssociationDialog();
+      handleClose();
+    } catch (error) {
+      console.error('Erreur lors de l\'association du client:', error);
+      setFormErrors({ 
+        submit: error?.data?.message || 'Erreur lors de l\'association du client' 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Fermer le dialog d'association et revenir au formulaire principal
+  const handleCloseAssociationDialog = () => {
+    setShowAssociationDialog(false);
+    setExistingClientInfo(null);
+  };
+
   // Navigation entre les étapes
   const handleNext = () => {
     if (validateStep(activeStep)) {
@@ -396,28 +462,51 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
   };
 
   // Soumission finale
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validateStep(activeStep)) {
       setIsSubmitting(true);
       
-      // Simuler un délai de traitement
-      setTimeout(() => {
+      try {
         const clientData = isNewClientMode ? newClient : selectedClient;
         
-        const submissionData = {
-          client: clientData,
-          simCard: simCardInfo.hasSIM ? { simCCID: simCardInfo.simCCID } : null,
-          payment: {
-            ...paymentInfo,
-            date: new Date().toISOString()
-          }
-        };
+        // Si c'est un nouveau client, créer via l'API avec les données complètes
+        if (isNewClientMode) {
+          const finalClientData = {
+            ...clientData,
+            role: 'CLIENT', // Forcer le rôle client
+            agencyId: autoSelectedAgencyId,
+            // Ajouter les informations de demande de ligne/SIM
+            simCardInfo,
+            paymentInfo,
+            needsLine: true // Indiquer qu'une ligne est demandée
+          };
+          
+          const result = await createClient(finalClientData).unwrap();
+          console.log('Client créé avec succès:', result);
+          onClientCreated(result.user || result);
+        } else {
+          // Si c'est un client existant sélectionné, juste le retourner
+          onClientCreated(clientData);
+        }
         
-        console.log('Données soumises:', submissionData);
-        onClientCreated(submissionData);
         setIsSubmitting(false);
         handleClose();
-      }, 1500);
+      } catch (error) {
+        console.error('Erreur lors de la création du client:', error);
+        setIsSubmitting(false);
+        
+        // Gestion spéciale pour les clients existants (status 409)
+        if (error?.status === 409 && error?.data?.clientExists) {
+          setExistingClientInfo(error.data);
+          setShowAssociationDialog(true);
+          setFormErrors({}); // Clear form errors
+        } else {
+          // Autres erreurs
+          setFormErrors({ 
+            submit: error?.data?.message || 'Une erreur est survenue lors de la création du client' 
+          });
+        }
+      }
     }
   };
 
@@ -485,7 +574,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
                 }}
               >
                 {isNewClientMode ? <PersonAddIcon /> : <SearchIcon />}
-                {isNewClientMode ? "Nouveau client" : "Rechercher un client existant"}
+                {isAgencyMode ? (isNewClientMode ? "Nouveau client pour l'agence" : "Rechercher un client de l'agence") : (isNewClientMode ? "Nouveau client" : "Rechercher un client existant")}
               </Typography>
               
               <FormControlLabel
@@ -501,7 +590,10 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
                 }
                 label={
                   <Typography variant="body1" fontWeight="medium">
-                    {isNewClientMode ? "Mode création" : "Mode recherche"}
+                    {isAgencyMode 
+                      ? (isNewClientMode ? "Créer un nouveau client" : "Rechercher parmi mes clients")
+                      : (isNewClientMode ? "Mode création" : "Mode recherche")
+                    }
                   </Typography>
                 }
                 sx={{ mb: 2 }}
@@ -633,12 +725,12 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
                       <Grid item xs={12} sm={6}>
                         <TextField
                           fullWidth
-                          label="Email"
+                          label="Email (optionnel)"
                           type="email"
                           value={newClient.email}
                           onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
                             error={!!formErrors.email}
-                            helperText={formErrors.email}
+                            helperText={formErrors.email || "Email optionnel - client sans accès plateforme"}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -666,7 +758,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
                   <Box>
                     <Autocomplete
                       fullWidth
-                      options={users}
+                      options={users || []}
                       getOptionLabel={getOptionLabel}
                       inputValue={clientInputValue}
                       onInputChange={(event, newInputValue) => {
@@ -680,7 +772,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
                       }}
                       loading={isLoading}
                       loadingText="Recherche en cours..."
-                      noOptionsText="Aucun client trouvé"
+                      noOptionsText={isAgencyMode ? "Aucun client dans votre agence" : "Aucun client trouvé"}
                       isOptionEqualToValue={(option, value) => option.id === value?.id}
                       renderOption={(props, option) => (
                         <li {...props} key={option.id}>
@@ -1165,20 +1257,22 @@ const  CreateClientModal = ({ open, onClose, onClientCreated }) => {
 
 // Rendu complet du composant
 return (
-  <Dialog
-    open={open}
-    onClose={handleClose}
-    maxWidth="md"
-    fullWidth
-    TransitionComponent={SlideTransition}
-    PaperProps={{
-      elevation: 24,
-      sx: {
-        borderRadius: 3,
-        overflow: 'hidden'
-      }
-    }}
-  >
+  <>
+    {/* Dialog principal de création/sélection de client */}
+    <Dialog
+      open={open && !showAssociationDialog}
+      onClose={handleClose}
+      maxWidth="md"
+      fullWidth
+      TransitionComponent={SlideTransition}
+      PaperProps={{
+        elevation: 24,
+        sx: {
+          borderRadius: 3,
+          overflow: 'hidden'
+        }
+      }}
+    >
     <DialogTitle sx={{ 
       bgcolor: theme.palette.primary.main,
       color: 'white',
@@ -1227,6 +1321,16 @@ return (
       </Stepper>
 
       {renderStepContent()}
+      
+      {formErrors.submit && (
+        <Alert 
+          severity="error" 
+          sx={{ m: 3, mt: 0 }}
+          onClose={() => setFormErrors({ ...formErrors, submit: undefined })}
+        >
+          {formErrors.submit}
+        </Alert>
+      )}
     </DialogContent>
 
     <DialogActions sx={{ 
@@ -1301,6 +1405,117 @@ return (
       </Box>
     </DialogActions>
   </Dialog>
+
+    {/* Dialog d'association pour client existant */}
+    <Dialog
+      open={showAssociationDialog}
+      onClose={handleCloseAssociationDialog}
+      maxWidth="sm"
+      fullWidth
+      TransitionComponent={SlideTransition}
+      PaperProps={{
+        elevation: 24,
+        sx: {
+          borderRadius: 3,
+          overflow: 'hidden'
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        bgcolor: theme.palette.warning.main,
+        color: 'white',
+        py: 2
+      }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Box display="flex" alignItems="center" gap={1}>
+            <InfoIcon />
+            <Typography variant="h6" fontWeight="bold">
+              Client existant trouvé
+            </Typography>
+          </Box>
+          <IconButton onClick={handleCloseAssociationDialog} size="small" sx={{ color: 'white' }}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent sx={{ py: 3 }}>
+        {existingClientInfo && (
+          <>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                {existingClientInfo.message}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {existingClientInfo.actionMessage}
+              </Typography>
+            </Alert>
+
+            <Paper 
+              elevation={2} 
+              sx={{ 
+                p: 3, 
+                borderRadius: 2,
+                bgcolor: alpha(theme.palette.info.light, 0.1),
+                border: `1px solid ${alpha(theme.palette.info.main, 0.3)}`
+              }}
+            >
+              <Typography variant="h6" gutterBottom color="primary.main" fontWeight="bold">
+                Informations du client existant :
+              </Typography>
+              
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body1">
+                  <strong>Nom :</strong> {existingClientInfo.existingClient?.lastname}
+                </Typography>
+                <Typography variant="body1">
+                  <strong>Prénom :</strong> {existingClientInfo.existingClient?.firstname}
+                </Typography>
+                {existingClientInfo.existingClient?.email && (
+                  <Typography variant="body1">
+                    <strong>Email :</strong> {existingClientInfo.existingClient.email}
+                  </Typography>
+                )}
+                <Typography variant="body1">
+                  <strong>Téléphone :</strong> {existingClientInfo.existingClient?.phoneNumber}
+                </Typography>
+              </Box>
+            </Paper>
+          </>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ 
+        p: 3,
+        borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        backgroundColor: alpha(theme.palette.background.paper, 0.9)
+      }}>
+        <Button
+          onClick={handleCloseAssociationDialog}
+          variant="outlined"
+          color="inherit"
+          sx={{ borderRadius: 2 }}
+        >
+          Annuler
+        </Button>
+        
+        <AnimatedButton
+          onClick={handleAssociateExistingClient}
+          variant="contained"
+          color="primary"
+          disabled={isSubmitting}
+          startIcon={isSubmitting ? <CircularProgress size={20} /> : <PersonAddIcon />}
+          sx={{ 
+            borderRadius: 2,
+            px: 3,
+            fontWeight: 'bold'
+          }}
+        >
+          {isSubmitting ? 'Association...' : 'Associer à mon agence'}
+        </AnimatedButton>
+      </DialogActions>
+    </Dialog>
+  </>
 );
 };
 
