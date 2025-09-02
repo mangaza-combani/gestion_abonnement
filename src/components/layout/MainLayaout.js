@@ -131,7 +131,7 @@ const MainLayout = () => {
       <List>
         {menuItems?.map((item) => (
           <ListItem
-            button
+            component="button"
             key={item.text}
             onClick={() => handleNavigate(item.path)}
             sx={{

@@ -444,7 +444,7 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
                   >
                     {clients.map((client) => (
                       <MenuItem key={client.id} value={client.id}>
-                        {client.nom} {client.prenom} - {client.telephone || "N° non défini"}
+                        {client.firstname} {client.lastname} - {client.phoneNumber || "N° non défini"}
                       </MenuItem>
                     ))}
                   </Select>

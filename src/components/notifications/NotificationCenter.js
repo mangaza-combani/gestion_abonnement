@@ -220,8 +220,8 @@ const NotificationCenter = () => {
             />
           </MenuItem>
         ) : (
-          <>
-            {userNotifications.slice(0, 5).map((notification, index) => (
+          [
+            ...userNotifications.slice(0, 5).map((notification, index) => (
               <MenuItem
                 key={notification.id}
                 onClick={() => setSelectedNotification(notification)}
@@ -279,27 +279,24 @@ const NotificationCenter = () => {
                   }
                 </IconButton>
               </MenuItem>
-            ))}
+            )),
             
-            {/* Bouton "Voir plus" si plus de 5 notifications */}
-            {userNotifications.length > 5 && (
-              <>
-                <Divider />
-                <MenuItem onClick={handleModalOpen}>
-                  <ListItemIcon>
-                    <ExpandMoreIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={
-                      <Typography color="primary" fontWeight="bold">
-                        Voir toutes les notifications ({totalCount})
-                      </Typography>
-                    }
-                  />
-                </MenuItem>
-              </>
-            )}
-          </>
+            ...(userNotifications.length > 5 ? [
+              <Divider key="divider" />,
+              <MenuItem key="see-more" onClick={handleModalOpen}>
+                <ListItemIcon>
+                  <ExpandMoreIcon color="primary" />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={
+                    <Typography color="primary" fontWeight="bold">
+                      Voir toutes les notifications ({totalCount})
+                    </Typography>
+                  }
+                />
+              </MenuItem>
+            ] : [])
+          ]
         )}
       </Menu>
 

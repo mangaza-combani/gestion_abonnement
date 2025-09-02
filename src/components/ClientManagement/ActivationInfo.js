@@ -26,7 +26,7 @@ import {
   Business as BusinessIcon
 } from '@mui/icons-material';
 import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
-import { useAnalyzeIccidForSupervisorQuery, useGetAvailableSimCardsQuery, useGetValidNumbersForAgencyQuery } from '../../store/slices/lineReservationsSlice';
+import { useAnalyzeIccidForSupervisorQuery, useGetAvailableSimCardsQuery, useGetValidNumbersForAgencyQuery, useActivateWithSimMutation } from '../../store/slices/lineReservationsSlice';
 
 const ActivationInfo = ({ client }) => {
   const [showActivationDialog, setShowActivationDialog] = useState(false);
@@ -40,6 +40,9 @@ const ActivationInfo = ({ client }) => {
   
   // Récupérer les cartes SIM disponibles
   const { data: simCardsData, isLoading: isLoadingSims } = useGetAvailableSimCardsQuery();
+  
+  // Mutation pour activer la ligne
+  const [activateWithSim, { isLoading: isActivating }] = useActivateWithSimMutation();
   
   // Récupérer l'ID de l'agence du client
   const getClientAgencyId = () => {
@@ -57,10 +60,10 @@ const ActivationInfo = ({ client }) => {
   );
   
   // Analyse ICCID - ne se déclenche que si un ICCID est saisi et analysisTriggered est true
-  const { data: iccidAnalysis, isLoading: isAnalyzing } = useAnalyzeIccidForSupervisorQuery(
+  const { data: iccidAnalysis, isLoading: isAnalyzing, error: analysisError } = useAnalyzeIccidForSupervisorQuery(
     iccid, 
     { 
-      skip: !iccid || iccid.length < 8 || !analysisTriggered 
+      skip: !iccid || iccid.trim().length < 8 || !analysisTriggered || iccid.trim() === ''
     }
   );
   
@@ -90,20 +93,49 @@ const ActivationInfo = ({ client }) => {
     }
   };
 
-  const handleActivationConfirm = () => {
+  const handleActivationConfirm = async () => {
     if (!selectedManualNumber && (!iccid || !selectedLine)) return;
     
-    // TODO: Appeler l'API d'activation avec ICCID et ligne sélectionnée
-    console.log('Activation de la ligne:', {
-      client: client,
-      iccid: iccid,
-      selectedLine: selectedLine,
-      selectedManualNumber: selectedManualNumber,
-      analysis: iccidAnalysis
-    });
-    
-    // Fermer le dialog
-    handleCloseDialog();
+    try {
+      // Détermine le phoneId à partir de la sélection
+      let phoneIdToActivate;
+      
+      if (selectedManualNumber) {
+        // Si sélection manuelle, utilise l'ID du numéro sélectionné
+        phoneIdToActivate = selectedManualNumber.id;
+      } else if (selectedLine) {
+        // Si sélection par analyse ICCID, utilise la ligne sélectionnée
+        phoneIdToActivate = selectedLine;
+      }
+      
+      if (!phoneIdToActivate || !iccid) {
+        console.error('Impossible d\'identifier le phoneId ou l\'ICCID pour l\'activation');
+        return;
+      }
+      
+      // Récupérer l'ID du client
+      const clientId = client?.user?.id || client?.id;
+      
+      // Appel de l'API d'activation
+      await activateWithSim({
+        phoneId: phoneIdToActivate,
+        iccid: iccid,
+        clientId: clientId
+      }).unwrap();
+      
+      console.log('Activation réussie pour:', {
+        phoneId: phoneIdToActivate,
+        iccid: iccid,
+        client: client?.user?.firstname + ' ' + client?.user?.lastname
+      });
+      
+      // Fermer le dialog après succès
+      handleCloseDialog();
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'activation:', error);
+      // TODO: Afficher une notification d'erreur à l'utilisateur
+    }
   };
   
   const handleCloseDialog = () => {
@@ -113,6 +145,14 @@ const ActivationInfo = ({ client }) => {
     setSelectedLine('');
     setSelectedManualNumber(null);
     setAnalysisTriggered(false);
+  };
+  
+  // S'assurer que l'ICCID est nettoyé quand le dialogue se ferme
+  const resetAnalysisState = () => {
+    setIccid('');
+    setAnalysisTriggered(false);
+    setSelectedLine('');
+    setSelectedManualNumber(null);
   };
   
   const filteredSimCards = getFilteredSimCards();
@@ -234,13 +274,12 @@ const ActivationInfo = ({ client }) => {
                       value={selectedSimCard}
                       onChange={(event, newValue) => {
                         setSelectedSimCard(newValue);
-                        if (newValue) {
+                        if (newValue && newValue.iccid && newValue.iccid.trim().length > 0) {
                           setIccid(newValue.iccid);
                           setSelectedManualNumber(null);
                           handleIccidChange({ target: { value: newValue.iccid } });
                         } else {
-                          setIccid('');
-                          setAnalysisTriggered(false);
+                          resetAnalysisState();
                         }
                       }}
                       renderInput={(params) => (
@@ -249,8 +288,10 @@ const ActivationInfo = ({ client }) => {
                           placeholder="Choisir une carte SIM..."
                         />
                       )}
-                      renderOption={(props, option) => (
-                        <Box component="li" {...props}>
+                      renderOption={(props, option) => {
+                        const { key, ...otherProps } = props;
+                        return (
+                        <Box component="li" key={key} {...otherProps}>
                           <Box sx={{ width: '100%' }}>
                             <Typography variant="body2" fontWeight="bold">
                               {option.iccid}
@@ -260,7 +301,8 @@ const ActivationInfo = ({ client }) => {
                             </Typography>
                           </Box>
                         </Box>
-                      )}
+                        );
+                      }}
                       noOptionsText="Aucune carte SIM trouvée"
                     />
                   )}
@@ -507,10 +549,10 @@ const ActivationInfo = ({ client }) => {
           <Button
             variant="contained"
             onClick={handleActivationConfirm}
-            disabled={!selectedManualNumber && (!iccid || !selectedLine)}
-            startIcon={<CheckIcon />}
+            disabled={isActivating || (!selectedManualNumber && (!iccid || !selectedLine))}
+            startIcon={isActivating ? <CircularProgress size={20} /> : <CheckIcon />}
           >
-            Activer la ligne
+            {isActivating ? 'Activation en cours...' : 'Activer la ligne'}
           </Button>
         </DialogActions>
       </Dialog>

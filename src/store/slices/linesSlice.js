@@ -33,6 +33,7 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
                                         : [{ type: 'Phone', id: 'LIST' }];
                         },
                         invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
+                        keepUnusedDataFor: 0, // Ne pas garder les données en cache
                 }),
                 getPhoneById: builder.query({
                         query: (id) => `/phones/${id}`,
@@ -44,7 +45,12 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
                                 method: 'POST',
                                 body: client,
                         }),
-                        invalidatesTags: ['Phone'],
+                        invalidatesTags: [
+                                'Phone', 
+                                'ClientToOrder', 
+                                { type: 'Client', id: 'LIST' },
+                                { type: 'Phone', id: 'LIST' }
+                        ],
                 }),
                 updatePhone: builder.mutation({
                         query: ({ id, ...patch }) => ({
@@ -52,7 +58,13 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
                                 method: 'PATCH',
                                 body: patch,
                         }),
-                        invalidatesTags: (result, error, { id }) => [{ type: 'Phone', id }],
+                        invalidatesTags: (result, error, { id }) => [
+                                { type: 'Phone', id },
+                                'Phone', 
+                                'ClientToOrder', 
+                                { type: 'Client', id: 'LIST' },
+                                { type: 'Phone', id: 'LIST' }
+                        ],
                 }),
                 deletePhone: builder.mutation({
                         query: (id) => ({

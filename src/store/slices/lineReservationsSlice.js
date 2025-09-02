@@ -89,7 +89,10 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
         { type: 'RedAccount', id: 'LIST' },
         { type: 'Phone', id: 'LIST' },
         { type: 'SimCard', id: 'LIST' },
-        { type: 'Client', id: 'LIST' } // Invalider le cache des clients
+        { type: 'Client', id: 'LIST' },
+        'Phone', // Invalider tous les téléphones
+        'ClientToOrder', // Invalider les clients à commander
+        'LineReservation' // Invalider toutes les réservations
       ]
     }),
 
@@ -121,7 +124,10 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
         { type: 'LineRequest', id: 'LIST' },
         { type: 'RedAccount', id: 'LIST' },
         { type: 'Phone', id: 'LIST' }, 
-        { type: 'Client', id: 'LIST' }
+        { type: 'Client', id: 'LIST' },
+        'Phone', // Invalider tous les téléphones
+        'ClientToOrder', // Invalider les clients à commander
+        'LineReservation' // Invalider toutes les réservations
       ]
     }),
 
@@ -131,7 +137,9 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
         url: '/api/line-reservations/analyze-iccid',
         method: 'POST',
         body: { iccid }
-      })
+      }),
+      // Ne pas utiliser le cache pour cette query car les données peuvent changer
+      keepUnusedDataFor: 0
     }),
 
     // Récupérer les cartes SIM disponibles avec vérification des ICCID

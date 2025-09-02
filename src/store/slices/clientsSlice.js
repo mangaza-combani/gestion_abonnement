@@ -23,8 +23,9 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
       providesTags: (result, error, id) => [{ type: 'Client', id }],
     }),
     getClientsToOrder: builder.query({
-      query: () => '/clients-to-order',
+      query: () => `/clients-to-order?_t=${Date.now()}`, // Ajouter timestamp pour éviter le cache
       providesTags: ['ClientToOrder'],
+      keepUnusedDataFor: 0, // Ne pas garder les données en cache
     }),
     createClient: builder.mutation({
       query: (client) => ({

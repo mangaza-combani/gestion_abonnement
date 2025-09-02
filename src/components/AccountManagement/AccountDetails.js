@@ -26,6 +26,7 @@ import {
   useTheme,
   alpha
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import {
   Add as AddIcon,
   Info as InfoIcon,
@@ -237,6 +238,7 @@ const isExpiredTermination = (line) => {
 
 const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentInfo }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [tab, setTab] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showExpiredLines, setShowExpiredLines] = useState(false);
@@ -286,6 +288,12 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
   
   // Vérifier si le compte peut avoir de nouvelles lignes
   const canAddLine = filteredLines.length < 5;
+
+  // Function to navigate to lines management page with specific line selected
+  const handleNavigateToLine = (lineId) => {
+    // Navigate to /lines page with parameters for tab and selected line
+    navigate(`/lines?tab=list&selectedLine=${lineId}`);
+  };
 
   // Récupérer la première lettre du login pour l'avatar
   const getInitial = (login) => {
@@ -761,7 +769,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                             opacity: isExpired ? 0.7 : 1,
                             backgroundColor: isExpired ? alpha(theme.palette.grey[500], 0.05) : 'inherit'
                           }}
-                          onClick={() => isAssigned && !isTerminated && onNavigateToLine && onNavigateToLine(line.id)}
+                          onClick={() => isAssigned && !isTerminated && handleNavigateToLine(line.id)}
                         >
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -807,7 +815,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                                       color: isTerminated ? 'text.disabled' : 'text.primary'
                                     }}
                                   >
-                                    {line.user ? `${line.user.firstName} ${line.user.lastName}` : 'Client inconnu'}
+                                    {line.user ? `${line.user.firstname} ${line.user.lastname}` : 'Client inconnu'}
                                   </Typography>
                                   {!isTerminated && (
                                     <Tooltip title="Voir les détails de la ligne">
@@ -816,7 +824,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                                         color="primary"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          onNavigateToLine && onNavigateToLine(line.id);
+                                          handleNavigateToLine(line.id);
                                         }}
                                         sx={{ 
                                           backgroundColor: alpha(theme.palette.primary.main, 0.1),

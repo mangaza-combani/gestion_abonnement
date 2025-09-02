@@ -1,5 +1,6 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {Box, Tabs, Tab, Tooltip, IconButton, Badge} from '@mui/material';
+import { useSearchParams } from 'react-router-dom';
 import {PersonAdd as PersonAddIcon, Notifications as NotificationsIcon} from '@mui/icons-material';
 import {TAB_TYPES, CLIENT_STATUSES, ORDER_FILTERS} from '../../components/ClientManagement/constant';
 import ListTab from '../../components/ClientManagement/TabContent/ListTab';
@@ -28,6 +29,7 @@ const tabs = [
 ];
 
 const ClientManagement = () => {
+        const [searchParams] = useSearchParams();
         const [currentTab, setCurrentTab] = useState(TAB_TYPES.LIST);
         const [searchTerm, setSearchTerm] = useState('');
         const [selectedClient, setSelectedClient] = useState(null);
@@ -39,8 +41,13 @@ const ClientManagement = () => {
         const [createSimCard] = useCreateSimCardMutation();
         const {
                 data: linesData,
-                isLoading: linesLoading
-        } = useGetPhonesQuery()
+                isLoading: linesLoading,
+                refetch: refetchLines
+        } = useGetPhonesQuery(undefined, {
+                pollingInterval: 30000, // Rafraîchissement toutes les 30 secondes
+                refetchOnFocus: true,   // Rafraîchissement quand la fenêtre reprend le focus
+                refetchOnReconnect: true // Rafraîchissement lors de la reconnexion
+        })
         
         const {
                 data: agenciesData,
@@ -53,17 +60,73 @@ const ClientManagement = () => {
                 data: clientsToOrderData,
                 isLoading: clientsToOrderLoading,
                 refetch: refetchClientsToOrder
-        } = useGetClientsToOrderQuery()
+        } = useGetClientsToOrderQuery(undefined, {
+                pollingInterval: 30000, // Rafraîchissement toutes les 30 secondes
+                refetchOnFocus: true,   // Rafraîchissement quand la fenêtre reprend le focus
+                refetchOnReconnect: true // Rafraîchissement lors de la reconnexion
+        })
         
+        // Handle URL parameters for navigation from AccountDetails
+        useEffect(() => {
+                const tab = searchParams.get('tab');
+                const selectedLineId = searchParams.get('selectedLine');
+                
+                // Set tab based on URL parameter
+                if (tab === 'list') {
+                        setCurrentTab(TAB_TYPES.LIST);
+                }
+                
+                // Select line based on URL parameter
+                if (selectedLineId && linesData && !linesLoading) {
+                        const lineToSelect = linesData.find(line => line.id?.toString() === selectedLineId);
+                        if (lineToSelect) {
+                                setSelectedClient(lineToSelect);
+                        }
+                }
+        }, [searchParams, linesData, linesLoading]);
+
+        // Rafraîchissement automatique spécifique pour TO_ORDER et TO_ACTIVATE
+        useEffect(() => {
+                let interval;
+                
+                if (currentTab === TAB_TYPES.TO_ORDER || currentTab === TAB_TYPES.TO_ACTIVATE) {
+                        // Rafraîchissement plus fréquent sur ces onglets critiques
+                        interval = setInterval(() => {
+                                refetchLines();
+                                refetchClientsToOrder();
+                        }, 15000); // 15 secondes
+                }
+                
+                return () => {
+                        if (interval) {
+                                clearInterval(interval);
+                        }
+                };
+        }, [currentTab, refetchLines, refetchClientsToOrder]);
+
+        // Rafraîchissement quand la page regagne le focus
+        useEffect(() => {
+                const handleFocus = () => {
+                        if (currentTab === TAB_TYPES.TO_ORDER || currentTab === TAB_TYPES.TO_ACTIVATE) {
+                                refetchLines();
+                                refetchClientsToOrder();
+                        }
+                };
+
+                window.addEventListener('focus', handleFocus);
+                return () => window.removeEventListener('focus', handleFocus);
+        }, [currentTab, refetchLines, refetchClientsToOrder]);
+
         // Actualisation automatique des données toutes les 30 secondes
         React.useEffect(() => {
                 const interval = setInterval(() => {
                         refetchAgencies();
                         refetchClientsToOrder();
+                        refetchLines();
                 }, 30000); // 30 secondes
                 
                 return () => clearInterval(interval);
-        }, [refetchAgencies, refetchClientsToOrder]);
+        }, [refetchAgencies, refetchClientsToOrder, refetchLines]);
         
         // Debug temporaire pour voir les données
         React.useEffect(() => {
@@ -352,6 +415,12 @@ const ClientManagement = () => {
                 setTimeout(() => {
                         setSelectedClient(null)
                         setCurrentTab(newValue)
+                        
+                        // Rafraîchir les données quand on change d'onglet
+                        if (newValue === TAB_TYPES.TO_ORDER || newValue === TAB_TYPES.TO_ACTIVATE) {
+                                refetchLines();
+                                refetchClientsToOrder();
+                        }
                 }, 0)
         }
 
