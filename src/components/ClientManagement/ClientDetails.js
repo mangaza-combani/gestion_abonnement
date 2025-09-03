@@ -114,14 +114,33 @@ const SubscriptionCard = ({ client, simCard }) => {
 
   const {
     paymentStatus,
-      phoneStatus,
+    phoneStatus,
     basePrice,
     features,
     dueAmount = 0,
     lastPaymentDate,
     unpaidMonths = [],
     updatedAt,
+    activeSubscription,
   } = client;
+
+  // DEBUG: Log des données pour diagnostiquer le problème
+  console.log('🔍 CLIENT DETAILS DEBUG:', {
+    clientId: client?.id,
+    phoneNumber: client?.phoneNumber,
+    hasActiveSubscription: !!activeSubscription,
+    activeSubscription: activeSubscription,
+    client: client
+  });
+
+  // Utiliser les vraies données d'abonnement si disponibles
+  const subscriptionFeatures = activeSubscription ? [
+    `📱 ${activeSubscription.name}`,
+    `📊 ${activeSubscription.dataSummary}`,
+    `💰 ${activeSubscription.formattedTotalPrice}`,
+    ...(activeSubscription.hasEquipment ? [`📦 ${activeSubscription.equipmentInfo}`] : []),
+    `🔄 Type: ${activeSubscription.subscriptionType}`,
+  ] : features || [];
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('fr-FR');
@@ -219,7 +238,7 @@ const SubscriptionCard = ({ client, simCard }) => {
               color={dueAmount > 0 ? "error.main" : "primary.main"}
               sx={{ mr: 1 }}
             >
-              {phoneStatus === PHONE_STATUS.SUSPENDED ? '--' : `${dueAmount > 0 ? dueAmount : client?.agency?.prixAbonnement}€`}
+              {phoneStatus === PHONE_STATUS.SUSPENDED ? '--' : `${dueAmount > 0 ? dueAmount : (client?.activeSubscription?.totalMonthlyPrice || 0)}€`}
             </Typography>
             <Tooltip
               title={
@@ -284,7 +303,7 @@ const SubscriptionCard = ({ client, simCard }) => {
 
         {/* Liste des fonctionnalités */}
         <Stack spacing={1} sx={{ mt: 2 }}>
-          {features?.map((feature, index) => (
+          {subscriptionFeatures?.map((feature, index) => (
             <Box 
               key={index} 
               sx={{ 

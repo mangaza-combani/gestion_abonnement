@@ -59,11 +59,13 @@ import {
   SimCard as SimCardIcon,
   ArrowBack as ArrowBackIcon,
   Paid as PaidIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Subscriptions as SubscriptionsIcon
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useGetAllUsersQuery, useGetClientsQuery, useCreateClientMutation, useAssociateClientMutation } from "../../store/slices/clientsSlice";
 import { useWhoIAmQuery } from "../../store/slices/authSlice";
+import { useGetSubscriptionsQuery } from "../../store/slices/subscriptionsSlice";
 
 // Style personnalisé pour le Stepper
 const CustomStepConnector = styled(StepConnector)(({ theme }) => ({
@@ -273,6 +275,9 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     { skip: !isAgencyMode || !autoSelectedAgencyId }
   );
   
+  // Récupérer les abonnements disponibles
+  const { data: subscriptionsData } = useGetSubscriptionsQuery();
+  const availableSubscriptions = subscriptionsData?.data || [];
   
   // Utiliser soit tous les utilisateurs (superviseur) soit les clients de l'agence
   const users = isAgencyMode ? (agencyClientsData?.users || []) : (allUsers || []);
@@ -295,6 +300,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     hasSIM: false,
     simCCID: ''
   });
+  const [selectedSubscription, setSelectedSubscription] = useState(null);
   const [paymentInfo, setPaymentInfo] = useState({
     simCard: 10,
     subscription: 19,
@@ -313,6 +319,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
   // Définition des étapes
   const steps = [
     isAgencyMode ? 'Client de l\'agence' : 'Sélection du client', 
+    'Choix de l\'abonnement',
     'Information de carte SIM', 
     'Paiement'
   ];
@@ -327,15 +334,16 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
 
   // Calculer le prorata pour l'abonnement
   const calculateProrata = () => {
+    if (!selectedSubscription) return 0;
     const today = new Date();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const remainingDays = daysInMonth - today.getDate();
-    return parseFloat(((19 * remainingDays) / daysInMonth).toFixed(2));
+    return parseFloat(((selectedSubscription.totalMonthlyPrice * remainingDays) / daysInMonth).toFixed(2));
   };
 
   // Mise à jour des totaux quand l'étape ou les infos de la carte SIM changent
   useEffect(() => {
-    if (activeStep === 2) {
+    if (activeStep === 3) {
       const prorataAmount = simCardInfo.hasSIM ? calculateProrata() : 0;
       setPaymentInfo(prev => ({
         ...prev,
@@ -344,7 +352,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
         partialPayment: 10 + prorataAmount
       }));
     }
-  }, [activeStep, simCardInfo.hasSIM]);
+  }, [activeStep, simCardInfo.hasSIM, selectedSubscription]);
 
   // Fonction de validation pour chaque étape
   const validateStep = (step) => {
@@ -382,14 +390,21 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
         }
         break;
         
-      case 1: // Validation de l'étape 2
+      case 1: // Validation de l'étape 2 - Abonnement
+        if (!selectedSubscription) {
+          newErrors.subscription = "Veuillez sélectionner un abonnement";
+          isValid = false;
+        }
+        break;
+        
+      case 2: // Validation de l'étape 3 - Carte SIM
         if (simCardInfo.hasSIM && !simCardInfo.simCCID) {
           newErrors.simCCID = "L'ICCID de la carte SIM est requis";
           isValid = false;
         }
         break;
         
-      case 2: // Validation de l'étape 3
+      case 3: // Validation de l'étape 4 - Paiement
         if (paymentInfo.paymentMethod === 'partiel' && 
             (paymentInfo.partialPayment <= 0 || paymentInfo.partialPayment > paymentInfo.total)) {
           newErrors.partialPayment = "Le montant partiel doit être entre 0 et le total";
@@ -478,7 +493,8 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
             // Ajouter les informations de demande de ligne/SIM
             simCardInfo,
             paymentInfo,
-            needsLine: true // Indiquer qu'une ligne est demandée
+            needsLine: true, // Indiquer qu'une ligne est demandée
+            subscriptionId: selectedSubscription?.id || null
           };
           
           const result = await createClient(finalClientData).unwrap();
@@ -827,7 +843,122 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
           </Box>
         );
         
-      case 1: // Étape 2: Information de carte SIM
+      case 1: // Étape 2: Choix de l'abonnement
+        return (
+          <Box sx={{ mt: 3 }}>
+            <Paper 
+              elevation={4} 
+              sx={{ 
+                p: 3, 
+                mb: 3, 
+                borderRadius: 2,
+                backgroundImage: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.primary.light, 0.05)} 100%)`,
+              }}
+            >
+              <Typography 
+                variant="h5" 
+                gutterBottom 
+                color="primary"
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1, 
+                  fontWeight: 'bold' 
+                }}
+              >
+                <SubscriptionsIcon />
+                Sélectionnez un abonnement
+              </Typography>
+              
+              <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary' }}>
+                Choisissez le plan d'abonnement adapté aux besoins de votre client.
+              </Typography>
+
+              <Grid container spacing={2}>
+                {availableSubscriptions.map((subscription) => (
+                  <Grid item xs={12} md={6} key={subscription.id}>
+                    <Paper
+                      elevation={selectedSubscription?.id === subscription.id ? 8 : 2}
+                      sx={{
+                        p: 2,
+                        cursor: 'pointer',
+                        border: selectedSubscription?.id === subscription.id 
+                          ? `2px solid ${theme.palette.primary.main}` 
+                          : '1px solid transparent',
+                        transition: 'all 0.3s ease',
+                        transform: selectedSubscription?.id === subscription.id ? 'scale(1.02)' : 'scale(1)',
+                        '&:hover': {
+                          elevation: 4,
+                          transform: 'scale(1.02)',
+                          border: `1px solid ${theme.palette.primary.light}`
+                        }
+                      }}
+                      onClick={() => setSelectedSubscription(subscription)}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" fontWeight="bold" color="primary">
+                          {subscription.name}
+                        </Typography>
+                        <Chip 
+                          label={subscription.subscriptionType} 
+                          color={subscription.subscriptionType === 'PREPAID' ? 'success' : 'info'}
+                          size="small"
+                        />
+                      </Box>
+                      
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {subscription.description}
+                      </Typography>
+                      
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" color="primary" fontWeight="medium">
+                          {subscription.dataSummary}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Durée: {subscription.durationDays} jours
+                        </Typography>
+                      </Box>
+
+                      {subscription.hasEquipment && (
+                        <Box sx={{ mb: 2, p: 1, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
+                          <Typography variant="caption" color="info.main" fontWeight="medium">
+                            📦 {subscription.equipmentInfo}
+                          </Typography>
+                        </Box>
+                      )}
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6" color="primary" fontWeight="bold">
+                          {subscription.formattedTotalPrice}
+                        </Typography>
+                        {selectedSubscription?.id === subscription.id && (
+                          <CheckIcon color="primary" />
+                        )}
+                      </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+
+              {selectedSubscription && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <AlertTitle>Abonnement sélectionné</AlertTitle>
+                  {selectedSubscription.name} - {selectedSubscription.formattedTotalPrice}
+                  <br />
+                  {selectedSubscription.dataSummary}
+                </Alert>
+              )}
+              
+              {formErrors.subscription && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {formErrors.subscription}
+                </Alert>
+              )}
+            </Paper>
+          </Box>
+        );
+        
+      case 2: // Étape 3: Information de carte SIM
         return (
           <Box sx={{ mt: 3 }}>
             <Paper 
@@ -991,7 +1122,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
           </Box>
         );
         
-      case 2: // Étape 3: Paiement
+      case 3: // Étape 4: Paiement
         return (
           <Box sx={{ mt: 3 }}>
             <Paper 
@@ -1281,12 +1412,14 @@ return (
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Box display="flex" alignItems="center" gap={1}>
           {activeStep === 0 && <PersonIcon />}
-          {activeStep === 1 && <SimCardIcon />}
-          {activeStep === 2 && <ReceiptIcon />}
+          {activeStep === 1 && <SubscriptionsIcon />}
+          {activeStep === 2 && <SimCardIcon />}
+          {activeStep === 3 && <ReceiptIcon />}
           <Typography variant="h6" fontWeight="bold">
             {activeStep === 0 && "Sélection ou Création du Client"}
-            {activeStep === 1 && "Attribution de Carte SIM"}
-            {activeStep === 2 && "Facturation"}
+            {activeStep === 1 && "Choix de l'abonnement"}
+            {activeStep === 2 && "Attribution de Carte SIM"}
+            {activeStep === 3 && "Facturation"}
           </Typography>
         </Box>
         <IconButton onClick={handleClose} size="small" sx={{ color: 'white' }}>
