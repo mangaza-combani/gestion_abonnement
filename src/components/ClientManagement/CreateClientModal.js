@@ -66,6 +66,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useGetAllUsersQuery, useGetClientsQuery, useCreateClientMutation, useAssociateClientMutation } from "../../store/slices/clientsSlice";
 import { useWhoIAmQuery } from "../../store/slices/authSlice";
 import { useGetSubscriptionsQuery } from "../../store/slices/subscriptionsSlice";
+import { useGetAgencySimCardsQuery } from "../../store/slices/agencySlice";
 
 // Style personnalisé pour le Stepper
 const CustomStepConnector = styled(StepConnector)(({ theme }) => ({
@@ -254,7 +255,7 @@ const AnimatedButton = styled(Button)(({ theme }) => ({
 }));
 
 // Composant principal
-const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false }) => {
+const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false, preselectedClient = null, useCreateClientRoute = false }) => {
   const theme = useTheme();
   const { data: currentUser } = useWhoIAmQuery();
   const [createClient] = useCreateClientMutation();
@@ -276,8 +277,50 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
   );
   
   // Récupérer les abonnements disponibles
-  const { data: subscriptionsData } = useGetSubscriptionsQuery();
+  const { data: subscriptionsData, isLoading: subscriptionsLoading, error: subscriptionsError } = useGetSubscriptionsQuery();
   const availableSubscriptions = subscriptionsData?.data || [];
+  
+  // Récupérer les cartes SIM disponibles de l'agence
+  const { data: simCardsData, isLoading: simCardsLoading } = useGetAgencySimCardsQuery(autoSelectedAgencyId, {
+    skip: !autoSelectedAgencyId
+  });
+  
+  // Filtrer les cartes SIM disponibles (IN_STOCK et non réservées)
+  const availableSimCards = React.useMemo(() => {
+    if (!simCardsData?.sim_cards) return [];
+    return simCardsData.sim_cards.filter(card => 
+      card.status === 'IN_STOCK' && 
+      !card.isReserved &&
+      card.iccid // Vérifier qu'il y a un ICCID
+    ).map(card => ({
+      id: card.id,
+      iccid: card.iccid,
+      label: card.iccid,
+      receivedDate: card.receivedDate,
+      agencyName: card.agencyName
+    }));
+  }, [simCardsData]);
+  
+  // Debug des abonnements
+  React.useEffect(() => {
+    console.log('🔍 DEBUG Subscriptions:', {
+      subscriptionsData,
+      availableSubscriptions,
+      subscriptionsLoading,
+      subscriptionsError,
+      length: availableSubscriptions.length
+    });
+  }, [subscriptionsData, availableSubscriptions, subscriptionsLoading, subscriptionsError]);
+  
+  // Initialiser le client présélectionné
+  React.useEffect(() => {
+    if (preselectedClient && open) {
+      setSelectedClient(preselectedClient);
+      setIsNewClientMode(false); // Force le mode sélection client existant
+      setClientInputValue(`${preselectedClient.firstname} ${preselectedClient.lastname}`);
+      console.log('🎯 Client présélectionné:', preselectedClient);
+    }
+  }, [preselectedClient, open]);
   
   // Utiliser soit tous les utilisateurs (superviseur) soit les clients de l'agence
   const users = isAgencyMode ? (agencyClientsData?.users || []) : (allUsers || []);
@@ -478,6 +521,14 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
 
   // Soumission finale
   const handleSubmit = async () => {
+    console.log('🚀 handleSubmit appelé - Debug:', {
+      activeStep,
+      isNewClientMode,
+      selectedClient,
+      useCreateClientRoute,
+      validateResult: validateStep(activeStep)
+    });
+    
     if (validateStep(activeStep)) {
       setIsSubmitting(true);
       
@@ -501,8 +552,47 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
           console.log('Client créé avec succès:', result);
           onClientCreated(result.user || result);
         } else {
-          // Si c'est un client existant sélectionné, juste le retourner
-          onClientCreated(clientData);
+          console.log('📝 Client existant - Debug:', {
+            useCreateClientRoute,
+            selectedClient,
+            autoSelectedAgencyId,
+            simCardInfo,
+            paymentInfo
+          });
+          
+          // Si c'est un client existant, utiliser createClient ou associateClient selon la prop
+          if (useCreateClientRoute) {
+            console.log('✅ Utilisation de createClient pour client existant');
+            // Utiliser la route /clients avec les données du client sélectionné
+            const finalClientData = {
+              ...selectedClient,
+              role: 'CLIENT',
+              agencyId: autoSelectedAgencyId,
+              simCardInfo,
+              paymentInfo,
+              needsLine: true, 
+              subscriptionId: selectedSubscription?.id || null
+            };
+            
+            console.log('📤 Envoi données à createClient:', finalClientData);
+            const result = await createClient(finalClientData).unwrap();
+            console.log('✅ Ligne créée pour client existant via /clients:', result);
+            onClientCreated(result.user || result);
+          } else {
+            // Méthode originale avec associateClient
+            const associationData = {
+              clientId: selectedClient.id,
+              agencyId: autoSelectedAgencyId,
+              simCardInfo,
+              paymentInfo,
+              needsLine: true,
+              subscriptionId: selectedSubscription?.id || null
+            };
+            
+            const result = await associateClient(associationData).unwrap();
+            console.log('Client associé avec demande de ligne:', result);
+            onClientCreated(result.client || selectedClient);
+          }
         }
         
         setIsSubmitting(false);
@@ -875,69 +965,92 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
               </Typography>
 
               <Grid container spacing={2}>
-                {availableSubscriptions.map((subscription) => (
-                  <Grid item xs={12} md={6} key={subscription.id}>
-                    <Paper
-                      elevation={selectedSubscription?.id === subscription.id ? 8 : 2}
-                      sx={{
-                        p: 2,
-                        cursor: 'pointer',
-                        border: selectedSubscription?.id === subscription.id 
-                          ? `2px solid ${theme.palette.primary.main}` 
-                          : '1px solid transparent',
-                        transition: 'all 0.3s ease',
-                        transform: selectedSubscription?.id === subscription.id ? 'scale(1.02)' : 'scale(1)',
-                        '&:hover': {
-                          elevation: 4,
-                          transform: 'scale(1.02)',
-                          border: `1px solid ${theme.palette.primary.light}`
-                        }
-                      }}
-                      onClick={() => setSelectedSubscription(subscription)}
-                    >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6" fontWeight="bold" color="primary">
-                          {subscription.name}
-                        </Typography>
-                        <Chip 
-                          label={subscription.subscriptionType} 
-                          color={subscription.subscriptionType === 'PREPAID' ? 'success' : 'info'}
-                          size="small"
-                        />
-                      </Box>
-                      
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        {subscription.description}
+                {subscriptionsLoading ? (
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+                      <CircularProgress />
+                      <Typography variant="body1" sx={{ ml: 2 }}>
+                        Chargement des abonnements...
                       </Typography>
-                      
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="body2" color="primary" fontWeight="medium">
-                          {subscription.dataSummary}
+                    </Box>
+                  </Grid>
+                ) : subscriptionsError ? (
+                  <Grid item xs={12}>
+                    <Alert severity="error">
+                      Erreur lors du chargement des abonnements : {subscriptionsError.message || 'Erreur inconnue'}
+                    </Alert>
+                  </Grid>
+                ) : availableSubscriptions.length === 0 ? (
+                  <Grid item xs={12}>
+                    <Alert severity="warning">
+                      Aucun abonnement disponible. Veuillez contacter l'administrateur.
+                    </Alert>
+                  </Grid>
+                ) : (
+                  availableSubscriptions.map((subscription) => (
+                    <Grid item xs={12} md={6} key={subscription.id}>
+                      <Paper
+                        elevation={selectedSubscription?.id === subscription.id ? 8 : 2}
+                        sx={{
+                          p: 2,
+                          cursor: 'pointer',
+                          border: selectedSubscription?.id === subscription.id 
+                            ? `2px solid ${theme.palette.primary.main}` 
+                            : '1px solid transparent',
+                          transition: 'all 0.3s ease',
+                          transform: selectedSubscription?.id === subscription.id ? 'scale(1.02)' : 'scale(1)',
+                          '&:hover': {
+                            elevation: 4,
+                            transform: 'scale(1.02)',
+                            border: `1px solid ${theme.palette.primary.light}`
+                          }
+                        }}
+                        onClick={() => setSelectedSubscription(subscription)}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                          <Typography variant="h6" fontWeight="bold" color="primary">
+                            {subscription.name}
+                          </Typography>
+                          <Chip 
+                            label={subscription.subscriptionType} 
+                            color={subscription.subscriptionType === 'PREPAID' ? 'success' : 'info'}
+                            size="small"
+                          />
+                        </Box>
+                        
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {subscription.description}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Durée: {subscription.durationDays} jours
-                        </Typography>
-                      </Box>
-
-                      {subscription.hasEquipment && (
-                        <Box sx={{ mb: 2, p: 1, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
-                          <Typography variant="caption" color="info.main" fontWeight="medium">
-                            📦 {subscription.equipmentInfo}
+                        
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="body2" color="primary" fontWeight="medium">
+                            {subscription.dataSummary}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Durée: {subscription.durationDays} jours
                           </Typography>
                         </Box>
-                      )}
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6" color="primary" fontWeight="bold">
-                          {subscription.formattedTotalPrice}
-                        </Typography>
-                        {selectedSubscription?.id === subscription.id && (
-                          <CheckIcon color="primary" />
+
+                        {subscription.hasEquipment && (
+                          <Box sx={{ mb: 2, p: 1, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
+                            <Typography variant="caption" color="info.main" fontWeight="medium">
+                              📦 {subscription.equipmentInfo}
+                            </Typography>
+                          </Box>
                         )}
-                      </Box>
-                    </Paper>
-                  </Grid>
-                ))}
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="h6" color="primary" fontWeight="bold">
+                            {subscription.formattedTotalPrice}
+                          </Typography>
+                          {selectedSubscription?.id === subscription.id && (
+                            <CheckIcon color="primary" />
+                          )}
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))
+                )}
               </Grid>
 
               {selectedSubscription && (
@@ -1039,13 +1152,23 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                 control={
                   <Switch
                     checked={simCardInfo.hasSIM}
-                    onChange={(e) => setSimCardInfo({ ...simCardInfo, hasSIM: e.target.checked })}
+                    onChange={(e) => {
+                      // Ne permettre l'activation que s'il y a des cartes disponibles ou si on désactive
+                      if (!e.target.checked || availableSimCards.length > 0) {
+                        setSimCardInfo({ ...simCardInfo, hasSIM: e.target.checked });
+                      }
+                    }}
                     color="primary"
+                    disabled={availableSimCards.length === 0 && !simCardInfo.hasSIM}
                   />
                 }
                 label={
                   <Typography variant="body1" fontWeight="medium">
-                    {simCardInfo.hasSIM ? "Carte SIM à attribuer" : "Pas de carte SIM disponible "}
+                    {simCardInfo.hasSIM 
+                      ? "Carte SIM à attribuer" 
+                      : availableSimCards.length > 0 
+                        ? `${availableSimCards.length} carte(s) SIM disponible(s)` 
+                        : "Pas de carte SIM en stock"}
                   </Typography>
                 }
                 sx={{ 
@@ -1058,28 +1181,64 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
 
               <Fade in={simCardInfo.hasSIM} timeout={500}>
                 <Box sx={{ mt: 2, mb: 3 }}>
-                  <TextField
+                  <Autocomplete
                     fullWidth
-                    label="ICCID de la carte SIM"
-                    value={simCardInfo.simCCID}
-                    onChange={(e) => setSimCardInfo({ ...simCardInfo, simCCID: e.target.value })}
-                    error={!!formErrors.simCCID}
-                    helperText={formErrors.simCCID || "Numéro à 19 ou 20 chiffres inscrit sur la carte SIM"}
-                    placeholder="893315xxxxxxxxxx"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <CreditCardIcon color="primary" />
-                        </InputAdornment>
-                      ),
+                    options={availableSimCards}
+                    getOptionLabel={(option) => typeof option === 'string' ? option : option.iccid || ''}
+                    value={availableSimCards.find(card => card.iccid === simCardInfo.simCCID) || null}
+                    onChange={(event, newValue) => {
+                      setSimCardInfo({ 
+                        ...simCardInfo, 
+                        simCCID: newValue ? newValue.iccid : '' 
+                      });
                     }}
-                    required={simCardInfo.hasSIM}
-                    variant="outlined"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2
+                    freeSolo
+                    onInputChange={(event, newInputValue) => {
+                      if (!newInputValue || !availableSimCards.find(card => card.iccid === newInputValue)) {
+                        setSimCardInfo({ ...simCardInfo, simCCID: newInputValue });
                       }
                     }}
+                    loading={simCardsLoading}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="ICCID de la carte SIM"
+                        error={!!formErrors.simCCID}
+                        helperText={formErrors.simCCID || (availableSimCards.length > 0 
+                          ? `${availableSimCards.length} carte(s) SIM disponible(s)`
+                          : "Aucune carte SIM disponible - saisissez un ICCID manuellement")}
+                        placeholder="Sélectionnez une carte SIM ou saisissez un ICCID"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <CreditCardIcon color="primary" />
+                            </InputAdornment>
+                          ),
+                        }}
+                        required={simCardInfo.hasSIM}
+                        variant="outlined"
+                        sx={{ 
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2
+                          }
+                        }}
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props}>
+                        <Box>
+                          <Typography variant="body1" fontWeight="medium">
+                            {option.iccid}
+                          </Typography>
+                          {option.receivedDate && (
+                            <Typography variant="body2" color="text.secondary">
+                              Reçu le: {new Date(option.receivedDate).toLocaleDateString()}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    )}
                   />
                 </Box>
               </Fade>

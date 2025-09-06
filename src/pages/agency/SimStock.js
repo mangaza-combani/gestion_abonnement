@@ -64,22 +64,20 @@ const SimCardManagement = () => {
 
   // Récupération des données
   const { data: connectedUser } = useWhoIAmQuery();
-  const { data: clientsData } = useGetClientsQuery(
-    connectedUser?.agencyId, 
-    { skip: !connectedUser?.agencyId }
-  );
-  const { data: agencySimCardStock } = useGetAgencySimCardsQuery(
-    connectedUser?.agencyId,
-    { skip: !connectedUser?.agencyId }
-  );
-  const { data: agencySimCardOrder } = useGetAgencySimCardsOrderQuery(
-    connectedUser?.agencyId,
-    { skip: !connectedUser?.agencyId }
-  );
-  const { data: agencySimCardReceipt } = useGetAgencySimCardsReceiptQuery(
-    connectedUser?.agencyId,
-    { skip: !connectedUser?.agencyId }
-  );
+  const agencyId = connectedUser?.agencyId;
+  
+  const { data: clientsData } = useGetClientsQuery(agencyId, {
+    skip: !agencyId
+  });
+  const { data: agencySimCardStock } = useGetAgencySimCardsQuery(agencyId, {
+    skip: !agencyId
+  });
+  const { data: agencySimCardOrder } = useGetAgencySimCardsOrderQuery(agencyId, {
+    skip: !agencyId
+  });
+  const { data: agencySimCardReceipt } = useGetAgencySimCardsReceiptQuery(agencyId, {
+    skip: !agencyId
+  });
   const { data: linesData } = useGetPhonesQuery();
   const { data: availableLines } = useGetAvailableLinesQuery();
   

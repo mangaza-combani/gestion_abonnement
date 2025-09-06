@@ -34,12 +34,14 @@ const MyLines = () => {
 
   // Récupérer l'utilisateur connecté pour filtrer par agence
   const { data: currentUser, isLoading: userLoading } = useWhoIAmQuery();
-  const { data: clientsData, isLoading: clientsLoading, error } = useGetClientsQuery();
+  const agencyId = currentUser?.agencyId;
+  
+  const { data: clientsData, isLoading: clientsLoading, error } = useGetClientsQuery(agencyId, {
+    skip: !agencyId
+  });
 
-  // Filtrer les clients par agence
-  const agencyClients = clientsData?.filter(client => 
-    currentUser?.agencyId && client?.agencyId === currentUser.agencyId
-  ) || [];
+  // Les clients sont déjà filtrés par l'API grâce au paramètre agencyId
+  const agencyClients = clientsData?.users || [];
 
   useEffect(() => {
     if (agencyClients.length > 0 && !selectedClient) {

@@ -3,6 +3,7 @@ import {
   Box,
   Card,
   CardContent,
+  CardActions,
   Typography,
   Button,
   TextField,
@@ -27,13 +28,15 @@ import {
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
   Add as AddIcon,
+  PhoneAndroid as PhoneAndroidIcon,
+  Subscriptions
 } from '@mui/icons-material';
 import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
 import { useGetClientsQuery } from "../../store/slices/clientsSlice";
 import { useGetPhonesQuery } from "../../store/slices/linesSlice";
 import { useWhoIAmQuery } from "../../store/slices/authSlice";
 
-const ClientCard = ({ client, clientLines = [], onViewDetails }) => {
+const ClientCard = ({ client, clientLines = [], onViewDetails, onSubscribe }) => {
   const totalActiveLines = clientLines.length;
   const hasLateLine = clientLines.some(line => line.paymentStatus === 'OVERDUE' || line.phoneStatus === 'SUSPENDED');
 
@@ -77,6 +80,17 @@ const ClientCard = ({ client, clientLines = [], onViewDetails }) => {
           Téléphone: {client.phoneNumber || 'Non renseigné'}
         </Typography>
       </CardContent>
+      
+      <CardActions>
+        <Button
+          size="small"
+          startIcon={<Subscriptions />}
+          onClick={() => onSubscribe && onSubscribe(client)}
+          color="primary"
+        >
+          Souscrire une ligne
+        </Button>
+      </CardActions>
     </Card>
   );
 };
@@ -205,21 +219,24 @@ const ModernClientsManagement = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
+  const [isSubscribeClientOpen, setIsSubscribeClientOpen] = useState(false);
+  const [clientToSubscribe, setClientToSubscribe] = useState(null);
   const [statusFilter, setStatusFilter] = useState(STATUSES.ALL);
 
   // Récupérer l'utilisateur connecté
-  const { data: currentUser, isLoading: userLoading, error: userError } = useWhoIAmQuery();
-  
+  const { data: currentUser, isLoading: userLoading } = useWhoIAmQuery();
+  const agencyId = currentUser?.agencyId;
   
   // Récupérer les clients de l'agence
-  const { data: clientsData, isLoading: clientsLoading, error: clientsError } = useGetClientsQuery(
-    currentUser?.agencyId, 
-    { skip: !currentUser?.agencyId }
-  );
+  const { data: clientsData, isLoading: clientsLoading, error: clientsError } = useGetClientsQuery(agencyId, {
+    skip: !agencyId
+  });
   
   
   // Récupérer toutes les lignes pour pouvoir les associer aux clients
-  const { data: linesData, isLoading: linesLoading } = useGetPhonesQuery();
+  const { data: linesData, isLoading: linesLoading } = useGetPhonesQuery(undefined, {
+    skip: !agencyId
+  });
   
   const clients = clientsData?.users || [];
   
@@ -268,6 +285,17 @@ const ModernClientsManagement = () => {
     setIsNewClientOpen(false);
   };
 
+  const handleSubscribeClient = (client) => {
+    setClientToSubscribe(client);
+    setIsSubscribeClientOpen(true);
+  };
+
+  const handleSubscriptionCreated = (result) => {
+    console.log('Souscription créée pour le client:', result);
+    setClientToSubscribe(null);
+    setIsSubscribeClientOpen(false);
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Header section */}
@@ -294,10 +322,10 @@ const ModernClientsManagement = () => {
           </Box>
           <Button
             variant="contained"
-            startIcon={<AddIcon />}
+            startIcon={<Subscriptions />}
             onClick={() => setIsNewClientOpen(true)}
           >
-            Nouveau Client
+            Souscrire un abonnement
           </Button>
         </Box>
 
@@ -372,6 +400,7 @@ const ModernClientsManagement = () => {
                   setSelectedClient(client);
                   setIsDetailsOpen(true);
                 }}
+                onSubscribe={handleSubscribeClient}
               />
             </Grid>
           )) : (
@@ -404,6 +433,18 @@ const ModernClientsManagement = () => {
         onClose={() => setIsNewClientOpen(false)}
         onClientCreated={handleNewClient}
         agencyMode={true}
+      />
+
+      <CreateClientModal
+        open={isSubscribeClientOpen}
+        onClose={() => {
+          setIsSubscribeClientOpen(false);
+          setClientToSubscribe(null);
+        }}
+        onClientCreated={handleSubscriptionCreated}
+        agencyMode={true}
+        preselectedClient={clientToSubscribe}
+        useCreateClientRoute={true}
       />
     </Box>
   );

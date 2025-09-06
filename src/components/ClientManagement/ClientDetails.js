@@ -115,7 +115,6 @@ const SubscriptionCard = ({ client, simCard }) => {
   const {
     paymentStatus,
     phoneStatus,
-    basePrice,
     features,
     dueAmount = 0,
     lastPaymentDate,
@@ -124,22 +123,39 @@ const SubscriptionCard = ({ client, simCard }) => {
     activeSubscription,
   } = client;
 
+  // Extraire les informations d'abonnement depuis phoneSubscriptions
+  const firstActiveSubscription = client?.phoneSubscriptions?.find(ps => ps.status === 'ACTIVE');
+  const subscriptionData = firstActiveSubscription?.subscription;
+  const totalMonthlyPrice = subscriptionData ? 
+    (subscriptionData.price + (subscriptionData.equipmentMonthlyFee || 0)) : 0;
+
   // DEBUG: Log des données pour diagnostiquer le problème
-  console.log('🔍 CLIENT DETAILS DEBUG:', {
+  console.log('🔍 CLIENT DETAILS DEBUG (FIXED):', {
     clientId: client?.id,
     phoneNumber: client?.phoneNumber,
-    hasActiveSubscription: !!activeSubscription,
-    activeSubscription: activeSubscription,
-    client: client
+    phoneStatus: phoneStatus,
+    dueAmount: dueAmount,
+    hasPhoneSubscriptions: !!client?.phoneSubscriptions?.length,
+    firstActiveSubscription: firstActiveSubscription,
+    subscriptionData: subscriptionData,
+    calculatedTotalMonthlyPrice: totalMonthlyPrice,
+    priceCalculation: dueAmount > 0 ? dueAmount : totalMonthlyPrice
   });
 
+  // 🚦 LOGIQUE SPÉCIALE: Si ligne en attente d'activation, afficher message spécial
+  const isWaitingForActivation = phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
+
   // Utiliser les vraies données d'abonnement si disponibles
-  const subscriptionFeatures = activeSubscription ? [
-    `📱 ${activeSubscription.name}`,
-    `📊 ${activeSubscription.dataSummary}`,
-    `💰 ${activeSubscription.formattedTotalPrice}`,
-    ...(activeSubscription.hasEquipment ? [`📦 ${activeSubscription.equipmentInfo}`] : []),
-    `🔄 Type: ${activeSubscription.subscriptionType}`,
+  const subscriptionFeatures = isWaitingForActivation ? [
+    '⏳ En attente de carte SIM pour activation',
+    '📱 Ligne réservée - Activation en cours',
+    '🔧 Superviseur doit activer avec carte SIM'
+  ] : subscriptionData ? [
+    `📱 ${subscriptionData.name}`,
+    `📊 ${subscriptionData.dataAllowanceMb ? `${Math.round(subscriptionData.dataAllowanceMb/1024)}GB données` : 'Données illimitées'}`,
+    `💰 ${totalMonthlyPrice.toFixed(2)} EUR`,
+    ...(subscriptionData.equipmentMonthlyFee ? [`📦 Équipement +${subscriptionData.equipmentMonthlyFee}€/mois`] : []),
+    `🔄 Type: ${subscriptionData.subscriptionType}`,
   ] : features || [];
 
   const formatDate = (date) => {
@@ -223,30 +239,34 @@ const SubscriptionCard = ({ client, simCard }) => {
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h6">
-              FORFAIT/ABONNEMENT
+              {isWaitingForActivation ? 'STATUT ACTIVATION' : 'FORFAIT/ABONNEMENT'}
             </Typography>
             <Chip
-              icon={statusInfo.icon}
-              label={statusInfo.label}
-              color={statusInfo.color}
+              icon={isWaitingForActivation ? <TimerIcon /> : statusInfo.icon}
+              label={isWaitingForActivation ? 'En attente SIM' : statusInfo.label}
+              color={isWaitingForActivation ? 'warning' : statusInfo.color}
               size="small"
             />
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Typography 
               variant="h4" 
-              color={dueAmount > 0 ? "error.main" : "primary.main"}
+              color={isWaitingForActivation ? "warning.main" : dueAmount > 0 ? "error.main" : "primary.main"}
               sx={{ mr: 1 }}
             >
-              {phoneStatus === PHONE_STATUS.SUSPENDED ? '--' : `${dueAmount > 0 ? dueAmount : (client?.activeSubscription?.totalMonthlyPrice || 0)}€`}
+              {isWaitingForActivation ? '--' : phoneStatus === PHONE_STATUS.SUSPENDED ? '--' : `${dueAmount > 0 ? dueAmount : totalMonthlyPrice}€`}
             </Typography>
             <Tooltip
               title={
                 <Box sx={{ p: 1 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {paymentDetails.message}
+                    {isWaitingForActivation ? 'Activation en attente' : paymentDetails.message}
                   </Typography>
-                  {paymentDetails.details.map((detail, index) => (
+                  {isWaitingForActivation ? (
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Le superviseur doit activer cette ligne avec une carte SIM
+                    </Typography>
+                  ) : paymentDetails.details.map((detail, index) => (
                     <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
                       {detail}
                     </Typography>
@@ -261,21 +281,27 @@ const SubscriptionCard = ({ client, simCard }) => {
           </Box>
         </Box>
 
-        {/* Alerte pour les impayés ou la résiliation */}
-        {(dueAmount > 0 || phoneStatus === PHONE_STATUS.SUSPENDED) && (
+        {/* Alerte pour les lignes en attente, impayés ou la résiliation */}
+        {(isWaitingForActivation || dueAmount > 0 || phoneStatus === PHONE_STATUS.SUSPENDED) && (
           <Alert 
-            severity={statusInfo.severity}
-            icon={statusInfo.icon}
+            severity={isWaitingForActivation ? 'info' : statusInfo.severity}
+            icon={isWaitingForActivation ? <TimerIcon /> : statusInfo.icon}
             sx={{ mb: 2 }}
           >
             <AlertTitle>
-              {phoneStatus === PHONE_STATUS.SUSPENDED
+              {isWaitingForActivation
+                ? 'Ligne en attente d\'activation'
+                : phoneStatus === PHONE_STATUS.SUSPENDED
                 ? 'Abonnement résilié' 
                 : (paymentStatus === PAYMENT_STATUS.CANCELLED || paymentStatus === PAYMENT_STATUS.OVERDUE)
                   ? 'Ligne bloquée - Paiement requis'
                   : 'Paiement en retard'}
             </AlertTitle>
-            {phoneStatus === PHONE_STATUS.SUSPENDED ? (
+            {isWaitingForActivation ? (
+              <Typography variant="body2">
+                Cette ligne a été réservée pour le client et attend l'activation par un superviseur avec une carte SIM physique.
+              </Typography>
+            ) : phoneStatus === PHONE_STATUS.SUSPENDED ? (
               <Typography variant="body2">
                 Résilié le {formatDate(updatedAt)}
               </Typography>
@@ -312,13 +338,20 @@ const SubscriptionCard = ({ client, simCard }) => {
                 gap: 1 
               }}
             >
-              <CheckCircleIcon 
-                color={paymentStatus === PAYMENT_STATUS.CANCELLED ? 'disabled' : 'success'}
-                fontSize="small" 
-              />
+              {isWaitingForActivation ? (
+                <TimerIcon 
+                  color="warning"
+                  fontSize="small" 
+                />
+              ) : (
+                <CheckCircleIcon 
+                  color={paymentStatus === PAYMENT_STATUS.CANCELLED ? 'disabled' : 'success'}
+                  fontSize="small" 
+                />
+              )}
               <Typography 
                 variant="body2" 
-                color={paymentStatus === PAYMENT_STATUS.CANCELLED ? 'text.disabled' : 'text.primary'}
+                color={isWaitingForActivation ? 'warning.main' : paymentStatus === PAYMENT_STATUS.CANCELLED ? 'text.disabled' : 'text.primary'}
               >
                 {feature}
               </Typography>

@@ -40,15 +40,17 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
       ],
     }),
     associateClient: builder.mutation({
-      query: ({ clientId, agencyId }) => ({
+      query: ({ clientId, agencyId, simCardInfo, paymentInfo, needsLine, subscriptionId, notes }) => ({
         url: '/clients/associate',
         method: 'POST',
-        body: { clientId },
+        body: { clientId, agencyId, simCardInfo, paymentInfo, needsLine, subscriptionId, notes },
       }),
       invalidatesTags: (result, error, { clientId, agencyId }) => [
         { type: 'Client', id: 'LIST' },
         { type: 'Client', id: `LIST_${agencyId}` },
-        { type: 'Client', id: clientId }
+        { type: 'Client', id: clientId },
+        'ClientToOrder', // Pour mettre à jour les listes "À COMMANDER"
+        'Phone' // Pour mettre à jour les listes de lignes
       ],
     }),
     updateClient: builder.mutation({

@@ -24,10 +24,15 @@ const ActivateTab = ({
   searchTerm,
   onSearchChange,
   clients,
+  lines, // Nouvelle prop pour les lignes
+  isLoading,
   selectedClient,
   onClientSelect,
   newReceptions = []
 }) => {
+
+  // Utiliser lines si disponible, sinon clients
+  const dataToDisplay = lines || clients || []
   const [activationFilter, setActivationFilter] = useState('all'); // 'all', 'ready', 'waiting'
   const { data: agenciesData } = useGetAgenciesQuery();
   
@@ -49,7 +54,7 @@ const ActivateTab = ({
   };
   
   // Filtrer les clients selon le filtre d'activation
-  const filteredClients = clients?.filter(client => {
+  const filteredClients = dataToDisplay?.filter(client => {
     const hasReservation = client?.user?.hasActiveReservation || 
                           client?.user?.reservationStatus === 'RESERVED' ||
                           client?.hasActiveReservation || 
@@ -68,24 +73,24 @@ const ActivateTab = ({
     }
   }) || [];
   
-  const readyCount = clients?.filter(client => 
+  const readyCount = dataToDisplay?.filter(client => 
     client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' || 
     (client?.user?.hasActiveReservation || client?.user?.reservationStatus === 'RESERVED' ||
      client?.hasActiveReservation || client?.reservationStatus === 'RESERVED') && canBeActivated(client)
   ).length || 0;
   
-  const waitingCount = clients?.filter(client => 
+  const waitingCount = dataToDisplay?.filter(client => 
     (client?.user?.hasActiveReservation || client?.user?.reservationStatus === 'RESERVED' ||
      client?.hasActiveReservation || client?.reservationStatus === 'RESERVED') && !canBeActivated(client)
   ).length || 0;
   useEffect(() => {
-    if (clients && clients.length > 0 && !selectedClient) {
+    if (dataToDisplay && dataToDisplay.length > 0 && !selectedClient) {
       const timer = setTimeout(() => {
-        onClientSelect(clients[0]);
+        onClientSelect(dataToDisplay[0]);
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [clients, selectedClient, onClientSelect]);
+  }, [dataToDisplay, selectedClient, onClientSelect]);
 
   return (
     <Stack spacing={3}>
@@ -157,7 +162,7 @@ const ActivateTab = ({
             onClick={() => setActivationFilter('all')}
             startIcon={<PhoneIcon />}
           >
-            Tous ({clients?.length || 0})
+            Tous ({dataToDisplay?.length || 0})
           </Button>
           <Button
             variant={activationFilter === 'ready' ? 'contained' : 'outlined'}
@@ -193,6 +198,7 @@ const ActivateTab = ({
         selectedClient={selectedClient}
         onClientSelect={onClientSelect}
         action="activate"
+        isLoading={isLoading}
       />
     </Stack>
   );

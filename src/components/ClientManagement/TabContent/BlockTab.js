@@ -8,31 +8,38 @@ const BlockTab = ({
   searchTerm,
   onSearchChange,
   clients,
+  lines, // Nouvelle prop pour les lignes
+  isLoading,
   selectedClient,
   onClientSelect
 }) => {
 
+  // Utiliser lines si disponible, sinon clients
+  const dataToDisplay = lines || clients || []
+
   useEffect(()=>{
-    if (clients && clients.length > 0 && !selectedClient) {
+    if (dataToDisplay && dataToDisplay.length > 0 && !selectedClient) {
       const timer = setTimeout(() => {
-        onClientSelect(clients[0]);
+        onClientSelect(dataToDisplay[0]);
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [clients?.length, selectedClient])
+  }, [dataToDisplay?.length, selectedClient])
+  
   return (
     <Stack spacing={2}>
       <ClientSearch 
         searchTerm={searchTerm}
         onSearchChange={onSearchChange}
-        resultCount={clients.length}
+        resultCount={dataToDisplay.length}
         hideFilters
       />
       <ClientList
-        clients={clients}
+        clients={dataToDisplay}
         selectedClient={selectedClient}
         onClientSelect={onClientSelect}
         action="block"
+        isLoading={isLoading}
       />
     </Stack>
   );

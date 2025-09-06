@@ -12,18 +12,18 @@ import ClientActions from '../../components/ClientManagement/ClientActions';
 import ActivateTab from '../../components/ClientManagement/TabContent/ActivateTab';
 import CreateClientModal from '../../components/ClientManagement/CreateClientModal';
 import ActivationInfo from '../../components/ClientManagement/ActivationInfo';
-import {useGetPhonesQuery, useCreatePhoneMutation} from "../../store/slices/linesSlice";
+import {useGetPhonesQuery, useCreatePhoneMutation, useGetPhoneWithPaymentStatusQuery, useGetPhonesToBlockQuery, useGetPhonesOverdueQuery, useGetPhonesToActivateQuery} from "../../store/slices/linesSlice";
 import {useGetAllUsersQuery, useGetClientsToOrderQuery} from "../../store/slices/clientsSlice";
 import {useCreateClientMutation} from "../../store/slices/clientsSlice";
 import {useCreateSimCardMutation} from "../../store/slices/simCardsSlice";
 import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
 import {PHONE_STATUS, PAYMENT_STATUS} from "../../components/ClientManagement/constant";
 
-// Mock data
+// Onglets pour la gestion des lignes et paiements
 const tabs = [
-        {id: TAB_TYPES.LIST, label: 'LISTE DES CLIENTS'},
-        {id: TAB_TYPES.TO_UNBLOCK, label: 'A DEBLOQUER'},
-        {id: TAB_TYPES.TO_BLOCK, label: 'EN RETARD'},
+        {id: TAB_TYPES.LIST, label: 'LISTE DES LIGNES'},
+        {id: TAB_TYPES.TO_BLOCK, label: 'A BLOQUER'}, // Lignes en dette (> 1 mois impayé)
+        {id: TAB_TYPES.OVERDUE, label: 'EN RETARD'}, // Lignes en retard de paiement (< 1 mois)
         {id: TAB_TYPES.TO_ORDER, label: 'A COMMANDER'},
         {id: TAB_TYPES.TO_ACTIVATE, label: 'A ACTIVER'},
 ];
@@ -64,6 +64,47 @@ const ClientManagement = () => {
                 pollingInterval: 30000, // Rafraîchissement toutes les 30 secondes
                 refetchOnFocus: true,   // Rafraîchissement quand la fenêtre reprend le focus
                 refetchOnReconnect: true // Rafraîchissement lors de la reconnexion
+        })
+
+        // Hooks pour les nouveaux onglets de paiement
+        const {
+                data: phonesToBlockData,
+                isLoading: phonesToBlockLoading,
+                refetch: refetchPhonesToBlock
+        } = useGetPhonesToBlockQuery(undefined, {
+                pollingInterval: 30000,
+                refetchOnFocus: true,
+                refetchOnReconnect: true
+        })
+
+        const {
+                data: phonesOverdueData,
+                isLoading: phonesOverdueLoading,
+                refetch: refetchPhonesOverdue
+        } = useGetPhonesOverdueQuery(undefined, {
+                pollingInterval: 30000,
+                refetchOnFocus: true,
+                refetchOnReconnect: true
+        })
+
+        const {
+                data: phonesToActivateData,
+                isLoading: phonesToActivateLoading,
+                refetch: refetchPhonesToActivate
+        } = useGetPhonesToActivateQuery(undefined, {
+                pollingInterval: 30000,
+                refetchOnFocus: true,
+                refetchOnReconnect: true
+        })
+
+        // 🧪 MODE TEST - Hook pour récupérer toutes les lignes avec statut de paiement pour la LISTE
+        const {
+                data: allLinesWithPaymentStatus,
+                isLoading: allLinesLoading
+        } = useGetPhoneWithPaymentStatusQuery(undefined, {
+                pollingInterval: 30000,
+                refetchOnFocus: true,
+                refetchOnReconnect: true
         })
         
         // Handle URL parameters for navigation from AccountDetails
@@ -460,11 +501,13 @@ const ClientManagement = () => {
                             client?.user?.phoneNumber?.includes(searchTerm);
 
                         if (currentTab === TAB_TYPES.LIST) {
-                                // Vue liste - clients actifs et à jour
+                                // Vue liste - TOUTES les lignes attribuées avec abonnement (même bloquées, en pause, résiliées)
                                 const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL ||
                                     client?.phoneStatus === selectedStatus || client?.paymentStatus === selectedStatus;
-                                return matchesSearch && matchesStatus && 
-                                       (client?.phoneStatus === PHONE_STATUS.ACTIVE && client?.paymentStatus === PAYMENT_STATUS.UP_TO_DATE);
+                                // Vérifier si la ligne a un abonnement (peu importe le statut de la ligne)
+                                const hasSubscription = client?.phoneSubscriptions > 0 || client?.activeSubscription;
+                                // Inclure même les lignes BLOCKED, PAUSED, TERMINATED car elles restent visibles dans la liste
+                                return matchesSearch && matchesStatus && hasSubscription;
                         }
 
                         // Filtres basés sur la logique métier
@@ -597,13 +640,14 @@ const ClientManagement = () => {
                 const filteredClients = getFilteredClients();
                 switch (currentTab) {
                         case TAB_TYPES.LIST:
-
                                 return (
                                     <ListTab
                                         searchTerm={searchTerm}
                                         onSearchChange={setSearchTerm}
                                         selectedStatus={selectedStatus}
                                         onStatusChange={setSelectedStatus}
+                                        lines={allLinesWithPaymentStatus || []}
+                                        isLoading={allLinesLoading}
                                         clients={filteredClients}
                                         selectedClient={selectedClient}
                                         onClientSelect={setSelectedClient}
@@ -617,7 +661,19 @@ const ClientManagement = () => {
                                     <BlockTab
                                         searchTerm={searchTerm}
                                         onSearchChange={setSearchTerm}
-                                        clients={filteredClients}
+                                        lines={phonesToBlockData || []}
+                                        isLoading={phonesToBlockLoading}
+                                        selectedClient={selectedClient}
+                                        onClientSelect={setSelectedClient}
+                                    />
+                                );
+                        case TAB_TYPES.OVERDUE:
+                                return (
+                                    <BlockTab
+                                        searchTerm={searchTerm}
+                                        onSearchChange={setSearchTerm}
+                                        lines={phonesOverdueData || []}
+                                        isLoading={phonesOverdueLoading}
                                         selectedClient={selectedClient}
                                         onClientSelect={setSelectedClient}
                                     />
@@ -651,6 +707,8 @@ const ClientManagement = () => {
                                         onSearchChange={setSearchTerm}
                                         selectedOrderFilter={selectedOrderFilter}
                                         onOrderFilterChange={setSelectedOrderFilter}
+                                        lines={phonesToActivateData || []}
+                                        isLoading={phonesToActivateLoading}
                                         clients={filteredClients}
                                         selectedClient={selectedClient}
                                         onClientSelect={setSelectedClient}

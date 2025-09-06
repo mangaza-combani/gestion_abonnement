@@ -16,23 +16,23 @@ import {
   Pending as PendingIcon,
 } from '@mui/icons-material';
 
-const StatusOverview = () => {
-  // Ces données devront venir de votre API
-  const statusData = {
-    pending: 8,
-    active: 42,
+const StatusOverview = ({ 
+  statusData = {
+    pending: 0,
+    active: 0,
     blocked: {
-      total: 5,
+      total: 0,
       details: {
-        unpaid: 2,
-        cancelled: 2,
-        stolen: 1
+        unpaid: 0,
+        cancelled: 0,
+        stolen: 0
       }
     },
-    suspended: 3,
-    unpaid: 7,
-    latePayment: 4,
-  };
+    suspended: 0,
+    unpaid: 0,
+    latePayment: 0,
+  }
+}) => {
 
   // Carte principale pour les lignes en attente
   const mainStatus = {

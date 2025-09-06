@@ -36,6 +36,10 @@ const ActivationInfo = ({ client }) => {
   const [selectedManualNumber, setSelectedManualNumber] = useState(null);
   const [analysisTriggered, setAnalysisTriggered] = useState(false);
   
+  // Détecter si l'ICCID est déjà renseigné par l'agence
+  const preFilledIccid = client?.activatedWithIccid || client?.user?.activatedWithIccid;
+  const isPreFilledMode = !!preFilledIccid;
+  
   const { data: agenciesData } = useGetAgenciesQuery();
   
   // Récupérer les cartes SIM disponibles
@@ -59,11 +63,14 @@ const ActivationInfo = ({ client }) => {
     { skip: !clientAgencyId }
   );
   
-  // Analyse ICCID - ne se déclenche que si un ICCID est saisi et analysisTriggered est true
+  // Analyse ICCID - utilise l'ICCID pré-rempli ou saisi manuellement
+  const iccidToAnalyze = isPreFilledMode ? preFilledIccid : iccid;
+  const shouldAnalyze = isPreFilledMode || (analysisTriggered && iccid && iccid.trim().length >= 8);
+  
   const { data: iccidAnalysis, isLoading: isAnalyzing, error: analysisError } = useAnalyzeIccidForSupervisorQuery(
-    iccid, 
+    iccidToAnalyze, 
     { 
-      skip: !iccid || iccid.trim().length < 8 || !analysisTriggered || iccid.trim() === ''
+      skip: !shouldAnalyze || !iccidToAnalyze || iccidToAnalyze.trim() === ''
     }
   );
   
@@ -94,7 +101,9 @@ const ActivationInfo = ({ client }) => {
   };
 
   const handleActivationConfirm = async () => {
-    if (!selectedManualNumber && (!iccid || !selectedLine)) return;
+    const finalIccid = isPreFilledMode ? preFilledIccid : iccid;
+    
+    if (!selectedManualNumber && (!finalIccid || !selectedLine)) return;
     
     try {
       // Détermine le phoneId à partir de la sélection
@@ -108,7 +117,7 @@ const ActivationInfo = ({ client }) => {
         phoneIdToActivate = selectedLine;
       }
       
-      if (!phoneIdToActivate || !iccid) {
+      if (!phoneIdToActivate || !finalIccid) {
         console.error('Impossible d\'identifier le phoneId ou l\'ICCID pour l\'activation');
         return;
       }
@@ -119,13 +128,13 @@ const ActivationInfo = ({ client }) => {
       // Appel de l'API d'activation
       await activateWithSim({
         phoneId: phoneIdToActivate,
-        iccid: iccid,
+        iccid: finalIccid,
         clientId: clientId
       }).unwrap();
       
       console.log('Activation réussie pour:', {
         phoneId: phoneIdToActivate,
-        iccid: iccid,
+        iccid: finalIccid,
         client: client?.user?.firstname + ' ' + client?.user?.lastname
       });
       
@@ -243,82 +252,109 @@ const ActivationInfo = ({ client }) => {
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             
-            {/* Étape 1: Sélection carte SIM */}
-            <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-              <Typography variant="subtitle2" gutterBottom>
-                📱 Étape 1: Sélectionner une carte SIM en stock
-              </Typography>
-              
-              {isLoadingSims ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2">Chargement des cartes SIM...</Typography>
-                </Box>
-              ) : simCardsData?.data ? (
-                <Box>
-                  <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-                    Pour cette agence (ID: {clientAgencyId}): {filteredSimCards.length} disponible(s)
+            {/* Étape 1: ICCID - Mode Pré-rempli ou Sélection SIM */}
+            <Paper sx={{ p: 2, bgcolor: isPreFilledMode ? 'success.lighter' : 'grey.50' }}>
+              {isPreFilledMode ? (
+                <>
+                  <Typography variant="subtitle2" gutterBottom color="success.main">
+                    ✅ ICCID pré-renseigné par l'agence
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 1, border: '2px solid', borderColor: 'success.main' }}>
+                    <Typography variant="body1" fontWeight="bold" color="success.main">
+                      📱 ICCID: {preFilledIccid}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      L'agence a déjà renseigné cet ICCID lors de la souscription. 
+                      Analyse automatique en cours pour identifier le compte RED approprié.
+                    </Typography>
+                  </Box>
+                  {isAnalyzing && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
+                      <CircularProgress size={20} color="success" />
+                      <Typography variant="body2" color="success.main">
+                        Analyse de l'ICCID en cours...
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Typography variant="subtitle2" gutterBottom>
+                    📱 Étape 1: Sélectionner une carte SIM en stock
                   </Typography>
                   
-                  {filteredSimCards.length === 0 ? (
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                      Aucune carte SIM disponible pour cette agence. 
-                      Vérifiez que l'agence a bien des cartes en stock.
-                    </Alert>
-                  ) : (
-                    <Autocomplete
-                      fullWidth
-                      size="small"
-                      options={filteredSimCards}
-                      getOptionLabel={(option) => option.iccid}
-                      value={selectedSimCard}
-                      onChange={(event, newValue) => {
-                        setSelectedSimCard(newValue);
-                        if (newValue && newValue.iccid && newValue.iccid.trim().length > 0) {
-                          setIccid(newValue.iccid);
-                          setSelectedManualNumber(null);
-                          handleIccidChange({ target: { value: newValue.iccid } });
-                        } else {
-                          resetAnalysisState();
-                        }
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          placeholder="Choisir une carte SIM..."
+                  {isLoadingSims ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
+                      <CircularProgress size={20} />
+                      <Typography variant="body2">Chargement des cartes SIM...</Typography>
+                    </Box>
+                  ) : simCardsData?.data ? (
+                    <Box>
+                      <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+                        Pour cette agence (ID: {clientAgencyId}): {filteredSimCards.length} disponible(s)
+                      </Typography>
+                      
+                      {filteredSimCards.length === 0 ? (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                          Aucune carte SIM disponible pour cette agence. 
+                          Vérifiez que l'agence a bien des cartes en stock.
+                        </Alert>
+                      ) : (
+                        <Autocomplete
+                          fullWidth
+                          size="small"
+                          options={filteredSimCards}
+                          getOptionLabel={(option) => option.iccid}
+                          value={selectedSimCard}
+                          onChange={(event, newValue) => {
+                            setSelectedSimCard(newValue);
+                            if (newValue && newValue.iccid && newValue.iccid.trim().length > 0) {
+                              setIccid(newValue.iccid);
+                              setSelectedManualNumber(null);
+                              handleIccidChange({ target: { value: newValue.iccid } });
+                            } else {
+                              resetAnalysisState();
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Choisir une carte SIM..."
+                            />
+                          )}
+                          renderOption={(props, option) => {
+                            const { key, ...otherProps } = props;
+                            return (
+                            <Box component="li" key={key} {...otherProps}>
+                              <Box sx={{ width: '100%' }}>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {option.iccid}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {option.agencyName} - {option.isAlreadyInUse ? '⚠️ Déjà utilisé' : '✅ Disponible'}
+                                </Typography>
+                              </Box>
+                            </Box>
+                            );
+                          }}
+                          noOptionsText="Aucune carte SIM trouvée"
                         />
                       )}
-                      renderOption={(props, option) => {
-                        const { key, ...otherProps } = props;
-                        return (
-                        <Box component="li" key={key} {...otherProps}>
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="body2" fontWeight="bold">
-                              {option.iccid}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {option.agencyName} - {option.isAlreadyInUse ? '⚠️ Déjà utilisé' : '✅ Disponible'}
-                            </Typography>
-                          </Box>
-                        </Box>
-                        );
-                      }}
-                      noOptionsText="Aucune carte SIM trouvée"
-                    />
-                  )}
-                  
-                  {/* Indication analyse automatique */}
-                  {selectedSimCard && (
-                    <Alert severity="info" sx={{ mt: 1 }}>
-                      <AlertTitle>Analyse automatique déclenchée</AlertTitle>
-                      L'ICCID sélectionné est analysé automatiquement pour identifier l'agence et proposer des lignes.
+                      
+                      {/* Indication analyse automatique */}
+                      {selectedSimCard && (
+                        <Alert severity="info" sx={{ mt: 1 }}>
+                          <AlertTitle>Analyse automatique déclenchée</AlertTitle>
+                          L'ICCID sélectionné est analysé automatiquement pour identifier l'agence et proposer des lignes.
+                        </Alert>
+                      )}
+                    </Box>
+                  ) : (
+                    <Alert severity="error">
+                      Impossible de charger les cartes SIM disponibles.
                     </Alert>
                   )}
-                </Box>
-              ) : (
-                <Alert severity="error">
-                  Impossible de charger les cartes SIM disponibles.
-                </Alert>
+                </>
               )}
             </Paper>
             
@@ -441,10 +477,12 @@ const ActivationInfo = ({ client }) => {
                   <Typography variant="subtitle2" gutterBottom>
                     📝 Ou saisissez manuellement un numéro :
                   </Typography>
+                  {console.log('🔍 DEBUG Frontend - iccidAnalysis:', iccidAnalysis)}
+                  {console.log('🔍 DEBUG Frontend - availableForManualSelection:', iccidAnalysis?.availableForManualSelection)}
                   <Autocomplete
                     fullWidth
                     size="small"
-                    options={validNumbersData?.data?.numbers || []}
+                    options={iccidAnalysis?.availableForManualSelection || []}
                     getOptionLabel={(option) => option.phoneNumber}
                     value={selectedManualNumber}
                     onChange={(event, newValue) => {

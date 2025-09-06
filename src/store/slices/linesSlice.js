@@ -94,6 +94,22 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
                         }),
                         invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
                 }),
+                getPhoneWithPaymentStatus: builder.query({
+                        query: () => '/phones/lines/with-payment-status',
+                        providesTags: ['Phone']
+                }),
+                getPhonesToBlock: builder.query({
+                        query: () => '/phones/lines/to-block',
+                        providesTags: ['Phone']
+                }),
+                getPhonesOverdue: builder.query({
+                        query: () => '/phones/lines/overdue',
+                        providesTags: ['Phone']
+                }),
+                getPhonesToActivate: builder.query({
+                        query: () => '/phones/lines/to-activate',
+                        providesTags: ['Phone']
+                }),
         }),
 });
 
@@ -106,6 +122,10 @@ export const {
         useBlockPhoneMutation,
         useUnblockPhoneMutation,
         useDeactivatePhoneMutation,
+        useGetPhoneWithPaymentStatusQuery,
+        useGetPhonesToBlockQuery,
+        useGetPhonesOverdueQuery,
+        useGetPhonesToActivateQuery,
 } = phoneApiSlice;
 
 // Slice Redux pour la gestion d'état locale des phone

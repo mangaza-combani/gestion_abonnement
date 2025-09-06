@@ -21,19 +21,19 @@ export const CLIENT_STATUSES = {
   };
   
   export const TAB_TYPES = {
-    LIST: 'UP_TO_DATE',
-    TO_UNBLOCK: 'REIMBURSED',
-    TO_BLOCK: 'OVERDUE',
+    LIST: 'ALL_LINES', // Liste de toutes les lignes
+    TO_BLOCK: 'TO_BLOCK', // Lignes en dette (> 1 mois impayé)
+    OVERDUE: 'OVERDUE', // Lignes en retard de paiement (< 1 mois)
     TO_ORDER: 'NEEDS_TO_BE_ORDERED',
-    LATE: 'OVERDUE',
     TO_ACTIVATE: 'NEEDS_TO_BE_ACTIVATED'
   };
 
   export const PAYMENT_STATUS = {
-        "UP_TO_DATE" : "UP_TO_DATE",
-        "OVERDUE" : "OVERDUE",
-        "PAST_DUE": "PAST_DUE",
-        "DISCONNECTED": "DISCONNECTED",
+        "PAID" : "PAID", // À jour dans les paiements
+        "OVERDUE" : "OVERDUE", // En retard mais toléré (avant le 28)
+        "TO_BLOCK" : "TO_BLOCK", // En dette, doit être bloqué le 28
+        "BLOCKED_NONPAYMENT" : "BLOCKED_NONPAYMENT", // Bloqué pour impayé
+        "PENDING_PAYMENT" : "PENDING_PAYMENT", // En attente de paiement (activation)
         "UNATTRIBUTED" : "UNATTRIBUTED",
         "CANCELLED": "CANCELLED",
         "REIMBURSED" : "REIMBURSED",
@@ -55,6 +55,9 @@ export const CLIENT_STATUSES = {
           "ACTIVE": "ACTIVE",
           "INACTIVE": "INACTIVE",
           "SUSPENDED": "SUSPENDED",
+          "BLOCKED": "BLOCKED", // Bloqué (impayé, demande client, etc.)
+          "PAUSED": "PAUSED", // En pause (demande client)
+          "TERMINATED": "TERMINATED", // Résilié
   }
   
   export const ORDER_FILTERS = {
