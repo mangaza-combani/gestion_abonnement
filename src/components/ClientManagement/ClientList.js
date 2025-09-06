@@ -11,7 +11,8 @@ import {
   Chip,
   Box,
   IconButton,
-  Tooltip
+  Tooltip,
+  Typography
 } from '@mui/material';
 import { 
   MoreVert as MoreVertIcon,
@@ -32,14 +33,14 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: isOrderView ? '15%' : '20%' }}>NOM</TableCell>
-              <TableCell sx={{ width: isOrderView ? '15%' : '20%' }}>PRENOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : '18%' }}>NOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : '18%' }}>PRENOM</TableCell>
               {isOrderView &&(
-                <TableCell sx={{ width: '25%' }}>TELEPHONE</TableCell>
+                <TableCell sx={{ width: '20%' }}>TELEPHONE</TableCell>
               )}
-            
-              <TableCell sx={{ width: isOrderView ? '22.5%' : '30%' }}>ETAT PAIEMENT</TableCell>
-              <TableCell sx={{ width: isOrderView ? '22.5%' : '30%' }}>ETAT TÉLÉPHONE</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : '16%' }}>COMPTE RED</TableCell>
+              <TableCell sx={{ width: isOrderView ? '17.5%' : '24%' }}>ETAT PAIEMENT</TableCell>
+              <TableCell sx={{ width: isOrderView ? '17.5%' : '24%' }}>ETAT TÉLÉPHONE</TableCell>
 
             </TableRow>
           </TableHead>
@@ -59,6 +60,27 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 {isOrderView &&(
                         <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.phoneNumber || 'N/C'}</TableCell>
                 )}
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName ? (
+                    <Chip 
+                      label={client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName}
+                      size="small"
+                      color="info"
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}
+                    />
+                  ) : (client?.redAccountId || client?.lineRequest?.redAccountId) ? (
+                    <Chip 
+                      label={`Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
+                      size="small"
+                      color="info"
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}
+                    />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">N/A</Typography>
+                  )}
+                </TableCell>
                 <TableCell>
                   <StatusChip status={formatPaymentAndStatusToHumanReadable(client.paymentStatus)} />
                 </TableCell>

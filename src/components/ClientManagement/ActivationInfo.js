@@ -224,6 +224,19 @@ const ActivationInfo = ({ client }) => {
             />
           </Box>
           
+          {/* Compte RED rattaché */}
+          {(client?.redAccountId || client?.lineRequest?.redAccountId) && (
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Compte RED rattaché
+              </Typography>
+              <Typography variant="body1" fontWeight="bold" color="primary.main">
+                🏢 {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName || 
+                     `Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
+              </Typography>
+            </Box>
+          )}
+          
           <Button
             variant="contained"
             color="primary"

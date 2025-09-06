@@ -359,6 +359,32 @@ const SubscriptionCard = ({ client, simCard }) => {
           ))}
         </Stack>
 
+        {/* Affichage ID compte RED rattaché (pour superviseur) */}
+        {(client?.redAccountId || client?.lineRequest?.redAccountId) && (
+          <Box sx={{ 
+            mt: 2, 
+            p: 2, 
+            bgcolor: 'info.lighter', 
+            border: '1px solid', 
+            borderColor: 'info.main', 
+            borderRadius: 1 
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AccountCircleIcon color="info" fontSize="small" />
+              <Typography variant="body2" fontWeight="bold" color="info.main">
+                Compte RED rattaché:
+              </Typography>
+              <Typography variant="body2" fontWeight="bold" color="primary.main">
+                {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName || 
+                 `Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              Compte utilisé pour la facturation et la gestion de cette ligne
+            </Typography>
+          </Box>
+        )}
+
         {/* Indicateur de dernier paiement */}
         {paymentStatus === PAYMENT_STATUS.UP_TO_DATE && lastPaymentDate && (
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
