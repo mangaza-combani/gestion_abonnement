@@ -32,42 +32,26 @@ export class InvoiceService {
     return `INV-${year}${month}${day}-${timestamp}`;
   }
 
-  calculateInvoiceData(client, period) {
-    const baseAmount = client.agency?.prixAbonnement || 25.00;
+  async calculateInvoiceData(client, period) {
+    // Récupérer les vraies données depuis l'API si disponible
+    const invoiceDataFromAPI = await this.fetchRealInvoiceData(client.id, period);
+    
+    if (invoiceDataFromAPI) {
+      return this.formatAPIInvoiceData(invoiceDataFromAPI, period);
+    }
+    
+    // Fallback sur les calculs simulés
+    const baseAmount = this.getClientBaseAmount(client);
     const currentDate = new Date();
     
-    // Calcul des arriérés (simulation basée sur le statut du client)
-    let arrears = 0;
-    let arrearsDetails = [];
+    // Calcul des arriérés avec prorata
+    const arrearsData = this.calculateArrearsWithProrata(client, baseAmount);
     
-    if (client.paymentStatus === 'OVERDUE') {
-      // Simule 2 mois d'arriérés
-      arrears = baseAmount * 2;
-      arrearsDetails = [
-        { period: 'Octobre 2024', amount: baseAmount },
-        { period: 'Novembre 2024', amount: baseAmount }
-      ];
-    } else if (client.paymentStatus === 'PAST_DUE') {
-      // Simule 3 mois d'arriérés
-      arrears = baseAmount * 3;
-      arrearsDetails = [
-        { period: 'Septembre 2024', amount: baseAmount },
-        { period: 'Octobre 2024', amount: baseAmount },
-        { period: 'Novembre 2024', amount: baseAmount }
-      ];
-    }
-
-    // Calcul des avances (simulation)
-    let advances = 0;
-    let advancesDetails = [];
+    // Calcul des avances avec prorata
+    const advancesData = this.calculateAdvancesWithProrata(client, baseAmount);
     
-    // Si le client est à jour, il peut avoir payé en avance
-    if (client.paymentStatus === 'UP_TO_DATE' && Math.random() > 0.7) {
-      advances = baseAmount;
-      advancesDetails = [
-        { period: 'Janvier 2025', amount: baseAmount, note: 'Paiement anticipé' }
-      ];
-    }
+    // Calcul du prorata pour la période courante
+    const prorataData = this.calculateCurrentPeriodProrata(client, period, baseAmount);
 
     // Services facturés pour la période
     const services = [
@@ -94,16 +78,16 @@ export class InvoiceService {
     }
 
     const subtotal = services.reduce((sum, service) => sum + service.total, 0);
-    const totalWithArrears = subtotal + arrears;
-    const finalTotal = totalWithArrears - advances;
+    const totalWithArrears = subtotal + arrearsData.total;
+    const finalTotal = totalWithArrears - advancesData.total;
 
     return {
       services,
       subtotal,
-      arrears,
-      arrearsDetails,
-      advances,
-      advancesDetails,
+      arrears: arrearsData.total,
+      arrearsDetails: arrearsData.details,
+      advances: advancesData.total,
+      advancesDetails: advancesData.details,
       totalWithArrears,
       finalTotal,
       invoiceNumber: this.generateInvoiceNumber(),
@@ -358,6 +342,192 @@ export class InvoiceService {
       pdfBlob: pdf.output('blob'),
       invoiceData,
       filename
+    };
+  }
+
+  // Nouvelles méthodes pour les calculs avec prorata
+
+  async fetchRealInvoiceData(clientId, period) {
+    try {
+      // Tenter de récupérer les données depuis l'API
+      const response = await fetch(`/api/line-payments/client/${clientId}/period/${period}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn('Impossible de récupérer les données API, utilisation des données simulées');
+      return null;
+    }
+  }
+
+  formatAPIInvoiceData(apiData, period) {
+    return {
+      services: apiData.services || [],
+      subtotal: apiData.subtotal || 0,
+      arrears: apiData.arrears?.total || 0,
+      arrearsDetails: apiData.arrears?.details || [],
+      advances: apiData.advances?.total || 0,
+      advancesDetails: apiData.advances?.details || [],
+      prorata: apiData.prorata || null,
+      totalWithArrears: apiData.totalWithArrears || 0,
+      finalTotal: apiData.finalTotal || 0,
+      invoiceNumber: apiData.invoiceNumber || this.generateInvoiceNumber(),
+      invoiceDate: new Date().toLocaleDateString('fr-FR'),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR'),
+      isRealData: true
+    };
+  }
+
+  getClientBaseAmount(client) {
+    // Priorité : abonnement actuel > paramètre agence > défaut
+    if (client.activeSubscription?.totalMonthlyPrice) {
+      return client.activeSubscription.totalMonthlyPrice;
+    }
+    
+    if (client.phoneSubscriptions && client.phoneSubscriptions.length > 0) {
+      const subscription = client.phoneSubscriptions[0].subscription;
+      return (subscription.price || 0) + (subscription.equipmentMonthlyFee || 0);
+    }
+    
+    return client.agency?.prixAbonnement || 25.00;
+  }
+
+  calculateArrearsWithProrata(client, baseAmount) {
+    let arrears = 0;
+    let arrearsDetails = [];
+    
+    if (client.paymentStatus === 'OVERDUE') {
+      // Simule des arriérés avec prorata possible
+      const months = ['Octobre 2024', 'Novembre 2024'];
+      months.forEach((month, index) => {
+        // Premier mois peut avoir un prorata d'activation
+        let monthlyAmount = baseAmount;
+        let prorataNote = '';
+        
+        if (index === 0 && client.activationDate) {
+          const activationDate = new Date(client.activationDate);
+          const monthStart = new Date(2024, 9, 1); // Octobre 2024
+          
+          if (activationDate > monthStart) {
+            const daysInMonth = 31;
+            const dayOfActivation = activationDate.getDate();
+            const remainingDays = daysInMonth - dayOfActivation + 1;
+            
+            monthlyAmount = (baseAmount * remainingDays) / daysInMonth;
+            prorataNote = ` (prorata du ${dayOfActivation}/10 au 31/10)`;
+          }
+        }
+        
+        arrears += monthlyAmount;
+        arrearsDetails.push({ 
+          period: month, 
+          amount: monthlyAmount,
+          prorataNote,
+          isProrata: prorataNote !== ''
+        });
+      });
+      
+    } else if (client.paymentStatus === 'PAST_DUE') {
+      // 3 mois d'arriérés
+      arrears = baseAmount * 3;
+      arrearsDetails = [
+        { period: 'Septembre 2024', amount: baseAmount },
+        { period: 'Octobre 2024', amount: baseAmount },
+        { period: 'Novembre 2024', amount: baseAmount }
+      ];
+    }
+
+    return { total: arrears, details: arrearsDetails };
+  }
+
+  calculateAdvancesWithProrata(client, baseAmount) {
+    let advances = 0;
+    let advancesDetails = [];
+    
+    // Si le client est à jour et a payé en avance
+    if (client.paymentStatus === 'UP_TO_DATE' && Math.random() > 0.7) {
+      // Peut avoir payé le prochain mois en avance
+      let advanceAmount = baseAmount;
+      let prorataNote = '';
+      
+      // Si on est en fin de mois, l'avance pourrait être un prorata
+      const currentDate = new Date();
+      const currentDay = currentDate.getDate();
+      const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+      
+      if (currentDay > 15) {
+        // Prorata pour le mois suivant
+        const remainingDays = daysInMonth - currentDay;
+        advanceAmount = (baseAmount * remainingDays) / daysInMonth;
+        prorataNote = ` (prorata anticipé ${remainingDays} jours)`;
+      }
+      
+      advances = advanceAmount;
+      advancesDetails = [
+        { 
+          period: 'Janvier 2025', 
+          amount: advanceAmount, 
+          note: `Paiement anticipé${prorataNote}`,
+          isProrata: prorataNote !== ''
+        }
+      ];
+    }
+
+    return { total: advances, details: advancesDetails };
+  }
+
+  calculateCurrentPeriodProrata(client, period, baseAmount) {
+    if (!client.activationDate) {
+      return null;
+    }
+
+    const activationDate = new Date(client.activationDate);
+    const periodDate = this.parsePeriodfromString(period);
+    
+    // Vérifier si l'activation a eu lieu dans la période facturée
+    if (activationDate.getFullYear() === periodDate.year && 
+        activationDate.getMonth() === periodDate.month) {
+      
+      const dayOfActivation = activationDate.getDate();
+      const daysInMonth = new Date(periodDate.year, periodDate.month + 1, 0).getDate();
+      const remainingDays = daysInMonth - dayOfActivation + 1;
+      
+      const prorataAmount = (baseAmount * remainingDays) / daysInMonth;
+      
+      return {
+        isProrata: true,
+        activationDay: dayOfActivation,
+        totalDays: daysInMonth,
+        billedDays: remainingDays,
+        fullAmount: baseAmount,
+        prorataAmount: prorataAmount,
+        reason: `Activation le ${dayOfActivation}/${periodDate.month + 1}/${periodDate.year}`
+      };
+    }
+
+    return null;
+  }
+
+  parsePeriodfromString(period) {
+    // Parse "Décembre 2024" => { month: 11, year: 2024 }
+    const months = {
+      'janvier': 0, 'février': 1, 'mars': 2, 'avril': 3,
+      'mai': 4, 'juin': 5, 'juillet': 6, 'août': 7,
+      'septembre': 8, 'octobre': 9, 'novembre': 10, 'décembre': 11
+    };
+    
+    const [monthName, year] = period.toLowerCase().split(' ');
+    return {
+      month: months[monthName] || 0,
+      year: parseInt(year) || new Date().getFullYear()
     };
   }
 }

@@ -791,21 +791,36 @@ const ClientManagement = () => {
                                     </IconButton>
                             </Tooltip>
                     </Box>
-                    <Box sx={{display: 'flex', p: 2, gap: 2}}>
-                            <Box sx={{flex: 1}}>
+                    <Box sx={{display: 'flex', p: 2, gap: 2, maxWidth: '100vw', overflow: 'hidden'}}>
+                            <Box sx={{
+                                flex: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? '0 0 45%' : '1 1 auto', 
+                                minWidth: 0, 
+                                overflow: 'hidden',
+                                maxWidth: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? '45%' : '100%'
+                            }}>
                                     {renderTabContent()}
                             </Box>
-                            <Box sx={{ display: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? 'block' : 'none' }}>
+                            <Box sx={{ 
+                                display: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? 'flex' : 'none',
+                                flex: '0 0 55%',
+                                width: '55%',
+                                overflow: 'auto',
+                                minWidth: '500px',
+                                gap: 2,
+                                alignItems: 'flex-start'
+                            }}>
                                 {selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_ACTIVATE && (
                                         <>
                                                 <ClientDetails
                                                     client={selectedClient}
                                                     currentTab={currentTab}
                                                 />
-                                                <ClientActions
-                                                    client={selectedClient}
-                                                    currentTab={currentTab}
-                                                />
+                                                <Box sx={{ flex: '0 0 auto', alignSelf: 'flex-start' }}>
+                                                    <ClientActions
+                                                        client={selectedClient}
+                                                        currentTab={currentTab}
+                                                    />
+                                                </Box>
                                         </>
                                 )}
                                 {currentTab === TAB_TYPES.TO_ACTIVATE && (

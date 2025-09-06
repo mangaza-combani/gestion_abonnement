@@ -197,7 +197,7 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                     Services facturés
                   </Typography>
                   <List dense>
-                    {invoiceData.services.map((service, index) => (
+                    {invoiceData.services?.map((service, index) => (
                       <ListItem key={index} sx={{ px: 0 }}>
                         <ListItemText
                           primary={service.description}
@@ -215,20 +215,20 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                       Sous-total services:
                     </Typography>
                     <Typography variant="h6" color="primary">
-                      {invoiceData.subtotal.toFixed(2)}€
+                      {invoiceData.subtotal?.toFixed(2) || '0.00'}€
                     </Typography>
                   </Box>
                 </Box>
 
                 {/* Arriérés si applicable */}
-                {invoiceData.arrears > 0 && (
+                {invoiceData?.arrears > 0 && (
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <WarningIcon color="error" />
                       Arriérés
                     </Typography>
                     <List dense>
-                      {invoiceData.arrearsDetails.map((arrear, index) => (
+                      {invoiceData.arrearsDetails?.map((arrear, index) => (
                         <ListItem key={index} sx={{ px: 0 }}>
                           <ListItemText
                             primary={`Impayé ${arrear.period}`}
@@ -249,21 +249,21 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                         Total arriérés:
                       </Typography>
                       <Typography variant="h6" color="error">
-                        +{invoiceData.arrears.toFixed(2)}€
+                        +{invoiceData.arrears?.toFixed(2) || '0.00'}€
                       </Typography>
                     </Box>
                   </Box>
                 )}
 
                 {/* Avances si applicable */}
-                {invoiceData.advances > 0 && (
+                {invoiceData?.advances > 0 && (
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <TrendingDownIcon color="success" />
                       Avances
                     </Typography>
                     <List dense>
-                      {invoiceData.advancesDetails.map((advance, index) => (
+                      {invoiceData.advancesDetails?.map((advance, index) => (
                         <ListItem key={index} sx={{ px: 0 }}>
                           <ListItemText
                             primary={`Avance ${advance.period}`}
@@ -284,7 +284,7 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                         Total avances:
                       </Typography>
                       <Typography variant="h6" color="success">
-                        -{invoiceData.advances.toFixed(2)}€
+                        -{invoiceData.advances?.toFixed(2) || '0.00'}€
                       </Typography>
                     </Box>
                   </Box>
@@ -304,7 +304,7 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                     TOTAL À PAYER
                   </Typography>
                   <Typography variant="h4" fontWeight="bold">
-                    {invoiceData.finalTotal.toFixed(2)}€
+                    {invoiceData.finalTotal?.toFixed(2) || '0.00'}€
                   </Typography>
                 </Box>
 
@@ -312,13 +312,13 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                 <Box sx={{ mt: 2, textAlign: 'center' }}>
                   <Chip 
                     label={
-                      invoiceData.finalTotal <= 0 ? 'Solde créditeur' :
-                      invoiceData.arrears > 0 ? 'Arriérés à régulariser' :
+                      invoiceData?.finalTotal <= 0 ? 'Solde créditeur' :
+                      invoiceData?.arrears > 0 ? 'Arriérés à régulariser' :
                       'À payer dans les délais'
                     }
                     color={
-                      invoiceData.finalTotal <= 0 ? 'success' :
-                      invoiceData.arrears > 0 ? 'error' : 'primary'
+                      invoiceData?.finalTotal <= 0 ? 'success' :
+                      invoiceData?.arrears > 0 ? 'error' : 'primary'
                     }
                     sx={{ fontSize: '1rem', py: 1, px: 2 }}
                   />

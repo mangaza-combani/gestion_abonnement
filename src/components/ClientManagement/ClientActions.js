@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
         Paper,
         Stack,
@@ -18,17 +18,18 @@ import {
         useUnblockPhoneMutation
 } from "../../store/slices/linesSlice";
 
+import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
+
 const ClientActions = ({client, currentTab}) => {
         const [blockPhone] = useBlockPhoneMutation();
         const [unblockPhone] = useUnblockPhoneMutation();
+        const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
 
         const invoiceClient = async (clientId) => {
                 try {
-                        // Logique pour facturer le client
-                        console.log(`Facturation du client avec l'ID: ${clientId}`);
-                        // Vous pouvez appeler une API ou effectuer une action ici
+                        setInvoiceModalOpen(true);
                 } catch (error) {
-                        console.error('Erreur lors de la facturation du client:', error);
+                        console.error('Erreur lors de l\'ouverture du modal de facturation:', error);
                 }
         }
 
@@ -51,9 +52,9 @@ const ClientActions = ({client, currentTab}) => {
         }
 
         return (
-            <Paper sx={{width: '200px', p: 2}}>
+            <Paper sx={{width: '100%', maxWidth: '220px', p: 2}}>
                     <Stack spacing={2}>
-                            <Typography variant="h6">ACTIONS</Typography>
+                            <Typography variant="h6" sx={{ fontSize: '1rem' }}>ACTIONS</Typography>
                             <Button
                                 fullWidth
                                 variant="contained"
@@ -96,6 +97,14 @@ const ClientActions = ({client, currentTab}) => {
                             </Button>
 
                     </Stack>
+            
+            {invoiceModalOpen && (
+                <RealInvoiceGenerator 
+                    open={invoiceModalOpen}
+                    onClose={() => setInvoiceModalOpen(false)}
+                    client={client}
+                />
+            )}
             </Paper>
         );
 };

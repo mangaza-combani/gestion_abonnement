@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack } from '@mui/material';
+import { Stack, Box } from '@mui/material';
 import ClientSearch from '../ClientSearch';
 import ClientList from '../ClientList';
 import StatusFilters from '../StatusFilters';
@@ -22,16 +22,22 @@ const ListTab = ({
   // Utiliser lines si disponible, sinon clients
   const dataToDisplay = lines || clients || []
   return (
-    <Stack spacing={2}>
-      <ClientSearch 
-        searchTerm={searchTerm}
-        onSearchChange={onSearchChange}
-        resultCount={dataToDisplay?.length}
-      />
-      <StatusFilters
-        selectedStatus={selectedStatus}
-        onStatusChange={onStatusChange}
-      />
+    <Stack spacing={2} sx={{ width: '100%', maxWidth: '1200px' }}>
+      <Stack spacing={2} direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        <Box sx={{ flex: '1 1 300px', minWidth: '300px', maxWidth: '400px' }}>
+          <ClientSearch 
+            searchTerm={searchTerm}
+            onSearchChange={onSearchChange}
+            resultCount={dataToDisplay?.length}
+          />
+        </Box>
+        <Box sx={{ flex: '1 1 600px', minWidth: '600px' }}>
+          <StatusFilters
+            selectedStatus={selectedStatus}
+            onStatusChange={onStatusChange}
+          />
+        </Box>
+      </Stack>
       <ClientList
         clients={dataToDisplay}
         selectedClient={selectedClient}

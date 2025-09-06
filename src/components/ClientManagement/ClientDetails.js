@@ -486,7 +486,7 @@ const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
 
   return (
     <>
-      <Card sx={{ width: '600px' }}>
+      <Card sx={{ width: '100%', maxWidth: '500px' }}>
         <Box sx={{ p: 3 }}>
           <ClientHeader client={client} onOpenModal={handleOpenModal} />
           {currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED ? (

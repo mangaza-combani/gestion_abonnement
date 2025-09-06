@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Card, 
   TableContainer, 
@@ -8,30 +8,38 @@ import {
   TableRow, 
   TableCell,
   Button,
-  Chip 
+  Chip,
+  Box,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import { 
+  MoreVert as MoreVertIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Phone as PhoneIcon,
+  Block as BlockIcon
+} from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
 
 const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = false }) => {
+  const [hoveredRow, setHoveredRow] = useState(null);
 
   return (
     <Card sx={{ flex: 1 }}>
       <TableContainer>
-        <Table size="small">
+        <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>
-              <TableCell>NOM</TableCell>
-              <TableCell>PRENOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : '20%' }}>NOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : '20%' }}>PRENOM</TableCell>
               {isOrderView &&(
-                <TableCell>TELEPHONE</TableCell>
+                <TableCell sx={{ width: '25%' }}>TELEPHONE</TableCell>
               )}
             
-              <TableCell>ETAT PAIEMENT</TableCell>
-              <TableCell>ETAT TÉLÉPHONE</TableCell>
-              {!isOrderView && (
-                <TableCell>ACTION</TableCell>
-              )}
+              <TableCell sx={{ width: isOrderView ? '22.5%' : '30%' }}>ETAT PAIEMENT</TableCell>
+              <TableCell sx={{ width: isOrderView ? '22.5%' : '30%' }}>ETAT TÉLÉPHONE</TableCell>
 
             </TableRow>
           </TableHead>
@@ -42,12 +50,14 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 hover
                 selected={selectedClient?.id === client?.user?.id}
                 onClick={() => onClientSelect(client)}
-                sx={{ cursor: 'pointer' }}
+                onMouseEnter={() => setHoveredRow(client.id)}
+                onMouseLeave={() => setHoveredRow(null)}
+                sx={{ cursor: 'pointer', position: 'relative' }}
               >
-                <TableCell>{client?.user?.lastname}</TableCell>
-                <TableCell>{client?.user?.firstname}</TableCell>
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client?.user?.lastname}</TableCell>
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client?.user?.firstname}</TableCell>
                 {isOrderView &&(
-                        <TableCell>{client.phoneNumber || 'N/C'}</TableCell>
+                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.phoneNumber || 'N/C'}</TableCell>
                 )}
                 <TableCell>
                   <StatusChip status={formatPaymentAndStatusToHumanReadable(client.paymentStatus)} />
@@ -55,11 +65,6 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 <TableCell>
                   <StatusChip status={formatPaymentAndStatusToHumanReadable(client.phoneStatus)} />
                 </TableCell>
-                {!isOrderView &&(
-                           <TableCell>
-                          
-                         </TableCell>
-                )}
               </TableRow>
             ))}
           </TableBody>
