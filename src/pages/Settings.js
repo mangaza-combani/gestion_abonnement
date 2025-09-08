@@ -12,9 +12,11 @@ import {
   Receipt as ReceiptIcon,
   Business as BusinessIcon,
   Security as SecurityIcon,
-  Notifications as NotificationsIcon
+  Notifications as NotificationsIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import InvoiceSettings from '../components/Settings/InvoiceSettings';
+import InvoiceAutomationSettings from '../components/Settings/InvoiceAutomationSettings';
 
 const TabPanel = ({ children, value, index, ...other }) => (
   <div
@@ -85,6 +87,12 @@ const Settings = () => {
               iconPosition="start"
               sx={{ textTransform: 'none', minHeight: 64 }}
             />
+            <Tab 
+              label="Génération Auto" 
+              icon={<ScheduleIcon />} 
+              iconPosition="start"
+              sx={{ textTransform: 'none', minHeight: 64 }}
+            />
           </Tabs>
         </Box>
       </Box>
@@ -128,6 +136,10 @@ const Settings = () => {
               Cette section sera développée prochainement
             </Typography>
           </Paper>
+        </TabPanel>
+        
+        <TabPanel value={currentTab} index={4}>
+          <InvoiceAutomationSettings />
         </TabPanel>
       </Box>
     </Box>
