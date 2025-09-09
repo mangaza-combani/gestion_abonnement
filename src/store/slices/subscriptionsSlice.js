@@ -1,36 +1,27 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import config from '../../config';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { apiBaseQuery } from '../api/apiSlice';
 
 export const subscriptionsApi = createApi({
   reducerPath: 'subscriptionsApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${config.api.baseURL}api/subscriptions`,
-    prepareHeaders: (headers) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: apiBaseQuery,
   tagTypes: ['Subscription', 'SubscriptionStats'],
   endpoints: (builder) => ({
     // Obtenir tous les abonnements
     getSubscriptions: builder.query({
-      query: () => '/',
+      query: () => '/subscriptions/',
       providesTags: ['Subscription'],
     }),
 
     // Obtenir un abonnement par ID
     getSubscription: builder.query({
-      query: (id) => `/${id}`,
+      query: (id) => `/subscriptions/${id}`,
       providesTags: (result, error, id) => [{ type: 'Subscription', id }],
     }),
 
     // Créer un nouvel abonnement
     createSubscription: builder.mutation({
       query: (subscriptionData) => ({
-        url: '/',
+        url: '/subscriptions/',
         method: 'POST',
         body: subscriptionData,
       }),
@@ -40,7 +31,7 @@ export const subscriptionsApi = createApi({
     // Mettre à jour un abonnement
     updateSubscription: builder.mutation({
       query: ({ id, ...subscriptionData }) => ({
-        url: `/${id}`,
+        url: `/subscriptions/${id}`,
         method: 'PUT',
         body: subscriptionData,
       }),
@@ -54,7 +45,7 @@ export const subscriptionsApi = createApi({
     // Supprimer/désactiver un abonnement
     deleteSubscription: builder.mutation({
       query: (id) => ({
-        url: `/${id}`,
+        url: `/subscriptions/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Subscription', 'SubscriptionStats'],
@@ -62,13 +53,13 @@ export const subscriptionsApi = createApi({
 
     // Obtenir les statistiques
     getSubscriptionStats: builder.query({
-      query: () => '/stats/overview',
+      query: () => '/subscriptions/stats/overview',
       providesTags: ['SubscriptionStats'],
     }),
 
     // Obtenir les abonnements par type
     getSubscriptionsByType: builder.query({
-      query: (type) => `/type/${type}`,
+      query: (type) => `/subscriptions/type/${type}`,
       providesTags: ['Subscription'],
     }),
   }),

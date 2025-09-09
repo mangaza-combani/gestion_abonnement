@@ -1,25 +1,14 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import config from '../../config/index.js';
-
-const baseQuery = fetchBaseQuery({
-  baseUrl: `${config.api.baseURL}api/line-payments`,
-  prepareHeaders: (headers, { getState }) => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      headers.set('authorization', `Bearer ${token}`);
-    }
-    return headers;
-  },
-});
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { apiBaseQuery } from '../api/apiSlice';
 
 export const linePaymentsApi = createApi({
   reducerPath: 'linePaymentsApi',
-  baseQuery,
+  baseQuery: apiBaseQuery,
   tagTypes: ['LinePayment', 'LineBalance'],
   endpoints: (builder) => ({
     // Récupérer l'historique des paiements d'une ligne
     getLinePaymentHistory: builder.query({
-      query: (phoneId) => `/phone/${phoneId}/history`,
+      query: (phoneId) => `/line-payments/phone/${phoneId}/history`,
       providesTags: (result, error, phoneId) => [
         { type: 'LinePayment', id: phoneId }
       ],
@@ -27,7 +16,7 @@ export const linePaymentsApi = createApi({
 
     // Calculer le solde d'une ligne
     getLineBalance: builder.query({
-      query: (phoneId) => `/phone/${phoneId}/balance`,
+      query: (phoneId) => `/line-payments/phone/${phoneId}/balance`,
       providesTags: (result, error, phoneId) => [
         { type: 'LineBalance', id: phoneId }
       ],
@@ -35,7 +24,7 @@ export const linePaymentsApi = createApi({
 
     // Récupérer la prochaine date de facturation
     getNextBillingDate: builder.query({
-      query: (phoneId) => `/phone/${phoneId}/next-billing`,
+      query: (phoneId) => `/line-payments/phone/${phoneId}/next-billing`,
       providesTags: (result, error, phoneId) => [
         { type: 'LinePayment', id: `billing-${phoneId}` }
       ],
@@ -44,7 +33,7 @@ export const linePaymentsApi = createApi({
     // Créer un paiement d'avance
     createAdvancePayment: builder.mutation({
       query: (paymentData) => ({
-        url: '/advance-payment',
+        url: '/line-payments/advance-payment',
         method: 'POST',
         body: paymentData,
       }),
@@ -57,7 +46,7 @@ export const linePaymentsApi = createApi({
 
     // Récupérer les détails d'un paiement
     getPaymentDetails: builder.query({
-      query: (paymentId) => `/${paymentId}`,
+      query: (paymentId) => `/line-payments/${paymentId}`,
       providesTags: (result, error, paymentId) => [
         { type: 'LinePayment', id: paymentId }
       ],
@@ -66,7 +55,7 @@ export const linePaymentsApi = createApi({
     // Mettre à jour le statut d'un paiement
     updatePaymentStatus: builder.mutation({
       query: ({ paymentId, ...statusData }) => ({
-        url: `/${paymentId}/status`,
+        url: `/line-payments/${paymentId}/status`,
         method: 'PUT',
         body: statusData,
       }),
@@ -80,7 +69,7 @@ export const linePaymentsApi = createApi({
     // Créer des données de test
     createTestData: builder.mutation({
       query: (phoneId) => ({
-        url: '/create-test-data',
+        url: '/line-payments/create-test-data',
         method: 'POST',
         body: { phoneId },
       }),
