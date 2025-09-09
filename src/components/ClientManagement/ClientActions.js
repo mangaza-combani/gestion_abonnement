@@ -24,6 +24,22 @@ const ClientActions = ({client, currentTab}) => {
         const [blockPhone] = useBlockPhoneMutation();
         const [unblockPhone] = useUnblockPhoneMutation();
         const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+        
+        // DEBUGGING: Voir quel objet client est passé 
+        console.log('🚪 CLIENT ACTIONS - CLIENT REÇU:', {
+                client,
+                clientId: client?.id,
+                phoneId: client?.id, // C'est en fait un phone ID
+                realClientId: client?.userId || client?.user?.id,
+                realClient: client?.user,
+                clientFirstName: client?.user?.firstName,
+                clientLastName: client?.user?.lastName,
+                allClientProperties: Object.keys(client || {})
+        });
+        
+        // Le vrai client est dans client.user
+        const realClient = client?.user || {};
+        const realClientId = client?.userId || client?.user?.id;
 
         const invoiceClient = async (clientId) => {
                 try {
@@ -59,7 +75,7 @@ const ClientActions = ({client, currentTab}) => {
                                 fullWidth
                                 variant="contained"
                                 startIcon={<EuroIcon/>}
-                                onClick={() => invoiceClient(client.id)}
+                                onClick={() => invoiceClient(realClientId)}
                             >
                                     Facturer
                             </Button>
@@ -68,7 +84,7 @@ const ClientActions = ({client, currentTab}) => {
                                     fullWidth
                                     variant="contained"
                                     color="success"
-                                    onClick={() => unblockPhone(client.id)}
+                                    onClick={() => handleUnblock(client.id)}
                                     startIcon={<PlayArrowIcon/>}
                                 >
                                         Activer
@@ -80,7 +96,7 @@ const ClientActions = ({client, currentTab}) => {
                                     fullWidth
                                     variant="contained"
                                     color="error"
-                                    onClick={() => blockPhone(client.id)}
+                                    onClick={() => handleBlock(client.id)}
                                     startIcon={<StopIcon/>}
                                 >
                                         Suspendre
@@ -102,7 +118,7 @@ const ClientActions = ({client, currentTab}) => {
                 <RealInvoiceGenerator 
                     open={invoiceModalOpen}
                     onClose={() => setInvoiceModalOpen(false)}
-                    client={client}
+                    client={realClient}
                 />
             )}
             </Paper>
