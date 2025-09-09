@@ -4,7 +4,7 @@ import { apiBaseQuery } from '../api/apiSlice';
 export const linePaymentsApi = createApi({
   reducerPath: 'linePaymentsApi',
   baseQuery: apiBaseQuery,
-  tagTypes: ['LinePayment', 'LineBalance'],
+  tagTypes: ['LinePayment', 'LineBalance', 'ClientOverview', 'UnpaidInvoices'],
   endpoints: (builder) => ({
     // Récupérer l'historique des paiements d'une ligne
     getLinePaymentHistory: builder.query({
@@ -78,6 +78,56 @@ export const linePaymentsApi = createApi({
         { type: 'LineBalance', id: phoneId }
       ],
     }),
+
+    // === NOUVEAUX ENDPOINTS CLIENT-CENTRIQUES ===
+    
+    // Récupérer vue d'ensemble complète du client
+    getClientOverview: builder.query({
+      query: (clientId) => `/line-payments/client/${clientId}/overview`,
+      providesTags: (result, error, clientId) => [
+        { type: 'ClientOverview', id: clientId },
+        { type: 'LineBalance', id: 'LIST' },
+        { type: 'UnpaidInvoices', id: clientId }
+      ],
+    }),
+
+    // Récupérer toutes les factures impayées d'un client
+    getClientUnpaidInvoices: builder.query({
+      query: (clientId) => `/line-payments/client/${clientId}/unpaid-invoices`,
+      providesTags: (result, error, clientId) => [
+        { type: 'UnpaidInvoices', id: clientId }
+      ],
+    }),
+
+    // Paiement groupé pour un client
+    processGroupPayment: builder.mutation({
+      query: (paymentData) => ({
+        url: `/line-payments/client/${paymentData.clientId}/group-payment`,
+        method: 'POST',
+        body: paymentData,
+      }),
+      invalidatesTags: (result, error, { clientId }) => [
+        { type: 'ClientOverview', id: clientId },
+        { type: 'UnpaidInvoices', id: clientId },
+        { type: 'LinePayment', id: 'LIST' },
+        { type: 'LineBalance', id: 'LIST' }
+      ],
+    }),
+
+    // Paiement d'une facture spécifique
+    paySpecificInvoice: builder.mutation({
+      query: (paymentData) => ({
+        url: `/line-payments/invoice/${paymentData.invoiceId}/pay`,
+        method: 'POST',
+        body: paymentData,
+      }),
+      invalidatesTags: (result, error, { invoiceId, clientId }) => [
+        { type: 'ClientOverview', id: clientId },
+        { type: 'UnpaidInvoices', id: clientId },
+        { type: 'LinePayment', id: invoiceId },
+        { type: 'LineBalance', id: 'LIST' }
+      ],
+    }),
   }),
 });
 
@@ -89,4 +139,9 @@ export const {
   useGetPaymentDetailsQuery,
   useUpdatePaymentStatusMutation,
   useCreateTestDataMutation,
+  // Nouveaux hooks client-centriques
+  useGetClientOverviewQuery,
+  useGetClientUnpaidInvoicesQuery,
+  useProcessGroupPaymentMutation,
+  usePaySpecificInvoiceMutation,
 } = linePaymentsApi;

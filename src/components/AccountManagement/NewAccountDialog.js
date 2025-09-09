@@ -174,7 +174,7 @@ const NewAccountDialog = ({
 
   const handleAddLine = () => {
     const line = {
-      id: Date.now(), // Temporaire pour l'UI
+      id: `line-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // ID unique pour l'UI
       ...newLine,
       clientName: selectedClient ? `${selectedClient.nom} ${selectedClient.prenom}` : '',
     };

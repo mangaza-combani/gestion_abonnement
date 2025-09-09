@@ -396,7 +396,7 @@ const ActivationInfo = ({ client }) => {
                 
                 {/* Comptes RED trouvés */}
                 {iccidAnalysis.potentialMatches?.map((match, index) => (
-                  <Box key={index} sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'success.main', borderRadius: 1, bgcolor: 'success.lighter' }}>
+                  <Box key={`match-${match.redAccount?.id || index}`} sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'success.main', borderRadius: 1, bgcolor: 'success.lighter' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       <BusinessIcon color="success" />
                       <Typography variant="subtitle2" color="success.main">
@@ -542,7 +542,7 @@ const ActivationInfo = ({ client }) => {
                       {iccidAnalysis.supervisorInstructions.message}
                     </Typography>
                     {iccidAnalysis.supervisorInstructions.steps?.map((step, index) => (
-                      <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                      <Typography key={`step-${index}-${step.slice(0, 10)}`} variant="body2" sx={{ ml: 1 }}>
                         {step}
                       </Typography>
                     ))}

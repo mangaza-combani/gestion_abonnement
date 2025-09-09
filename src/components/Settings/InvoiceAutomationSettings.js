@@ -26,10 +26,6 @@ import {
   ListItemIcon,
   Tabs,
   Tab,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Autocomplete
 } from '@mui/material';
 import {
@@ -198,11 +194,13 @@ const InvoiceAutomationSettings = () => {
   };
 
   // Fonction pour récupérer tous les clients avec leurs téléphones
-  const fetchAllClients = async () => {
+  const fetchAllClients = async (monthOverride = null) => {
     try {
       setLoadingClients(true);
-      const url = selectedMonth 
-        ? `${apiBaseURL}/api/invoice-automation/all-clients?month=${selectedMonth}`
+      const monthToUse = monthOverride || selectedMonth;
+      console.log('🔍 Frontend DEBUG - fetchAllClients appelée avec:', { monthOverride, selectedMonth, monthToUse });
+      const url = monthToUse 
+        ? `${apiBaseURL}/api/invoice-automation/all-clients?month=${monthToUse}`
         : `${apiBaseURL}/api/invoice-automation/all-clients`;
       const response = await fetch(url, {
         headers: {
@@ -230,32 +228,33 @@ const InvoiceAutomationSettings = () => {
   // Fonction pour gérer le changement de mois
   const handleMonthChange = (event) => {
     const month = event.target.value;
+    console.log('🔍 Frontend DEBUG - handleMonthChange:', month);
     setSelectedMonth(month);
     if (month) {
-      fetchAllClients();
+      fetchAllClients(month); // Passer le mois directement
     } else {
       setAvailableClients([]);
       setSelectedClients([]);
     }
   };
 
-  // Fonction pour gérer la sélection/désélection de clients
-  const handleClientToggle = (clientId) => {
+  // Fonction pour gérer la sélection/désélection de téléphones
+  const handleClientToggle = (phoneId) => {
     setSelectedClients(prev => {
-      if (prev.includes(clientId)) {
-        return prev.filter(id => id !== clientId);
+      if (prev.includes(phoneId)) {
+        return prev.filter(id => id !== phoneId);
       } else {
-        return [...prev, clientId];
+        return [...prev, phoneId];
       }
     });
   };
 
-  // Fonction pour sélectionner/désélectionner tous les clients
+  // Fonction pour sélectionner/désélectionner tous les téléphones
   const handleSelectAllClients = () => {
     if (selectedClients.length === availableClients.length) {
       setSelectedClients([]);
     } else {
-      setSelectedClients(availableClients.map(client => client.clientId));
+      setSelectedClients(availableClients.map(client => client.phoneId));
     }
   };
 
@@ -647,9 +646,9 @@ const InvoiceAutomationSettings = () => {
                       multiple
                       options={availableClients}
                       getOptionLabel={(option) => `${option.clientName || ''} (${option.clientEmail || ''})`}
-                      value={availableClients.filter(client => selectedClients.includes(client.clientId))}
+                      value={availableClients.filter(client => selectedClients.includes(client.phoneId))}
                       onChange={(event, newValue) => {
-                        setSelectedClients(newValue.map(client => client.clientId));
+                        setSelectedClients(newValue.map(client => client.phoneId));
                       }}
                       renderInput={(params) => (
                         <TextField
@@ -659,7 +658,7 @@ const InvoiceAutomationSettings = () => {
                         />
                       )}
                       renderOption={(props, option, { selected }) => (
-                        <li {...props} key={option.clientId}>
+                        <li {...props} key={option.phoneId}>
                           <Box component="span" sx={{ mr: 1, fontSize: 16 }}>
                             {selected ? '✓' : '○'}
                           </Box>
@@ -693,15 +692,15 @@ const InvoiceAutomationSettings = () => {
                     <List dense>
                       {availableClients.map((client) => (
                         <ListItem
-                          key={client.clientId}
+                          key={client.phoneId}
                           component="div"
                           sx={{ cursor: 'pointer' }}
-                          onClick={() => handleClientToggle(client.clientId)}
+                          onClick={() => handleClientToggle(client.phoneId)}
                         >
                           <ListItemIcon>
                             <Checkbox
                               edge="start"
-                              checked={selectedClients.includes(client.clientId)}
+                              checked={selectedClients.includes(client.phoneId)}
                               tabIndex={-1}
                               disableRipple
                             />
