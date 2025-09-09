@@ -49,7 +49,8 @@ import {
   useGetClientOverviewQuery,
   useGetClientUnpaidInvoicesQuery,
   useProcessGroupPaymentMutation,
-  usePaySpecificInvoiceMutation
+  usePaySpecificInvoiceMutation,
+  useAddClientBalanceMutation
 } from '../../store/slices/linePaymentsSlice';
 
 const RealInvoiceGenerator = ({ open, onClose, client }) => {
@@ -75,6 +76,16 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     message: '',
     severity: 'info' // 'success', 'error', 'warning', 'info'
   });
+
+  // États pour la sélection du moyen de paiement
+  const [paymentMethodModal, setPaymentMethodModal] = useState(false);
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState([]);
+  const [paymentSplit, setPaymentSplit] = useState({
+    balance: 0,
+    cash: 0, 
+    card: 0
+  });
+  const [totalPaymentAmount, setTotalPaymentAmount] = useState(0);
   
   const clientId = client?.id;
   // Debugging pour identifier le problème de client ID
@@ -108,7 +119,7 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     }
   }, [debugClientId]);
 
-  // Nouvelles queries client-centriques avec refetch
+  // Vrais hooks RTK Query
   const {
     data: clientOverview,
     isLoading: isLoadingOverview,
@@ -172,6 +183,10 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
   const [createAdvancePayment, { 
     isLoading: isCreatingPayment 
   }] = useCreateAdvancePaymentMutation();
+  
+  const [addClientBalance, { 
+    isLoading: isAddingBalance 
+  }] = useAddClientBalanceMutation();
 
   // Legacy queries pour compatibilité historique - amélioration debug
   const phoneId = clientOverview?.lines?.[0]?.id; // Premier téléphone pour compatibilité
@@ -211,7 +226,10 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
       setTimeout(() => {
         refetchOverview();
         refetchUnpaidInvoices();
-        refetchHistory();
+        // Seulement refetch history si on est sur la page history et si phoneId existe
+        if (selectedAction === 'history' && phoneId) {
+          refetchHistory();
+        }
       }, 500);
       
       setSelectedAction('overview');
@@ -310,7 +328,10 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
       setTimeout(() => {
         refetchOverview();
         refetchUnpaidInvoices();
-        refetchHistory();
+        // Seulement refetch history si on est sur la page history et si phoneId existe
+        if (selectedAction === 'history' && phoneId) {
+          refetchHistory();
+        }
       }, 500);
       
       setSelectedAction('overview');
@@ -323,15 +344,43 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     }
   };
 
-  // Générer les options de périodes futures
+  // 🧠 LOGIQUE INTELLIGENTE : Calculer les mois disponibles selon le solde
   const generateFuturePeriods = () => {
     const periods = [];
     const currentDate = new Date();
+    const clientBalance = clientOverview?.client?.balance || 0;
+    const numberOfLines = selectedLines.length || (clientOverview?.lines?.length || 1);
+    const costPerMonth = monthlyRate * numberOfLines; // Coût total par mois pour toutes les lignes
+    
+    // Calculer combien de mois sont déjà couverts par le solde actuel
+    const monthsCoveredByBalance = Math.floor(clientBalance / costPerMonth);
+    
+    console.log('💡 CALCUL couverture solde:', {
+      clientBalance,
+      numberOfLines,
+      costPerMonth,
+      monthsCoveredByBalance
+    });
+    
     for (let i = 1; i <= 6; i++) {
       const futureDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
       const periodKey = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
       const periodLabel = futureDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      periods.push({ key: periodKey, label: periodLabel });
+      
+      // Déterminer le statut du mois
+      const isCoveredByBalance = i <= monthsCoveredByBalance;
+      const status = isCoveredByBalance ? 'couvert' : 'disponible';
+      const displayLabel = isCoveredByBalance 
+        ? `${periodLabel} ✅ (déjà couvert)`
+        : `${periodLabel}`;
+      
+      periods.push({ 
+        key: periodKey, 
+        label: periodLabel,
+        displayLabel: displayLabel,
+        isCovered: isCoveredByBalance,
+        status: status
+      });
     }
     return periods;
   };
@@ -369,18 +418,34 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     }
   };
 
-  // Handler pour tout sélectionner/désélectionner les périodes
+  // Handler pour tout sélectionner/désélectionner les périodes (seulement non couverts)
   const handleSelectAllPeriods = (checked) => {
     if (checked) {
-      const allPeriodKeys = generateFuturePeriods().map(period => period.key);
-      setSelectedPeriods(allPeriodKeys);
+      // Sélectionner seulement les périodes non couvertes par le solde
+      const availablePeriodKeys = generateFuturePeriods()
+        .filter(period => !period.isCovered)
+        .map(period => period.key);
+      setSelectedPeriods(availablePeriodKeys);
     } else {
       setSelectedPeriods([]);
     }
   };
 
   const handleAdvancePayment = async () => {
+    console.log('🚀 DEBUT handleAdvancePayment - État des champs:', {
+      phoneId,
+      selectedPeriod, 
+      advanceAmount,
+      clientId,
+      clientBalance: clientOverview?.client?.balance
+    });
+
     if (!phoneId || !selectedPeriod || !advanceAmount) {
+      console.log('❌ VALIDATION ECHOUEE - Champs manquants:', {
+        phoneId: !!phoneId,
+        selectedPeriod: !!selectedPeriod,
+        advanceAmount: !!advanceAmount
+      });
       setSnackbar({
         open: true,
         message: '⚠️ Veuillez remplir tous les champs',
@@ -389,33 +454,134 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
       return;
     }
 
-    try {
-      await createAdvancePayment({
-        phoneId: phoneId,
-        amount: parseFloat(advanceAmount),
-        paymentMonth: selectedPeriod,
-        description: `Paiement d'avance via interface`
-      }).unwrap();
-      
+    // 🎯 NOUVELLE APPROCHE: Ouvrir le modal de sélection de paiement
+    const amount = parseFloat(advanceAmount);
+    const clientBalance = clientOverview?.client?.balance || 0;
+    
+    setTotalPaymentAmount(amount);
+    setPaymentSplit({
+      balance: Math.min(amount, clientBalance), // Utiliser le solde disponible
+      cash: Math.max(0, amount - clientBalance), // Le reste en espèces
+      card: 0
+    });
+    
+    console.log('💳 OUVERTURE modal sélection paiement:', {
+      amount,
+      clientBalance,
+      suggestedSplit: {
+        balance: Math.min(amount, clientBalance),
+        cash: Math.max(0, amount - clientBalance)
+      }
+    });
+    
+    setPaymentMethodModal(true);
+  };
+
+  // Nouvelle fonction pour traiter le paiement d'avance - AJOUT DE SOLDE UNIQUEMENT
+  const processAdvancePayment = async () => {
+    const total = paymentSplit.balance + paymentSplit.cash + paymentSplit.card;
+    
+    if (Math.abs(total - totalPaymentAmount) > 0.01) {
       setSnackbar({
         open: true,
-        message: '✅ Paiement d\'avance créé avec succès !',
-        severity: 'success'
+        message: `⚠️ Le total des paiements (${total.toFixed(2)}€) doit égaler le montant (${totalPaymentAmount.toFixed(2)}€)`,
+        severity: 'warning'
       });
+      return;
+    }
+
+    console.log('💳 TRAITEMENT paiement d\'avance - ajout solde client:', {
+      paymentSplit,
+      selectedLines,
+      selectedPeriods,
+      totalAmount: totalPaymentAmount,
+      clientId: clientId
+    });
+
+    try {
+      // 🎯 LOGIQUE SIMPLIFIEE : Juste ajouter le montant au solde du client
+      // Le système débitera automatiquement le 20 de chaque mois
+      
+      // Déterminer la méthode de paiement pour la description
+      const activeMethods = [];
+      if (paymentSplit.balance > 0) activeMethods.push(`${paymentSplit.balance}€ solde`);
+      if (paymentSplit.cash > 0) activeMethods.push(`${paymentSplit.cash}€ espèces`);
+      if (paymentSplit.card > 0) activeMethods.push(`${paymentSplit.card}€ carte`);
+      
+      let reason = `Paiement d'avance de ${totalPaymentAmount}€`;
+      if (activeMethods.length > 0) {
+        reason += ` (${activeMethods.join(' + ')})`;
+      }
+      reason += ` pour ${selectedLines.length} ligne(s) × ${selectedPeriods.length} mois`;
+
+      // ⚠️ PROBLÈME POTENTIEL : Si le paiement utilise le solde existant, on ne peut pas l'ajouter au solde !
+      // Seuls les paiements en espèces/carte augmentent le solde
+      const amountToAddToBalance = paymentSplit.cash + paymentSplit.card;
+      
+      if (amountToAddToBalance > 0) {
+        // Ajouter seulement la partie espèces + carte au solde
+        const balanceData = {
+          clientId: clientId,
+          amount: amountToAddToBalance,
+          reason: reason
+        };
+
+        console.log('📤 ENVOI addClientBalance:', balanceData);
+
+        const result = await addClientBalance(balanceData).unwrap();
+        
+        console.log('✅ SUCCES addClientBalance:', result);
+        
+        setSnackbar({
+          open: true,
+          message: `✅ Paiement d'avance de ${totalPaymentAmount}€ ajouté au solde ! Nouveau solde: ${result.newBalance}€`,
+          severity: 'success'
+        });
+      } else if (paymentSplit.balance > 0) {
+        // Si c'est uniquement un paiement par solde existant, on informe juste
+        setSnackbar({
+          open: true,
+          message: `💡 Le paiement de ${totalPaymentAmount}€ utilise uniquement le solde existant. Le système débitera automatiquement le 20 de chaque mois.`,
+          severity: 'info'
+        });
+      }
+      
+      // Fermer le modal de paiement
+      setPaymentMethodModal(false);
       
       // Rafraîchir les données après paiement d'avance
+      console.log('🔄 RAFRAICHISSEMENT des données...');
       setTimeout(() => {
         refetchOverview();
-        refetchHistory();
+        // Seulement refetch history si on est sur la page history et si phoneId existe
+        if (selectedAction === 'history' && phoneId) {
+          refetchHistory();
+        }
+        console.log('🔄 Refetch déclenché');
       }, 500);
       
+      // 🎯 REDIRECTION vers la vue d'ensemble après 2 secondes
+      setTimeout(() => {
+        console.log('🎯 REDIRECTION vers vue d\'ensemble');
+        setSelectedAction('overview');
+      }, 2000);
+      
+      // Réinitialiser les champs
+      setSelectedLines([]);
+      setSelectedPeriods([]);
       setAdvanceAmount('');
-      setSelectedPeriod('');
-      setSelectedAction('overview');
+      
     } catch (error) {
+      console.error('❌ ERREUR ajout solde:', error);
+      console.error('❌ Détails de l\'erreur:', {
+        message: error.message,
+        data: error.data,
+        status: error.status
+      });
+      
       setSnackbar({
         open: true,
-        message: `❌ Erreur lors de la création du paiement: ${error.data?.message || error.message}`,
+        message: `❌ Erreur paiement: ${error.data?.message || error.message}`,
         severity: 'error'
       });
     }
@@ -983,22 +1149,51 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                       </FormGroup>
                     </Box>
 
+                    {/* Information sur la couverture du solde */}
+                    <Box sx={{ mb: 2 }}>
+                      <Alert 
+                        severity="info" 
+                        sx={{ 
+                          bgcolor: 'primary.50',
+                          border: '1px solid',
+                          borderColor: 'primary.200'
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>💰 Analyse du solde actuel:</strong>
+                        </Typography>
+                        <Typography variant="body2">
+                          • Solde disponible: <strong>{(clientOverview?.client?.balance || 0).toFixed(2)}€</strong><br/>
+                          • Coût mensuel ({selectedLines.length || 1} ligne(s)): <strong>{(monthlyRate * (selectedLines.length || 1)).toFixed(2)}€</strong><br/>
+                          • Mois déjà couverts: <strong>{Math.floor((clientOverview?.client?.balance || 0) / (monthlyRate * (selectedLines.length || 1)))}</strong>
+                        </Typography>
+                      </Alert>
+                    </Box>
+
                     {/* Sélection des périodes */}
                     <Box>
                       <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
-                        📅 Sélection des mois
+                        📅 Sélection des mois supplémentaires
                       </Typography>
                       <FormGroup>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={selectedPeriods.length === generateFuturePeriods().length && selectedPeriods.length > 0}
-                              indeterminate={selectedPeriods.length > 0 && selectedPeriods.length < generateFuturePeriods().length}
-                              onChange={(e) => handleSelectAllPeriods(e.target.checked)}
+                        {(() => {
+                          const availablePeriods = generateFuturePeriods().filter(p => !p.isCovered);
+                          const allAvailableSelected = selectedPeriods.length === availablePeriods.length && selectedPeriods.length > 0;
+                          const someAvailableSelected = selectedPeriods.length > 0 && selectedPeriods.length < availablePeriods.length;
+                          
+                          return (
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={allAvailableSelected}
+                                  indeterminate={someAvailableSelected}
+                                  onChange={(e) => handleSelectAllPeriods(e.target.checked)}
+                                />
+                              }
+                              label={<Typography variant="body2" fontWeight="bold">🔘 Tous les mois disponibles</Typography>}
                             />
-                          }
-                          label={<Typography variant="body2" fontWeight="bold">🔘 Tous les mois</Typography>}
-                        />
+                          );
+                        })()}
                         <Box sx={{ ml: 3, mt: 1 }}>
                           {generateFuturePeriods().map((period) => (
                             <FormControlLabel
@@ -1007,11 +1202,18 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                                 <Checkbox
                                   checked={selectedPeriods.includes(period.key)}
                                   onChange={() => handlePeriodSelection(period.key)}
+                                  disabled={period.isCovered}
                                 />
                               }
                               label={
-                                <Typography variant="body2">
-                                  📅 {period.label}
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    color: period.isCovered ? 'text.secondary' : 'text.primary',
+                                    opacity: period.isCovered ? 0.6 : 1
+                                  }}
+                                >
+                                  📅 {period.displayLabel}
                                 </Typography>
                               }
                             />
@@ -1063,24 +1265,35 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                       size="large"
                       startIcon={<PaymentIcon />}
                       onClick={() => {
-                        // TODO: Implémenter la logique de paiement d'avance multiple
-                        setSnackbar({
-                          open: true,
-                          message: `💰 Paiement d'avance: ${selectedLines.length} lignes × ${selectedPeriods.length} mois = ${calculateAdvanceTotal().toFixed(2)}€`,
-                          severity: 'info'
+                        const amount = calculateAdvanceTotal();
+                        const clientBalance = clientOverview?.client?.balance || 0;
+                        
+                        setAdvanceAmount(amount);
+                        setTotalPaymentAmount(amount);
+                        
+                        // Suggérer automatiquement la répartition optimale
+                        setPaymentSplit({
+                          balance: Math.min(amount, clientBalance),
+                          cash: Math.max(0, amount - clientBalance),
+                          card: 0
                         });
+                        
+                        setPaymentMethodModal(true);
                       }}
-                      disabled={selectedLines.length === 0 || selectedPeriods.length === 0 || isCreatingPayment}
+                      disabled={selectedLines.length === 0 || selectedPeriods.length === 0 || isAddingBalance}
                       fullWidth
                       sx={{ py: 1.5, fontSize: '1.1rem' }}
                     >
-                      {isCreatingPayment ? 'Traitement en cours...' : `Payer ${calculateAdvanceTotal().toFixed(2)}€ d'avance`}
+                      {isAddingBalance ? 'Traitement en cours...' : `Payer ${calculateAdvanceTotal().toFixed(2)}€ d'avance`}
                     </Button>
 
                     {/* Aide */}
                     <Alert severity="success" sx={{ mt: 2 }}>
-                      💡 <strong>Info:</strong> Ce paiement augmentera le solde du client de {calculateAdvanceTotal().toFixed(2)}€. 
-                      Le système conservera une trace complète avec les détails des lignes et périodes sélectionnées.
+                      💡 <strong>Logique intelligente:</strong><br/>
+                      • Les mois déjà couverts par le solde actuel sont automatiquement bloqués ✅<br/>
+                      • Vous ne payez que pour les mois supplémentaires non couverts<br/>
+                      • Le système débitera automatiquement {monthlyRate * (selectedLines.length || 1)}€ le 20 de chaque mois<br/>
+                      • Ce paiement ajoutera {calculateAdvanceTotal().toFixed(2)}€ au solde client
                     </Alert>
                   </Stack>
                 </CardContent>
@@ -1409,6 +1622,221 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Modal de sélection du moyen de paiement */}
+      <Dialog 
+        open={paymentMethodModal} 
+        onClose={() => setPaymentMethodModal(false)}
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">💳 Sélection du moyen de paiement</Typography>
+            <IconButton onClick={() => setPaymentMethodModal(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          <Stack spacing={3}>
+            {/* Résumé du paiement */}
+            <Paper elevation={1} sx={{ p: 2, bgcolor: 'primary.50' }}>
+              <Typography variant="h6" gutterBottom>
+                📊 Résumé du paiement d'avance
+              </Typography>
+              <Typography variant="body1">
+                <strong>Montant total:</strong> {totalPaymentAmount.toFixed(2)}€
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {selectedLines.length > 0 && selectedPeriods.length > 0 
+                  ? `${selectedLines.length} lignes × ${selectedPeriods.length} mois` 
+                  : selectedPeriod ? `Période: ${selectedPeriod}` : 'Paiement d\'avance'
+                } • Client: {client?.firstname} {client?.lastname}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Solde client disponible: {clientOverview?.client?.balance?.toFixed(2) || '0.00'}€
+              </Typography>
+            </Paper>
+
+            {/* Répartition du paiement */}
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                💰 Répartition du paiement
+              </Typography>
+              
+              {/* Boutons de suggestion rapide */}
+              <Stack direction="row" spacing={1} mb={2} flexWrap="wrap">
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => {
+                    const available = clientOverview?.client?.balance || 0;
+                    setPaymentSplit({
+                      balance: Math.min(totalPaymentAmount, available),
+                      cash: Math.max(0, totalPaymentAmount - available),
+                      card: 0
+                    });
+                  }}
+                >
+                  Solde + Espèces
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setPaymentSplit({
+                    balance: 0,
+                    cash: totalPaymentAmount,
+                    card: 0
+                  })}
+                >
+                  Tout en espèces
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setPaymentSplit({
+                    balance: 0,
+                    cash: 0,
+                    card: totalPaymentAmount
+                  })}
+                >
+                  Tout par carte
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setPaymentSplit({
+                    balance: Math.min(totalPaymentAmount, clientOverview?.client?.balance || 0),
+                    cash: 0,
+                    card: 0
+                  })}
+                  disabled={!clientOverview?.client?.balance || clientOverview.client.balance < totalPaymentAmount}
+                >
+                  Tout par solde
+                </Button>
+              </Stack>
+              
+              {/* Paiement par solde */}
+              <Box mb={2}>
+                <Stack direction="row" alignItems="center" spacing={2}>
+                  <AccountBalanceIcon color="primary" />
+                  <Typography variant="body1" sx={{ minWidth: 100 }}>Solde client:</Typography>
+                  <TextField
+                    type="number"
+                    value={paymentSplit.balance}
+                    onChange={(e) => setPaymentSplit(prev => ({
+                      ...prev,
+                      balance: Math.max(0, Math.min(parseFloat(e.target.value) || 0, clientOverview?.client?.balance || 0))
+                    }))}
+                    InputProps={{
+                      endAdornment: '€',
+                      inputProps: { 
+                        min: 0, 
+                        max: clientOverview?.client?.balance || 0,
+                        step: 0.01 
+                      }
+                    }}
+                    size="small"
+                    sx={{ width: 120 }}
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    (Max: {clientOverview?.client?.balance?.toFixed(2) || '0.00'}€)
+                  </Typography>
+                </Stack>
+              </Box>
+
+              {/* Paiement en espèces */}
+              <Box mb={2}>
+                <Stack direction="row" alignItems="center" spacing={2}>
+                  <PaymentIcon color="success" />
+                  <Typography variant="body1" sx={{ minWidth: 100 }}>Espèces:</Typography>
+                  <TextField
+                    type="number"
+                    value={paymentSplit.cash}
+                    onChange={(e) => setPaymentSplit(prev => ({
+                      ...prev,
+                      cash: Math.max(0, parseFloat(e.target.value) || 0)
+                    }))}
+                    InputProps={{
+                      endAdornment: '€',
+                      inputProps: { min: 0, step: 0.01 }
+                    }}
+                    size="small"
+                    sx={{ width: 120 }}
+                  />
+                </Stack>
+              </Box>
+
+              {/* Paiement par carte */}
+              <Box mb={2}>
+                <Stack direction="row" alignItems="center" spacing={2}>
+                  <ReceiptIcon color="info" />
+                  <Typography variant="body1" sx={{ minWidth: 100 }}>Carte bancaire:</Typography>
+                  <TextField
+                    type="number"
+                    value={paymentSplit.card}
+                    onChange={(e) => setPaymentSplit(prev => ({
+                      ...prev,
+                      card: Math.max(0, parseFloat(e.target.value) || 0)
+                    }))}
+                    InputProps={{
+                      endAdornment: '€',
+                      inputProps: { min: 0, step: 0.01 }
+                    }}
+                    size="small"
+                    sx={{ width: 120 }}
+                  />
+                </Stack>
+              </Box>
+
+              {/* Total et validation */}
+              <Divider sx={{ my: 2 }} />
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6">
+                    Total saisi:
+                  </Typography>
+                  <Typography 
+                    variant="h6" 
+                    color={
+                      Math.abs((paymentSplit.balance + paymentSplit.cash + paymentSplit.card) - totalPaymentAmount) < 0.01 
+                        ? 'success.main' 
+                        : 'error.main'
+                    }
+                  >
+                    {(paymentSplit.balance + paymentSplit.cash + paymentSplit.card).toFixed(2)}€
+                  </Typography>
+                </Stack>
+                
+                {Math.abs((paymentSplit.balance + paymentSplit.cash + paymentSplit.card) - totalPaymentAmount) >= 0.01 && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    Le total saisi doit égaler le montant à payer ({totalPaymentAmount.toFixed(2)}€)
+                  </Alert>
+                )}
+              </Box>
+            </Box>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setPaymentMethodModal(false)} 
+            color="inherit"
+          >
+            Annuler
+          </Button>
+          <Button
+            onClick={processAdvancePayment}
+            variant="contained"
+            disabled={Math.abs((paymentSplit.balance + paymentSplit.cash + paymentSplit.card) - totalPaymentAmount) >= 0.01}
+            startIcon={<PaymentIcon />}
+          >
+            Confirmer le paiement
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };

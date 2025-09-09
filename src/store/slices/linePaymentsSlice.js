@@ -128,6 +128,28 @@ export const linePaymentsApi = createApi({
         { type: 'LineBalance', id: 'LIST' }
       ],
     }),
+
+    // Ajouter du solde au client (paiement d'avance)
+    addClientBalance: builder.mutation({
+      query: (balanceData) => ({
+        url: '/balances/add',
+        method: 'POST',
+        body: balanceData,
+      }),
+      invalidatesTags: (result, error, { clientId }) => [
+        { type: 'ClientOverview', id: clientId },
+        { type: 'LineBalance', id: 'LIST' }
+      ],
+    }),
+
+    // 🧠 NOUVEAU : Calculer montant de paiement intelligent
+    calculatePaymentAmount: builder.mutation({
+      query: (paymentData) => ({
+        url: '/line-payments/calculate-payment',
+        method: 'POST',
+        body: paymentData,
+      }),
+    }),
   }),
 });
 
@@ -144,4 +166,8 @@ export const {
   useGetClientUnpaidInvoicesQuery,
   useProcessGroupPaymentMutation,
   usePaySpecificInvoiceMutation,
+  // Hook pour ajouter du solde
+  useAddClientBalanceMutation,
+  // Hook pour calculer montant intelligent
+  useCalculatePaymentAmountMutation,
 } = linePaymentsApi;
