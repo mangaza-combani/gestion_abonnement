@@ -3,14 +3,20 @@ import {
         Paper,
         Stack,
         Typography,
-        Button
+        Button,
+        Menu,
+        MenuItem,
+        ListItemIcon,
+        ListItemText
 } from '@mui/material';
 import {
         EuroSymbol as EuroIcon,
         PlayArrow as PlayArrowIcon,
         Stop as StopIcon,
-        SimCard as SimCardIcon,
-        Add as AddIcon
+        Pause as PauseIcon,
+        PhoneDisabled as PhoneLostIcon,
+        Cancel as CancelIcon,
+        ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
 
 import {
@@ -19,13 +25,15 @@ import {
 } from "../../store/slices/linesSlice";
 
 import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
+import { PHONE_STATUS } from './constant';
 
 const ClientActions = ({client, currentTab}) => {
         const [blockPhone] = useBlockPhoneMutation();
         const [unblockPhone] = useUnblockPhoneMutation();
         const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+        const [suspendMenuAnchor, setSuspendMenuAnchor] = useState(null);
         
-        // DEBUGGING: Voir quel objet client est passé 
+        // DEBUGGING: Voir quel objet client est passé (UPDATED)
         console.log('🚪 CLIENT ACTIONS - CLIENT REÇU:', {
                 client,
                 clientId: client?.id,
@@ -67,10 +75,32 @@ const ClientActions = ({client, currentTab}) => {
                 }
         }
 
+        const handleSuspendWithReason = async (reason) => {
+                try {
+                        await blockPhone({ id: client.id, reason }).unwrap();
+                        console.log('Téléphone suspendu avec succès. Raison:', reason);
+                        setSuspendMenuAnchor(null);
+                } catch (error) {
+                        console.error('Erreur lors de la suspension du téléphone:', error);
+                }
+        };
+
+        // Logique intelligente pour afficher les boutons
+        const phoneStatus = client?.phoneStatus;
+        const isLineActive = phoneStatus === PHONE_STATUS.ACTIVE;
+        const isLineSuspended = phoneStatus === PHONE_STATUS.SUSPENDED || 
+                               phoneStatus === PHONE_STATUS.BLOCKED || 
+                               phoneStatus === PHONE_STATUS.PAUSED;
+        const needsActivation = phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || 
+                               phoneStatus === PHONE_STATUS.INACTIVE || 
+                               isLineSuspended;
+
         return (
             <Paper sx={{width: '100%', maxWidth: '220px', p: 2}}>
                     <Stack spacing={2}>
                             <Typography variant="h6" sx={{ fontSize: '1rem' }}>ACTIONS</Typography>
+                            
+                            {/* Bouton Facturer - Toujours visible */}
                             <Button
                                 fullWidth
                                 variant="contained"
@@ -79,7 +109,9 @@ const ClientActions = ({client, currentTab}) => {
                             >
                                     Facturer
                             </Button>
-                            {currentTab == "block" ? null : (
+                            
+                            {/* Bouton Activer - Seulement si la ligne n'est pas active */}
+                            {needsActivation && (
                                 <Button
                                     fullWidth
                                     variant="contained"
@@ -89,30 +121,52 @@ const ClientActions = ({client, currentTab}) => {
                                 >
                                         Activer
                                 </Button>
-                            )
-                            }
-                            {currentTab == "unblock" ? null : (
+                            )}
+                            
+                            {/* Bouton Suspendre avec menu contextuel - Seulement si la ligne est active */}
+                            {isLineActive && (
                                 <Button
                                     fullWidth
                                     variant="contained"
                                     color="error"
-                                    onClick={() => handleBlock(client.id)}
+                                    onClick={(event) => setSuspendMenuAnchor(event.currentTarget)}
                                     startIcon={<StopIcon/>}
+                                    endIcon={<ExpandMoreIcon/>}
                                 >
                                         Suspendre
                                 </Button>
-                            )
-                            }
-                            <Button
-                                fullWidth
-                                variant="contained"
-                                color="info"
-                                startIcon={<SimCardIcon/>}
-                            >
-                                    Commander SIM
-                            </Button>
+                            )}
 
                     </Stack>
+
+                    {/* Menu contextuel pour les raisons de suspension */}
+                    <Menu
+                        anchorEl={suspendMenuAnchor}
+                        open={Boolean(suspendMenuAnchor)}
+                        onClose={() => setSuspendMenuAnchor(null)}
+                        PaperProps={{
+                            sx: { minWidth: 200 }
+                        }}
+                    >
+                        <MenuItem onClick={() => handleSuspendWithReason('pause')}>
+                            <ListItemIcon>
+                                <PauseIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText primary="Pause temporaire" />
+                        </MenuItem>
+                        <MenuItem onClick={() => handleSuspendWithReason('lost_sim')}>
+                            <ListItemIcon>
+                                <PhoneLostIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText primary="SIM perdue/volée/endommagée" />
+                        </MenuItem>
+                        <MenuItem onClick={() => handleSuspendWithReason('termination')}>
+                            <ListItemIcon>
+                                <CancelIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText primary="Demande de résiliation" />
+                        </MenuItem>
+                    </Menu>
             
             {invoiceModalOpen && (
                 <RealInvoiceGenerator 
