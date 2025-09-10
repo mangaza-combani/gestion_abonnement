@@ -1,8 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { apiSlice } from '../api/apiSlice';
+import { apiSliceWithPrefix } from '../api/apiSlice';
 
 // RTK Query API endpoints pour les phone
-export const phoneApiSlice = apiSlice.injectEndpoints({
+export const phoneApiSlice = apiSliceWithPrefix.injectEndpoints({
         endpoints: (builder) => ({
                 getPhones: builder.query({
                         query: (id) => {
@@ -110,6 +110,14 @@ export const phoneApiSlice = apiSlice.injectEndpoints({
                         query: () => '/phones/lines/to-activate',
                         providesTags: ['Phone']
                 }),
+                // Historique des paiements d'une ligne spécifique
+                getPhonePaymentHistory: builder.query({
+                        query: (phoneId) => `/phones/${phoneId}/payment-history`,
+                        providesTags: (result, error, phoneId) => [
+                                { type: 'Phone', id: `history-${phoneId}` },
+                                { type: 'Phone', id: phoneId }
+                        ]
+                }),
         }),
 });
 
@@ -126,6 +134,7 @@ export const {
         useGetPhonesToBlockQuery,
         useGetPhonesOverdueQuery,
         useGetPhonesToActivateQuery,
+        useGetPhonePaymentHistoryQuery,
 } = phoneApiSlice;
 
 // Slice Redux pour la gestion d'état locale des phone

@@ -119,6 +119,7 @@ const ClientActions = ({client, currentTab}) => {
                     open={invoiceModalOpen}
                     onClose={() => setInvoiceModalOpen(false)}
                     client={realClient}
+                    selectedLine={client}
                 />
             )}
             </Paper>
