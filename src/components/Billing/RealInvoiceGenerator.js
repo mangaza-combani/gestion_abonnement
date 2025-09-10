@@ -727,7 +727,7 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                     }
                     
                     // Force un fetch direct de l'API pour tester avec auth
-                    fetch('http://localhost:3333/api/line-payments/client/13/overview', {
+                    fetch('http://localhost:65488/api/line-payments/client/13/overview', {
                       method: 'GET',
                       headers
                     })
