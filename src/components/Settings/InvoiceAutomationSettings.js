@@ -60,7 +60,7 @@ const InvoiceAutomationSettings = () => {
   const [loadingClients, setLoadingClients] = useState(false);
   
   const authToken = localStorage.getItem('token');
-  const apiBaseURL = (process.env.REACT_APP_API_URL || 'http://localhost:3333/api').replace(/\/api\/$/, '');
+  const apiBaseURL = 'http://localhost:65488';
 
   // Options de fuseaux horaires
   const timezoneOptions = [
@@ -239,12 +239,12 @@ const InvoiceAutomationSettings = () => {
   };
 
   // Fonction pour gérer la sélection/désélection de téléphones
-  const handleClientToggle = (phoneId) => {
+  const handleClientToggle = (clientId) => {
     setSelectedClients(prev => {
-      if (prev.includes(phoneId)) {
-        return prev.filter(id => id !== phoneId);
+      if (prev.includes(clientId)) {
+        return prev.filter(id => id !== clientId);
       } else {
-        return [...prev, phoneId];
+        return [...prev, clientId];
       }
     });
   };
@@ -254,7 +254,7 @@ const InvoiceAutomationSettings = () => {
     if (selectedClients.length === availableClients.length) {
       setSelectedClients([]);
     } else {
-      setSelectedClients(availableClients.map(client => client.phoneId));
+      setSelectedClients(availableClients.map(client => client.clientId));
     }
   };
 
@@ -646,9 +646,9 @@ const InvoiceAutomationSettings = () => {
                       multiple
                       options={availableClients}
                       getOptionLabel={(option) => `${option.clientName || ''} (${option.clientEmail || ''})`}
-                      value={availableClients.filter(client => selectedClients.includes(client.phoneId))}
+                      value={availableClients.filter(client => selectedClients.includes(client.clientId))}
                       onChange={(event, newValue) => {
-                        setSelectedClients(newValue.map(client => client.phoneId));
+                        setSelectedClients(newValue.map(client => client.clientId));
                       }}
                       renderInput={(params) => (
                         <TextField
@@ -658,7 +658,7 @@ const InvoiceAutomationSettings = () => {
                         />
                       )}
                       renderOption={(props, option, { selected }) => (
-                        <li {...props} key={option.phoneId}>
+                        <li {...props} key={option.clientId}>
                           <Box component="span" sx={{ mr: 1, fontSize: 16 }}>
                             {selected ? '✓' : '○'}
                           </Box>
@@ -692,15 +692,15 @@ const InvoiceAutomationSettings = () => {
                     <List dense>
                       {availableClients.map((client) => (
                         <ListItem
-                          key={client.phoneId}
+                          key={client.clientId}
                           component="div"
                           sx={{ cursor: 'pointer' }}
-                          onClick={() => handleClientToggle(client.phoneId)}
+                          onClick={() => handleClientToggle(client.clientId)}
                         >
                           <ListItemIcon>
                             <Checkbox
                               edge="start"
-                              checked={selectedClients.includes(client.phoneId)}
+                              checked={selectedClients.includes(client.clientId)}
                               tabIndex={-1}
                               disableRipple
                             />

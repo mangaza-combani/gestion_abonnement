@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Mangaza/Desktop/gestion_sim/api_uwezo/app/controllers/**)",
+      "Read(//c/Users/Mangaza/Desktop/gestion_sim/api_uwezo/start/**)",
+      "Read(//c/Users/Mangaza/Desktop/gestion_sim/api_uwezo/**)",
+      "Bash(node ace migration:run:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
