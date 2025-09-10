@@ -60,7 +60,7 @@ const InvoiceAutomationSettings = () => {
   const [loadingClients, setLoadingClients] = useState(false);
   
   const authToken = localStorage.getItem('token');
-  const apiBaseURL = process.env.REACT_APP_API_URL || 'http://localhost:3333';
+  const apiBaseURL = (process.env.REACT_APP_API_URL || 'http://localhost:3333/api').replace(/\/api\/$/, '');
 
   // Options de fuseaux horaires
   const timezoneOptions = [
@@ -81,7 +81,7 @@ const InvoiceAutomationSettings = () => {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiBaseURL}/system-settings`, {
+      const response = await fetch(`${apiBaseURL}/api/system-settings`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -109,7 +109,7 @@ const InvoiceAutomationSettings = () => {
 
   const fetchGenerationStatus = async () => {
     try {
-      const response = await fetch(`${apiBaseURL}/invoice-automation/status`, {
+      const response = await fetch(`${apiBaseURL}/api/invoice-automation/status`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -138,7 +138,7 @@ const InvoiceAutomationSettings = () => {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`${apiBaseURL}/system-settings/1`, {
+      const response = await fetch(`${apiBaseURL}/api/system-settings/1`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -170,7 +170,7 @@ const InvoiceAutomationSettings = () => {
   const handleManualGeneration = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiBaseURL}/invoice-automation/generate/manual`, {
+      const response = await fetch(`${apiBaseURL}/api/invoice-automation/generate/manual`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -200,8 +200,8 @@ const InvoiceAutomationSettings = () => {
       const monthToUse = monthOverride || selectedMonth;
       console.log('🔍 Frontend DEBUG - fetchAllClients appelée avec:', { monthOverride, selectedMonth, monthToUse });
       const url = monthToUse 
-        ? `${apiBaseURL}/invoice-automation/all-clients?month=${monthToUse}`
-        : `${apiBaseURL}/invoice-automation/all-clients`;
+        ? `${apiBaseURL}/api/invoice-automation/all-clients?month=${monthToUse}`
+        : `${apiBaseURL}/api/invoice-automation/all-clients`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -288,7 +288,7 @@ const InvoiceAutomationSettings = () => {
       console.log('📦 Body de la requête:', requestBody);
       
       console.log('🚀 Envoi de la requête fetch...');
-      const response = await fetch(`${apiBaseURL}/invoice-automation/generate/selective`, {
+      const response = await fetch(`${apiBaseURL}/api/invoice-automation/generate/selective`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
