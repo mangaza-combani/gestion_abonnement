@@ -39,3 +39,13 @@ export const apiSlice = createApi({
   ],
   endpoints: () => ({}), 
 });
+
+// API slice for endpoints that need the /api prefix
+export const apiSliceWithPrefix = createApi({
+  reducerPath: 'apiWithPrefix',
+  baseQuery: apiBaseQuery,
+  tagTypes: [
+    'Phone', 'LinePayment', 'Balance', 'ClientOverview', 'LineBalance', 'UnpaidInvoices'
+  ],
+  endpoints: () => ({}), 
+});

@@ -50,10 +50,11 @@ import {
   useGetClientUnpaidInvoicesQuery,
   useProcessGroupPaymentMutation,
   usePaySpecificInvoiceMutation,
-  useAddClientBalanceMutation
+  useAddLineBalanceMutation // NOUVEAU système par ligne
 } from '../../store/slices/linePaymentsSlice';
+import { useGetPhonePaymentHistoryQuery, useGetPhoneByIdQuery } from '../../store/slices/linesSlice';
 
-const RealInvoiceGenerator = ({ open, onClose, client }) => {
+const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
   const [selectedAction, setSelectedAction] = useState('overview'); // 'overview', 'invoices', 'pay-advance', 'history'
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
@@ -87,21 +88,25 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
   });
   const [totalPaymentAmount, setTotalPaymentAmount] = useState(0);
   
-  const clientId = client?.id;
-  // Debugging pour identifier le problème de client ID
-  const debugClientId = clientId;
+  // États pour sélection multiple des autres lignes
+  const [selectedOtherLines, setSelectedOtherLines] = useState([]);
   
-  console.log('🔍 CLIENT DATA:', {
+  // 🎯 NOUVELLE LOGIQUE : Ligne sélectionnée + Client
+  const selectedLineId = selectedLine?.id; // ID de la ligne sélectionnée
+  const clientId = client?.id; // ID du vrai client
+  
+  console.log('🎯 NOUVELLE STRUCTURE DONNÉES:', {
+    selectedLine,
+    selectedLineId,
     client,
     clientId,
-    debugClientId,
-    id: client?.id
+    selectedLinePhone: selectedLine?.phoneNumber
   });
   
   console.log('🔧 DEBUG CLIENT ID:', {
     originalClientId: clientId,
-    debugClientId: debugClientId,
-    willSkipQuery: !debugClientId
+    selectedLineId: selectedLineId,
+    willSkipQuery: !clientId
   });
   
   // Vérifier l'authentification
@@ -114,10 +119,10 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
 
   // Test forcé avec clientId=13 pour debug
   useEffect(() => {
-    if (debugClientId === 13) {
+    if (clientId === 13) {
       console.log('🔴 FORÇAGE TEST API POUR CLIENT 13');
     }
-  }, [debugClientId]);
+  }, [clientId]);
 
   // Vrais hooks RTK Query
   const {
@@ -125,21 +130,21 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     isLoading: isLoadingOverview,
     error: overviewError,
     refetch: refetchOverview
-  } = useGetClientOverviewQuery(debugClientId, { skip: !debugClientId });
+  } = useGetClientOverviewQuery(clientId, { skip: !clientId });
 
   const {
     data: unpaidInvoices,
     isLoading: isLoadingInvoices,
     refetch: refetchUnpaidInvoices
-  } = useGetClientUnpaidInvoicesQuery(debugClientId, { skip: !debugClientId || selectedAction !== 'invoices' });
+  } = useGetClientUnpaidInvoicesQuery(clientId, { skip: !clientId || selectedAction !== 'invoices' });
 
   console.log('📊 CLIENT OVERVIEW DATA:', {
     clientOverview,
     isLoadingOverview,
     overviewError,
     clientId,
-    debugClientId,
-    skipQuery: !debugClientId,
+    selectedLineId,
+    skipQuery: !clientId,
     // Détails spécifiques pour le debugging du nom
     clientOverviewClientName: clientOverview?.client?.name,
     originalClientFirstName: client?.firstName,
@@ -184,18 +189,18 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     isLoading: isCreatingPayment 
   }] = useCreateAdvancePaymentMutation();
   
-  const [addClientBalance, { 
+  // NOUVEAU : Hook pour solde par ligne
+  const [addLineBalance, { 
     isLoading: isAddingBalance 
-  }] = useAddClientBalanceMutation();
+  }] = useAddLineBalanceMutation();
 
-  // Legacy queries pour compatibilité historique - amélioration debug
-  const phoneId = clientOverview?.lines?.[0]?.id; // Premier téléphone pour compatibilité
+  // NOUVEAU : Utiliser la ligne sélectionnée pour l'historique
+  const phoneId = selectedLineId; // Ligne sélectionnée pour historique
   
-  console.log('📞 PHONE ID DEBUG:', {
-    clientOverview,
-    lines: clientOverview?.lines,
-    firstLine: clientOverview?.lines?.[0],
-    phoneId,
+  console.log('📞 PHONE ID DEBUG - LIGNE SÉLECTIONNÉE:', {
+    selectedLine,
+    selectedLineId,
+    phoneId, // Maintenant = selectedLineId
     selectedAction,
     shouldSkipHistory: !phoneId || selectedAction !== 'history'
   });
@@ -203,7 +208,20 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     data: historyData, 
     isLoading: isLoadingHistory,
     refetch: refetchHistory
-  } = useGetLinePaymentHistoryQuery(phoneId, { skip: !phoneId || selectedAction !== 'history' });
+  } = useGetPhonePaymentHistoryQuery(phoneId, { 
+    skip: !phoneId || selectedAction !== 'history',
+    refetchOnMountOrArgChange: true, // Refetch à chaque changement
+    refetchOnFocus: true, // Refetch quand l'onglet retrouve le focus
+  });
+
+  // 🎯 NOUVEAU : Query pour récupérer les données de la ligne à jour (incluant le solde)
+  const { 
+    data: currentLineData,
+    refetch: refetchLineData
+  } = useGetPhoneByIdQuery(phoneId, { skip: !phoneId });
+
+  // 🎯 Calculer le solde de la ligne sélectionnée après avoir récupéré currentLineData
+  const selectedLineBalance = currentLineData?.balance || selectedLine?.balance || 0;
 
   // Handler pour paiement groupé
   const handleGroupPayment = async () => {
@@ -348,16 +366,16 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
   const generateFuturePeriods = () => {
     const periods = [];
     const currentDate = new Date();
-    const clientBalance = clientOverview?.client?.balance || 0;
-    const numberOfLines = selectedLines.length || (clientOverview?.lines?.length || 1);
-    const costPerMonth = monthlyRate * numberOfLines; // Coût total par mois pour toutes les lignes
+    // NOUVEAU : Utiliser le solde de la ligne sélectionnée
+    const lineBalance = selectedLineBalance;
+    const costPerMonth = monthlyRate; // Coût par mois pour UNE ligne
     
-    // Calculer combien de mois sont déjà couverts par le solde actuel
-    const monthsCoveredByBalance = Math.floor(clientBalance / costPerMonth);
+    // Calculer combien de mois sont déjà couverts par le solde de la ligne
+    const monthsCoveredByBalance = Math.floor(lineBalance / costPerMonth);
     
-    console.log('💡 CALCUL couverture solde:', {
-      clientBalance,
-      numberOfLines,
+    console.log('💡 CALCUL couverture solde - LIGNE SÉLECTIONNÉE:', {
+      selectedLine: selectedLine?.phoneNumber,
+      lineBalance,
       costPerMonth,
       monthsCoveredByBalance
     });
@@ -408,11 +426,16 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
     );
   };
 
-  // Handler pour tout sélectionner/désélectionner les lignes
+  // Handler pour tout sélectionner/désélectionner les lignes (seulement les actives)
   const handleSelectAllLines = (checked) => {
     if (checked) {
-      const allLineIds = clientOverview?.lines?.map(line => line.id) || [];
-      setSelectedLines(allLineIds);
+      const activeLinesIds = clientOverview?.lines
+        ?.filter(line => {
+          // Seulement les lignes actives (pas en attente d'activation)
+          return line.phoneStatus !== 'NEEDS_TO_BE_ACTIVATED' && line.line_status !== 'NEEDS_TO_BE_ACTIVATED';
+        })
+        ?.map(line => line.id) || [];
+      setSelectedLines(activeLinesIds);
     } else {
       setSelectedLines([]);
     }
@@ -437,7 +460,7 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
       selectedPeriod, 
       advanceAmount,
       clientId,
-      clientBalance: clientOverview?.client?.balance
+      selectedLineBalance: selectedLineBalance
     });
 
     if (!phoneId || !selectedPeriod || !advanceAmount) {
@@ -456,21 +479,21 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
 
     // 🎯 NOUVELLE APPROCHE: Ouvrir le modal de sélection de paiement
     const amount = parseFloat(advanceAmount);
-    const clientBalance = clientOverview?.client?.balance || 0;
+    const lineBalance = selectedLineBalance;
     
     setTotalPaymentAmount(amount);
     setPaymentSplit({
-      balance: Math.min(amount, clientBalance), // Utiliser le solde disponible
-      cash: Math.max(0, amount - clientBalance), // Le reste en espèces
+      balance: Math.min(amount, lineBalance), // Utiliser le solde disponible de la ligne
+      cash: Math.max(0, amount - lineBalance), // Le reste en espèces
       card: 0
     });
     
-    console.log('💳 OUVERTURE modal sélection paiement:', {
+    console.log('💳 OUVERTURE modal sélection paiement - LIGNE:', selectedLine?.phoneNumber, {
       amount,
-      clientBalance,
+      lineBalance,
       suggestedSplit: {
-        balance: Math.min(amount, clientBalance),
-        cash: Math.max(0, amount - clientBalance)
+        balance: Math.min(amount, lineBalance),
+        cash: Math.max(0, amount - lineBalance)
       }
     });
     
@@ -520,21 +543,23 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
       
       if (amountToAddToBalance > 0) {
         // Ajouter seulement la partie espèces + carte au solde
+        // 🎯 UTILISER LE NOUVEAU SYSTÈME : Ajout de solde par ligne
         const balanceData = {
-          clientId: clientId,
+          phoneId: selectedLineId,
+          clientId: clientId, // Pour invalidation cache
           amount: amountToAddToBalance,
           reason: reason
         };
 
-        console.log('📤 ENVOI addClientBalance:', balanceData);
+        console.log('📤 ENVOI addLineBalance pour ligne:', selectedLine?.phoneNumber, balanceData);
 
-        const result = await addClientBalance(balanceData).unwrap();
+        const result = await addLineBalance(balanceData).unwrap();
         
-        console.log('✅ SUCCES addClientBalance:', result);
+        console.log('✅ SUCCES addLineBalance:', result);
         
         setSnackbar({
           open: true,
-          message: `✅ Paiement d'avance de ${totalPaymentAmount}€ ajouté au solde ! Nouveau solde: ${result.newBalance}€`,
+          message: `✅ Paiement d'avance de ${totalPaymentAmount}€ ajouté au solde de la ligne ${selectedLine?.phoneNumber} ! Nouveau solde: ${result.newBalance}€`,
           severity: 'success'
         });
       } else if (paymentSplit.balance > 0) {
@@ -550,21 +575,44 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
       setPaymentMethodModal(false);
       
       // Rafraîchir les données après paiement d'avance
-      console.log('🔄 RAFRAICHISSEMENT des données...');
+      console.log('🔄 RAFRAICHISSEMENT IMMEDIAT des données...');
+      
+      // Refetch immédiat sans délai
+      refetchOverview();
+      
+      // 🎯 NOUVEAU : Refetch des données de la ligne pour mettre à jour le solde
+      if (phoneId) {
+        refetchLineData();
+      }
+      
+      // Refetch de l'historique seulement si la query est active
+      if (phoneId && selectedAction === 'history') {
+        try {
+          refetchHistory();
+        } catch (error) {
+          // Silently ignore refetch errors for inactive queries
+        }
+      }
+      
+      // Refetch supplémentaire avec délai au cas où l'invalidation met du temps
       setTimeout(() => {
         refetchOverview();
-        // Seulement refetch history si on est sur la page history et si phoneId existe
-        if (selectedAction === 'history' && phoneId) {
-          refetchHistory();
+        if (phoneId) {
+          refetchLineData(); // 🎯 NOUVEAU : Refetch différé de la ligne aussi
         }
-        console.log('🔄 Refetch déclenché');
-      }, 500);
+        if (phoneId && selectedAction === 'history') {
+          try {
+            refetchHistory();
+          } catch (error) {
+            // Silently ignore refetch errors
+          }
+        }
+      }, 200);
       
-      // 🎯 REDIRECTION vers la vue d'ensemble après 2 secondes
+      // 🎯 REDIRECTION vers l'historique pour voir le nouveau paiement après 1 seconde
       setTimeout(() => {
-        console.log('🎯 REDIRECTION vers vue d\'ensemble');
-        setSelectedAction('overview');
-      }, 2000);
+        setSelectedAction('history');
+      }, 1000);
       
       // Réinitialiser les champs
       setSelectedLines([]);
@@ -653,7 +701,7 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                   variant={selectedAction === 'overview' ? 'contained' : 'outlined'}
                   startIcon={<AccountBalanceIcon />}
                   onClick={() => {
-                    console.log('🟦 OVERVIEW CLICKED - debugClientId:', debugClientId);
+                    console.log('🟦 OVERVIEW CLICKED - clientId:', clientId);
                     setSelectedAction('overview')
                   }}
                 >
@@ -710,7 +758,19 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                 <Button
                   variant={selectedAction === 'history' ? 'contained' : 'outlined'}
                   startIcon={<InfoIcon />}
-                  onClick={() => setSelectedAction('history')}
+                  onClick={() => {
+                    setSelectedAction('history');
+                    // Refetch immédiat de l'historique quand on clique sur l'onglet
+                    if (phoneId) {
+                      setTimeout(() => {
+                        try {
+                          refetchHistory();
+                        } catch (error) {
+                          // Silently ignore refetch errors
+                        }
+                      }, 100);
+                    }
+                  }}
                 >
                   Historique
                 </Button>
@@ -718,55 +778,77 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
             </Paper>
           </Grid>
 
-          {/* Informations client globales */}
+          {/* Ligne sélectionnée + Aperçu client */}
           <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  👤 {clientOverview?.client?.name || `${client?.firstName || ''} ${client?.lastName || ''}`.trim()}
-                </Typography>
-                <Divider sx={{ my: 2 }} />
-                
-                {clientOverview ? (
-                  <Box>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Lignes actives
-                    </Typography>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      {clientOverview.summary?.totalLines || clientOverview.lines?.length || 0}
-                    </Typography>
-                    
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Solde client total
-                    </Typography>
-                    <Typography 
-                      variant="h5" 
-                      color={
-                        (clientOverview.client?.balance || 0) > 0 ? 'success.main' : 
-                        (clientOverview.client?.balance || 0) < 0 ? 'error.main' : 'text.primary'
-                      }
-                      sx={{ mb: 1 }}
-                    >
-                      {(clientOverview.client?.balance || 0).toFixed(2)}€
-                    </Typography>
-                    
+            <Stack spacing={2}>
+              {/* LIGNE SÉLECTIONNÉE - Focus principal */}
+              <Card sx={{ border: 2, borderColor: 'primary.main' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ color: 'primary.main' }}>
+                    📱 Ligne sélectionnée
+                  </Typography>
+                  <Typography variant="h5" gutterBottom>
+                    {selectedLine?.phoneNumber || 'N/A'}
+                  </Typography>
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="subtitle2" color="textSecondary">
+                    Solde de cette ligne
+                  </Typography>
+                  <Typography 
+                    variant="h4" 
+                    color={
+                      selectedLineBalance > 0 ? 'success.main' : 
+                      selectedLineBalance < 0 ? 'error.main' : 'text.primary'
+                    }
+                    sx={{ mb: 1, fontWeight: 'bold' }}
+                  >
+                    {selectedLineBalance.toFixed(2)}€
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" color="textSecondary">
+                    Statuts
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
                     <Chip
-                      label={`${clientOverview.summary?.unpaidInvoicesCount || 0} factures impayées`}
-                      color={(clientOverview.summary?.unpaidInvoicesCount || 0) > 0 ? 'error' : 'success'}
+                      label={selectedLine?.line_status || selectedLine?.phoneStatus || 'N/A'}
+                      color={selectedLine?.line_status === 'PLAY' ? 'success' : 'warning'}
                       size="small"
                     />
-                  </Box>
-                ) : overviewError ? (
-                  <Alert severity="error" size="small">
-                    Erreur de chargement des données client
-                  </Alert>
-                ) : (
-                  <Alert severity="info" size="small">
-                    Données client indisponibles
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
+                    <Chip
+                      label={selectedLine?.payment_status || selectedLine?.paymentStatus || 'N/A'}
+                      color={selectedLine?.payment_status === 'À JOUR' ? 'success' : 'error'}
+                      size="small"
+                    />
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              {/* CLIENT - Informations secondaires */}
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    👤 {clientOverview?.client?.name || `${client?.firstName || ''} ${client?.lastName || ''}`.trim()}
+                  </Typography>
+                  <Divider sx={{ my: 1 }} />
+                  
+                  {clientOverview ? (
+                    <Box>
+                      <Typography variant="body2" color="textSecondary">
+                        Autres lignes: {(clientOverview.summary?.totalLines || clientOverview.lines?.length || 1) - 1}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Total factures impayées: {clientOverview.summary?.unpaidInvoicesCount || 0}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Alert severity="info" size="small">
+                      Données client indisponibles
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </Stack>
           </Grid>
 
           {/* Contenu principal selon l'action sélectionnée */}
@@ -775,186 +857,121 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    📋 Vue d'ensemble du client
+                    💰 Ligne sélectionnée: {selectedLine?.phoneNumber} - Solde: {selectedLineBalance.toFixed(2)}€
+                    {/* Chip statut paiement */}
+                    <Chip 
+                      label={
+                        selectedLine?.payment_status === 'À JOUR' || selectedLine?.paymentStatus === 'UP_TO_DATE'
+                          ? 'À JOUR'
+                          : 'IMPAYÉ'
+                      }
+                      color={
+                        selectedLine?.payment_status === 'À JOUR' || selectedLine?.paymentStatus === 'UP_TO_DATE' 
+                          ? 'success' 
+                          : 'error'
+                      }
+                      size="small"
+                      sx={{ ml: 2 }}
+                    />
+                    {/* Chip mois impayé si applicable */}
+                    {(selectedLine?.payment_status !== 'À JOUR' && selectedLine?.paymentStatus !== 'UP_TO_DATE') && (
+                      <Chip
+                        icon={<CalendarIcon />}
+                        label={(() => {
+                          // TODO: Récupérer le vrai mois impayé depuis l'API
+                          // Pour l'instant, on suppose le mois courant
+                          const currentMonth = new Date().toLocaleDateString('fr-FR', { 
+                            month: 'long', 
+                            year: 'numeric' 
+                          });
+                          return currentMonth;
+                        })()}
+                        color="warning"
+                        variant="outlined"
+                        size="small"
+                        sx={{ ml: 1 }}
+                      />
+                    )}
                   </Typography>
                   
                   {clientOverview ? (
                     <Box>
-                      <Typography variant="h6" sx={{ mb: 2 }}>
-                        Toutes les lignes du client
-                      </Typography>
-                      
-                      {clientOverview.lines?.map((line) => (
-                        <Paper key={line.id} sx={{ p: 2, mb: 2 }}>
-                          <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} sm={4}>
-                              <Typography variant="subtitle1">
-                                📱 {line.phoneNumber}
-                              </Typography>
-                              <Typography variant="caption" color="textSecondary">
-                                ID: {line.id}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                              <Chip
-                                label={line.phoneStatus || 'UNKNOWN'}
-                                color={line.phoneStatus === 'ACTIVE' ? 'success' : 'default'}
-                                size="small"
-                              />
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                              <Typography variant="body2">
-                                Statut paiement: <strong>{line.paymentStatus || 'N/A'}</strong>
-                              </Typography>
-                            </Grid>
-                          </Grid>
-                        </Paper>
-                      )) || (
-                        <Alert severity="info">
-                          Aucune ligne téléphonique trouvée
-                        </Alert>
-                      )}
-                      
-                      <Divider sx={{ my: 3 }} />
-                      
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" gutterBottom color="error.main">
-                          💰 Total dû
-                        </Typography>
+                      {/* AUTRES LIGNES AVEC IMPAYÉS - Format compact 3 par ligne */}
+                      {(() => {
+                        const otherLinesWithUnpaid = clientOverview.lines
+                          ?.filter(line => line.id !== selectedLineId)
+                          ?.filter(line => {
+                            // Exclure les lignes en attente d'activation
+                            if (line.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' || line.line_status === 'NEEDS_TO_BE_ACTIVATED') {
+                              return false;
+                            }
+                            return line.payment_status !== 'À JOUR' && line.paymentStatus !== 'UP_TO_DATE';
+                          }) || [];
                         
-                        <Tooltip
-                          title={
-                            <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                                {(clientOverview.summary?.totalUnpaid || 0) === 0 
-                                  ? "Client à jour dans ses paiements" 
-                                  : "Décomposition du total dû"}
-                              </Typography>
-                              <Typography variant="body2">
-                                📅 {clientOverview.summary?.unpaidInvoicesCount || 0} facture(s) impayée(s)
-                              </Typography>
-                              <Typography variant="body2">
-                                📱 {clientOverview.summary?.totalLines || 0} ligne(s) concernée(s)
-                              </Typography>
-                              {(clientOverview.summary?.totalUnpaid || 0) > 0 && (
-                                <Typography variant="body2" sx={{ mt: 1, color: '#ffeb3b' }}>
-                                  ⚡ Cliquez pour voir le détail dans l'onglet "Factures impayées"
-                                </Typography>
-                              )}
-                              {(clientOverview.summary?.totalUnpaid || 0) === 0 && (
-                                <Typography variant="body2" sx={{ mt: 1, color: '#4caf50' }}>
-                                  ✅ Aucune facture en attente
-                                </Typography>
-                              )}
-                            </Box>
-                          }
-                          placement="top"
-                          arrow
-                        >
-                          <Typography 
-                            variant="h3" 
-                            color={(clientOverview.summary?.totalUnpaid || 0) === 0 ? "success.main" : "error.main"}
-                            sx={{ 
-                              mb: 2, 
-                              fontWeight: 'bold',
-                              cursor: 'help',
-                              '&:hover': {
-                                textShadow: (clientOverview.summary?.totalUnpaid || 0) === 0 
-                                  ? '0 0 10px rgba(76, 175, 80, 0.5)'
-                                  : '0 0 10px rgba(244, 67, 54, 0.5)',
-                                transform: 'scale(1.02)',
-                                transition: 'all 0.2s ease-in-out'
-                              }
-                            }}
-                            onClick={() => (clientOverview.summary?.totalUnpaid || 0) > 0 && setSelectedAction('invoices')}
-                          >
-                            {(clientOverview.summary?.totalUnpaid || 0).toFixed(2)}€
-                          </Typography>
-                        </Tooltip>
-                        
-                        <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap">
-                          {clientOverview.unpaidInvoices?.length > 0 ? (
-                            clientOverview.unpaidInvoices.map((invoice, index) => {
-                              // Formatter le mois en français
-                              const monthYear = new Date(invoice.paymentMonth + '-01').toLocaleDateString('fr-FR', {
-                                month: 'long',
-                                year: 'numeric'
-                              });
-                              
-                              // Créer le tooltip avec détails
-                              const tooltipContent = (
-                                <div>
-                                  <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                                    Facture {monthYear}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    📱 Ligne: {invoice.phoneNumber}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    💰 Montant: {invoice.amount?.toFixed(2)}€
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    📅 Échéance: {new Date(invoice.dueDate).toLocaleDateString('fr-FR')}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ color: 'orange', mt: 1 }}>
-                                    ⚠️ {invoice.daysOverdue} jours de retard
-                                  </Typography>
-                                </div>
-                              );
-                              
-                              return (
-                                <Tooltip 
-                                  key={invoice.id || index}
-                                  title={tooltipContent} 
-                                  placement="top"
-                                  arrow
-                                >
-                                  <Chip
-                                    icon={<CalendarIcon />}
-                                    label={monthYear}
-                                    color="error"
-                                    variant="filled"
-                                    sx={{
-                                      fontWeight: 'bold',
-                                      cursor: 'help',
-                                      '& .MuiChip-icon': {
-                                        color: 'white'
-                                      }
-                                    }}
-                                  />
-                                </Tooltip>
-                              );
-                            })
-                          ) : (
-                            // Aucune facture impayée - Proposer paiement d'avance
-                            <Box sx={{ textAlign: 'center' }}>
-                              <Chip
-                                icon={<CalendarIcon />}
-                                label="✅ Aucune facture impayée"
-                                color="success"
-                                variant="filled"
-                                sx={{ mb: 2 }}
-                              />
-                              <br />
+                        return otherLinesWithUnpaid.length > 0 && (
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                              Autres lignes impayées:
+                            </Typography>
+                            
+                            <Grid container spacing={1}>
+                              {otherLinesWithUnpaid.map((line) => (
+                                <Grid item xs={12} sm={4} key={line.id}>
+                                  <Paper sx={{ p: 1, bgcolor: 'error.50' }}>
+                                    <Stack direction="row" alignItems="center" spacing={1}>
+                                      <Checkbox
+                                        checked={selectedOtherLines.includes(line.id)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setSelectedOtherLines(prev => [...prev, line.id]);
+                                          } else {
+                                            setSelectedOtherLines(prev => prev.filter(id => id !== line.id));
+                                          }
+                                        }}
+                                        size="small"
+                                      />
+                                      <Box>
+                                        <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                                          {line.phoneNumber}
+                                        </Typography>
+                                        <Typography variant="caption" display="block" color="textSecondary">
+                                          {line.balance?.toFixed(2) || '0.00'}€
+                                        </Typography>
+                                      </Box>
+                                    </Stack>
+                                  </Paper>
+                                </Grid>
+                              ))}
+                            </Grid>
+                            
+                            {selectedOtherLines.length > 0 && (
                               <Button
-                                variant="outlined"
-                                color="primary"
-                                startIcon={<TrendingUpIcon />}
-                                onClick={() => setSelectedAction('pay-advance')}
+                                variant="contained"
+                                color="error"
                                 size="small"
-                                sx={{ mt: 1 }}
+                                sx={{ mt: 2 }}
+                                onClick={() => {
+                                  console.log('Payer lignes:', selectedOtherLines);
+                                }}
                               >
-                                Faire un paiement d'avance
+                                Payer {selectedOtherLines.length} ligne(s) ({selectedOtherLines.length * 25}€)
                               </Button>
-                            </Box>
-                          )}
-                        </Stack>
-                      </Box>
+                            )}
+                          </Box>
+                        );
+                      })()}
+                      
+                      <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                        <Button variant="contained" onClick={() => setSelectedAction('pay-advance')}>
+                          Paiement d'avance
+                        </Button>
+                        <Button variant="outlined" onClick={() => setSelectedAction('invoices')}>
+                          Factures
+                        </Button>
+                      </Stack>
                     </Box>
                   ) : (
-                    <Alert severity="info">
-                      Données client non disponibles
-                    </Alert>
+                    <Alert severity="info">Données indisponibles</Alert>
                   )}
                 </CardContent>
               </Card>
@@ -964,8 +981,13 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    💳 Factures impayées du client
+                    💳 Factures impayées - Focus ligne sélectionnée
                   </Typography>
+                  
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    📱 Ligne sélectionnée: <strong>{selectedLine?.phoneNumber}</strong> - 
+                    Les factures de cette ligne sont affichées en premier
+                  </Alert>
                   
                   {isLoadingInvoices ? (
                     <LinearProgress />
@@ -1110,15 +1132,30 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                         <FormControlLabel
                           control={
                             <Checkbox
-                              checked={selectedLines.length === (clientOverview?.lines?.length || 0) && selectedLines.length > 0}
-                              indeterminate={selectedLines.length > 0 && selectedLines.length < (clientOverview?.lines?.length || 0)}
+                              checked={(() => {
+                                const activeLines = clientOverview?.lines?.filter(line => 
+                                  line.phoneStatus !== 'NEEDS_TO_BE_ACTIVATED' && line.line_status !== 'NEEDS_TO_BE_ACTIVATED'
+                                ) || [];
+                                return selectedLines.length === activeLines.length && selectedLines.length > 0;
+                              })()}
+                              indeterminate={(() => {
+                                const activeLines = clientOverview?.lines?.filter(line => 
+                                  line.phoneStatus !== 'NEEDS_TO_BE_ACTIVATED' && line.line_status !== 'NEEDS_TO_BE_ACTIVATED'
+                                ) || [];
+                                return selectedLines.length > 0 && selectedLines.length < activeLines.length;
+                              })()}
                               onChange={(e) => handleSelectAllLines(e.target.checked)}
                             />
                           }
                           label={<Typography variant="body2" fontWeight="bold">🔘 Toutes les lignes</Typography>}
                         />
                         <Box sx={{ ml: 3, mt: 1 }}>
-                          {clientOverview?.lines?.map((line) => (
+                          {clientOverview?.lines
+                            ?.filter(line => {
+                              // Exclure les lignes en attente d'activation
+                              return line.phoneStatus !== 'NEEDS_TO_BE_ACTIVATED' && line.line_status !== 'NEEDS_TO_BE_ACTIVATED';
+                            })
+                            ?.map((line) => (
                             <FormControlLabel
                               key={line.id}
                               control={
@@ -1160,12 +1197,12 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                         }}
                       >
                         <Typography variant="body2" sx={{ mb: 1 }}>
-                          <strong>💰 Analyse du solde actuel:</strong>
+                          <strong>💰 Analyse du solde - Ligne sélectionnée:</strong>
                         </Typography>
                         <Typography variant="body2">
-                          • Solde disponible: <strong>{(clientOverview?.client?.balance || 0).toFixed(2)}€</strong><br/>
-                          • Coût mensuel ({selectedLines.length || 1} ligne(s)): <strong>{(monthlyRate * (selectedLines.length || 1)).toFixed(2)}€</strong><br/>
-                          • Mois déjà couverts: <strong>{Math.floor((clientOverview?.client?.balance || 0) / (monthlyRate * (selectedLines.length || 1)))}</strong>
+                          • Solde ligne sélectionnée ({selectedLine?.phoneNumber}): <strong>{selectedLineBalance.toFixed(2)}€</strong><br/>
+                          • Coût mensuel par ligne: <strong>{monthlyRate.toFixed(2)}€</strong><br/>
+                          • Mois couverts pour cette ligne: <strong>{Math.floor(selectedLineBalance / monthlyRate)}</strong>
                         </Typography>
                       </Alert>
                     </Box>
@@ -1266,15 +1303,15 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                       startIcon={<PaymentIcon />}
                       onClick={() => {
                         const amount = calculateAdvanceTotal();
-                        const clientBalance = clientOverview?.client?.balance || 0;
+                        const lineBalance = selectedLineBalance;
                         
                         setAdvanceAmount(amount);
                         setTotalPaymentAmount(amount);
                         
                         // Suggérer automatiquement la répartition optimale
                         setPaymentSplit({
-                          balance: Math.min(amount, clientBalance),
-                          cash: Math.max(0, amount - clientBalance),
+                          balance: Math.min(amount, selectedLineBalance),
+                          cash: Math.max(0, amount - selectedLineBalance),
                           card: 0
                         });
                         
@@ -1304,86 +1341,28 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    📋 Historique des paiements
+                    📋 Historique des paiements - {selectedLine?.phoneNumber}
                   </Typography>
-                  
-                  {/* Debug info pour comprendre la structure des données */}
-                  {console.log('🔍 HISTORY DEBUG:', {
-                    historyData,
-                    isLoadingHistory,
-                    phoneId,
-                    historyKeys: historyData ? Object.keys(historyData) : 'no data',
-                    historyPayments: historyData?.payments,
-                    historyPaymentsLength: historyData?.payments?.length,
-                    historyType: typeof historyData
-                  })}
                   
                   {isLoadingHistory ? (
                     <LinearProgress />
                   ) : historyData ? (
                     <Box>
-                      {/* Afficher toutes les données disponibles pour debug */}
-                      <Alert severity="info" sx={{ mb: 2 }}>
-                        Données historique trouvées: {JSON.stringify(Object.keys(historyData || {}))}
-                      </Alert>
-                      
-                      {/* Essayer plusieurs structures possibles */}
-                      {Array.isArray(historyData) ? (
-                        // Si historyData est directement un array
+                      {/* Affichage propre de l'historique des paiements */}
+                      {historyData.paymentHistory && historyData.paymentHistory.length > 0 ? (
                         <List>
-                          {historyData.map((payment, index) => (
-                            <ListItem key={payment.id || index} divider>
-                              <ListItemText
-                                primary={
-                                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Typography variant="subtitle1">
-                                      {payment.paymentMonth || payment.month || `Paiement ${index + 1}`}
-                                    </Typography>
-                                    <Chip
-                                      label={payment.status || 'UNKNOWN'}
-                                      color={
-                                        payment.status === 'PAID' ? 'success' :
-                                        payment.status === 'PENDING' ? 'warning' :
-                                        payment.status === 'OVERDUE' ? 'error' : 'default'
-                                      }
-                                      size="small"
-                                    />
-                                  </Box>
-                                }
-                                secondary={
-                                  <Box>
-                                    <Typography variant="body2">
-                                      Montant: {payment.amount?.toFixed(2) || '0.00'}€
-                                    </Typography>
-                                    <Typography variant="caption">
-                                      Facture: {payment.invoiceNumber || 'N/A'}
-                                    </Typography>
-                                    {payment.notes && (
-                                      <Typography variant="caption" display="block">
-                                        {payment.notes}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                }
-                              />
-                            </ListItem>
-                          ))}
-                        </List>
-                      ) : historyData.payments && Array.isArray(historyData.payments) ? (
-                        // Structure avec historyData.payments
-                        <List>
-                          {historyData.payments.map((payment) => (
+                          {historyData.paymentHistory.map((payment) => (
                             <ListItem key={payment.id} divider>
                               <ListItemText
                                 primary={
                                   <Box display="flex" justifyContent="space-between" alignItems="center">
                                     <Typography variant="subtitle1">
-                                      {payment.paymentMonth}
+                                      Paiement {payment.paymentMonth}
                                     </Typography>
                                     <Chip
-                                      label={payment.status}
+                                      label={payment.status === 'COMPLETED' ? 'PAYÉ' : payment.status}
                                       color={
-                                        payment.status === 'PAID' ? 'success' :
+                                        payment.status === 'COMPLETED' || payment.status === 'PAID' ? 'success' :
                                         payment.status === 'PENDING' ? 'warning' :
                                         payment.status === 'OVERDUE' ? 'error' : 'default'
                                       }
@@ -1393,15 +1372,20 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                                 }
                                 secondary={
                                   <Box>
-                                    <Typography variant="body2">
-                                      Montant: {payment.amount.toFixed(2)}€
+                                    <Typography variant="body2" color="text.secondary">
+                                      💰 <strong>{payment.amount}€</strong> • {payment.paymentMethod}
                                     </Typography>
-                                    <Typography variant="caption">
-                                      Facture: {payment.invoiceNumber}
+                                    <Typography variant="caption" color="text.secondary">
+                                      📅 {new Date(payment.paymentDate).toLocaleDateString('fr-FR')}
                                     </Typography>
+                                    {payment.invoiceNumber && (
+                                      <Typography variant="caption" color="text.secondary" display="block">
+                                        📄 Facture: {payment.invoiceNumber}
+                                      </Typography>
+                                    )}
                                     {payment.notes && (
-                                      <Typography variant="caption" display="block">
-                                        {payment.notes}
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                        📝 {payment.notes}
                                       </Typography>
                                     )}
                                   </Box>
@@ -1411,23 +1395,10 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                           ))}
                         </List>
                       ) : (
-                        // Structure inconnue - afficher le contenu brut
-                        <Box>
-                          <Alert severity="warning" sx={{ mb: 2 }}>
-                            Structure de données inattendue. Données brutes:
-                          </Alert>
-                          <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
-                            <pre style={{ fontSize: '12px', overflow: 'auto' }}>
-                              {JSON.stringify(historyData, null, 2)}
-                            </pre>
-                          </Paper>
-                        </Box>
-                      )}
-                      
-                      {((Array.isArray(historyData) && historyData.length === 0) || 
-                        (historyData.payments && Array.isArray(historyData.payments) && historyData.payments.length === 0)) && (
-                        <Alert severity="info">
-                          Aucun historique de paiement pour cette ligne
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                          <Typography variant="body2">
+                            {historyData.message || 'Aucun paiement d\'avance effectué pour cette ligne'}
+                          </Typography>
                         </Alert>
                       )}
                     </Box>
@@ -1656,7 +1627,7 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                 } • Client: {client?.firstname} {client?.lastname}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Solde client disponible: {clientOverview?.client?.balance?.toFixed(2) || '0.00'}€
+                Solde ligne sélectionnée: {selectedLineBalance.toFixed(2)}€
               </Typography>
             </Paper>
 
@@ -1672,7 +1643,7 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                   size="small"
                   variant="outlined"
                   onClick={() => {
-                    const available = clientOverview?.client?.balance || 0;
+                    const available = selectedLineBalance;
                     setPaymentSplit({
                       balance: Math.min(totalPaymentAmount, available),
                       cash: Math.max(0, totalPaymentAmount - available),
@@ -1708,11 +1679,11 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                   size="small"
                   variant="outlined"
                   onClick={() => setPaymentSplit({
-                    balance: Math.min(totalPaymentAmount, clientOverview?.client?.balance || 0),
+                    balance: Math.min(totalPaymentAmount, selectedLineBalance),
                     cash: 0,
                     card: 0
                   })}
-                  disabled={!clientOverview?.client?.balance || clientOverview.client.balance < totalPaymentAmount}
+                  disabled={selectedLineBalance === 0 || selectedLineBalance < totalPaymentAmount}
                 >
                   Tout par solde
                 </Button>
@@ -1722,19 +1693,19 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
               <Box mb={2}>
                 <Stack direction="row" alignItems="center" spacing={2}>
                   <AccountBalanceIcon color="primary" />
-                  <Typography variant="body1" sx={{ minWidth: 100 }}>Solde client:</Typography>
+                  <Typography variant="body1" sx={{ minWidth: 100 }}>Solde ligne:</Typography>
                   <TextField
                     type="number"
                     value={paymentSplit.balance}
                     onChange={(e) => setPaymentSplit(prev => ({
                       ...prev,
-                      balance: Math.max(0, Math.min(parseFloat(e.target.value) || 0, clientOverview?.client?.balance || 0))
+                      balance: Math.max(0, Math.min(parseFloat(e.target.value) || 0, selectedLineBalance))
                     }))}
                     InputProps={{
                       endAdornment: '€',
                       inputProps: { 
                         min: 0, 
-                        max: clientOverview?.client?.balance || 0,
+                        max: selectedLineBalance,
                         step: 0.01 
                       }
                     }}
@@ -1742,7 +1713,7 @@ const RealInvoiceGenerator = ({ open, onClose, client }) => {
                     sx={{ width: 120 }}
                   />
                   <Typography variant="caption" color="text.secondary">
-                    (Max: {clientOverview?.client?.balance?.toFixed(2) || '0.00'}€)
+                    (Max: {selectedLineBalance.toFixed(2)}€)
                   </Typography>
                 </Stack>
               </Box>

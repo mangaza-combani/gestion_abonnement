@@ -1,10 +1,6 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { apiBaseQuery } from '../api/apiSlice';
+import { apiSliceWithPrefix } from '../api/apiSlice';
 
-export const linePaymentsApi = createApi({
-  reducerPath: 'linePaymentsApi',
-  baseQuery: apiBaseQuery,
-  tagTypes: ['LinePayment', 'LineBalance', 'ClientOverview', 'UnpaidInvoices'],
+export const linePaymentsApi = apiSliceWithPrefix.injectEndpoints({
   endpoints: (builder) => ({
     // Récupérer l'historique des paiements d'une ligne
     getLinePaymentHistory: builder.query({
@@ -129,7 +125,7 @@ export const linePaymentsApi = createApi({
       ],
     }),
 
-    // Ajouter du solde au client (paiement d'avance)
+    // Ajouter du solde au client (paiement d'avance) - DEPRECATED
     addClientBalance: builder.mutation({
       query: (balanceData) => ({
         url: '/balances/add',
@@ -139,6 +135,29 @@ export const linePaymentsApi = createApi({
       invalidatesTags: (result, error, { clientId }) => [
         { type: 'ClientOverview', id: clientId },
         { type: 'LineBalance', id: 'LIST' }
+      ],
+    }),
+
+    // 🎯 NOUVEAU : Ajouter du solde à une ligne spécifique (nouveau système)
+    addLineBalance: builder.mutation({
+      query: (balanceData) => ({
+        url: `/phones/${balanceData.phoneId}/add-balance`, // URL simplifiée
+        method: 'POST',
+        body: {
+          amount: balanceData.amount,
+          reason: balanceData.reason || 'Paiement d\'avance'
+        },
+      }),
+      invalidatesTags: (result, error, { phoneId, clientId }) => [
+        { type: 'ClientOverview', id: clientId },
+        { type: 'LineBalance', id: phoneId },
+        { type: 'LineBalance', id: 'LIST' },
+        { type: 'LinePayment', id: phoneId }, // 🔄 Rafraîchir l'historique
+        { type: 'LinePayment', id: 'LIST' },
+        // 🎯 FORCER invalidation cross-slice
+        { type: 'Phone', id: `history-${phoneId}` },
+        { type: 'Phone', id: phoneId },
+        { type: 'Phone', id: 'LIST' }
       ],
     }),
 
@@ -167,7 +186,8 @@ export const {
   useProcessGroupPaymentMutation,
   usePaySpecificInvoiceMutation,
   // Hook pour ajouter du solde
-  useAddClientBalanceMutation,
+  useAddClientBalanceMutation, // DEPRECATED
+  useAddLineBalanceMutation, // NOUVEAU système par ligne
   // Hook pour calculer montant intelligent
   useCalculatePaymentAmountMutation,
 } = linePaymentsApi;
