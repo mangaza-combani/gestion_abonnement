@@ -25,7 +25,16 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "docker:dev": "cd ../api_uwezo && docker-compose -f docker-compose.dev.yml up -d",
+    "docker:dev:build": "cd ../api_uwezo && docker-compose -f docker-compose.dev.yml up -d --build",
+    "docker:dev:logs": "cd ../api_uwezo && docker-compose -f docker-compose.dev.yml logs -f",
+    "docker:dev:down": "cd ../api_uwezo && docker-compose -f docker-compose.dev.yml down",
+    "docker:prod": "cd ../api_uwezo && docker-compose up -d",
+    "docker:prod:build": "cd ../api_uwezo && docker-compose up -d --build",
+    "docker:prod:down": "cd ../api_uwezo && docker-compose down",
+    "docker:db": "cd ../api_uwezo && docker-compose -f docker-compose.db-only.yml up -d",
+    "docker:db:down": "cd ../api_uwezo && docker-compose -f docker-compose.db-only.yml down"
   },
   "eslintConfig": {
     "extends": [

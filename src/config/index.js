@@ -1,7 +1,6 @@
 export const config = {
     api: {
-        //baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://wezo-srv.jud3v.fr/',
-        baseURL: 'http://localhost:65488/api/',
+        baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3333/api/',
         timeout: 10000,
     },
     auth: {
