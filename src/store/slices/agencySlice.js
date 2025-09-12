@@ -170,7 +170,7 @@ export const agencyApiSlice = apiSliceWithPrefix.injectEndpoints({
 
     createSimCard: builder.mutation({
         query: (simCardData) => ({
-            url: '/sim-card',
+            url: '/api/sim-card',
             method: 'POST',
             body: simCardData
         }),

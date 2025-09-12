@@ -21,7 +21,8 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Snackbar
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -57,6 +58,7 @@ const SimCardManagement = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [newICCID, setNewICCID] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [createSimCard] = useCreateSimCardMutation();
   const [receiveSimCard] = useReceiveSimCardMutation();
   const [activateWithSim] = useActivateWithSimMutation();
@@ -163,6 +165,11 @@ const SimCardManagement = () => {
       console.error("❌ Invalid ICCID", {
         newICCID
       });
+      setSnackbar({
+        open: true,
+        message: "Veuillez saisir un ICCID valide",
+        severity: 'error'
+      });
       return;
     }
 
@@ -234,15 +241,43 @@ const SimCardManagement = () => {
             receiveError: receiveNewSimCardDate?.error,
             createError: newSimCard?.error
           });
+          
+          // Extraire le message d'erreur le plus pertinent
+          const errorMessage = receiveNewSimCardDate?.error?.data?.message || 
+                              newSimCard?.error?.data?.message ||
+                              receiveNewSimCardDate?.error?.message ||
+                              newSimCard?.error?.message ||
+                              "Erreur lors de la déclaration de réception";
+          
+          setSnackbar({
+            open: true,
+            message: errorMessage,
+            severity: 'error'
+          });
         } else {
           console.log("🎉 Déclaration de réception SIM réussie !");
+          setSnackbar({
+            open: true,
+            message: `Carte SIM ${newICCID} ajoutée au stock avec succès !`,
+            severity: 'success'
+          });
         }
         
       } catch (error) {
         console.error("❌ Erreur lors de la déclaration:", error);
+        setSnackbar({
+          open: true,
+          message: "Erreur lors de la déclaration de réception",
+          severity: 'error'
+        });
       }
     } else {
       console.error("❌ Aucune commande disponible trouvée");
+      setSnackbar({
+        open: true,
+        message: "Aucune commande disponible trouvée",
+        severity: 'error'
+      });
     }
 
     setShowReceiveModal(false);
@@ -257,6 +292,11 @@ const SimCardManagement = () => {
         selectedSim,
         selectedLine
       });
+      setSnackbar({
+        open: true,
+        message: "Veuillez sélectionner une ligne et une carte SIM",
+        severity: 'error'
+      });
       return;
     }
 
@@ -268,11 +308,31 @@ const SimCardManagement = () => {
 
       console.log("Ligne activée avec succès:", result);
       
-      setShowActivateModal(false);
-      setSelectedSim(null);
-      setSelectedLine(null);
+      if (result?.error) {
+        const errorMessage = result.error?.data?.message || result.error?.message || "Erreur lors de l'activation";
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: `Ligne ${selectedLine.phoneNumber} activée avec la carte SIM ${selectedSim.iccid}`,
+          severity: 'success'
+        });
+        
+        setShowActivateModal(false);
+        setSelectedSim(null);
+        setSelectedLine(null);
+      }
     } catch (error) {
       console.error("Erreur lors de l'activation:", error);
+      setSnackbar({
+        open: true,
+        message: "Erreur lors de l'activation de la ligne",
+        severity: 'error'
+      });
     }
   };
 
@@ -446,7 +506,7 @@ const SimCardManagement = () => {
           <Typography variant="h6">Commandes en cours</Typography>
         </Box>
         <Box sx={{ p: 2 }}>
-          {simOrders?.filter(order => order.quantityReceived < order.quantity)
+          {simOrders?.filter(order => (order.quantityReceived || 0) < order.quantity)
             ?.map(order => (
               <Box 
                 key={order.id} 
@@ -466,7 +526,7 @@ const SimCardManagement = () => {
                     Commande #{order.id}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Commandé par: {order.orderedBy.firstname + ' ' + order.orderedBy.lastname} le {dayjs(order.orderDate).format("dddd D MMMM YYYY")}
+                    Commandé par: {order.orderedBy?.firstname + ' ' + order.orderedBy?.lastname} le {dayjs(order.orderDate).format("dddd D MMMM YYYY")}
                   </Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
@@ -766,6 +826,22 @@ const SimCardManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
