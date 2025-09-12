@@ -7,7 +7,13 @@ import {
         Menu,
         MenuItem,
         ListItemIcon,
-        ListItemText
+        ListItemText,
+        Dialog,
+        DialogTitle,
+        DialogContent,
+        DialogActions,
+        Alert,
+        Snackbar
 } from '@mui/material';
 import {
         EuroSymbol as EuroIcon,
@@ -16,22 +22,42 @@ import {
         Pause as PauseIcon,
         PhoneDisabled as PhoneLostIcon,
         Cancel as CancelIcon,
-        ExpandMore as ExpandMoreIcon
+        ExpandMore as ExpandMoreIcon,
+        CheckCircle as ApproveIcon,
+        Cancel as RejectIcon
 } from '@mui/icons-material';
 
 import {
         useBlockPhoneMutation,
-        useUnblockPhoneMutation
+        useUnblockPhoneMutation,
+        useRequestBlockPhoneMutation,
+        useConfirmBlockRequestMutation
 } from "../../store/slices/linesSlice";
 
 import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
+import SimLostModal from './SimLostModal';
 import { PHONE_STATUS } from './constant';
 
 const ClientActions = ({client, currentTab}) => {
         const [blockPhone] = useBlockPhoneMutation();
         const [unblockPhone] = useUnblockPhoneMutation();
+        const [requestBlockPhone] = useRequestBlockPhoneMutation();
+        const [confirmBlockRequest] = useConfirmBlockRequestMutation();
         const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
         const [suspendMenuAnchor, setSuspendMenuAnchor] = useState(null);
+        const [simLostModalOpen, setSimLostModalOpen] = useState(false);
+        
+        // États pour actions superviseur
+        const [confirmationOpen, setConfirmationOpen] = useState(false);
+        const [actionType, setActionType] = useState(null);
+        const [isProcessing, setIsProcessing] = useState(false);
+        
+        // États pour Snackbar
+        const [snackbar, setSnackbar] = useState({
+                open: false,
+                message: '',
+                severity: 'success' // 'success', 'error', 'warning', 'info'
+        });
         
         // DEBUGGING: Voir quel objet client est passé (UPDATED)
         console.log('🚪 CLIENT ACTIONS - CLIENT REÇU:', {
@@ -47,7 +73,31 @@ const ClientActions = ({client, currentTab}) => {
         
         // Le vrai client est dans client.user
         const realClient = client?.user || {};
+        
+        // Récupérer l'utilisateur connecté pour les actions superviseur
+        const currentUser = (() => {
+                try {
+                        const userData = localStorage.getItem('user');
+                        return userData ? JSON.parse(userData) : null;
+                } catch (error) {
+                        console.warn('Erreur lors de la récupération des données utilisateur:', error);
+                        return null;
+                }
+        })();
         const realClientId = client?.userId || client?.user?.id;
+
+        // Fonction pour afficher les snackbars
+        const showSnackbar = (message, severity = 'success') => {
+                setSnackbar({
+                        open: true,
+                        message,
+                        severity
+                });
+        };
+
+        const handleCloseSnackbar = () => {
+                setSnackbar(prev => ({ ...prev, open: false }));
+        };
 
         const invoiceClient = async (clientId) => {
                 try {
@@ -77,11 +127,110 @@ const ClientActions = ({client, currentTab}) => {
 
         const handleSuspendWithReason = async (reason) => {
                 try {
-                        await blockPhone({ id: client.id, reason }).unwrap();
-                        console.log('Téléphone suspendu avec succès. Raison:', reason);
+                        if (reason === 'lost_sim') {
+                                // Ouvrir le modal spécialisé pour SIM perdue
+                                setSimLostModalOpen(true);
+                                setSuspendMenuAnchor(null);
+                                return;
+                        }
+
+                        // 🆕 Pour les autres raisons, CRÉER UNE DEMANDE (statut inchangé)
+                        const payload = {
+                                phoneId: client.id,
+                                reason: reason,
+                                notes: reason === 'pause' ? 'Pause temporaire demandée' : 
+                                       reason === 'termination' ? 'Demande de résiliation client' : ''
+                        };
+
+                        const result = await requestBlockPhone(payload).unwrap();
+                        console.log('📋 Demande créée avec succès:', result);
+                        
+                        // Notification à l'utilisateur
+                        const actionLabel = reason === 'pause' ? 'pause' : 'résiliation';
+                        showSnackbar(`📋 Demande de ${actionLabel} créée ! En attente validation superviseur.`, 'info');
+                        
                         setSuspendMenuAnchor(null);
                 } catch (error) {
-                        console.error('Erreur lors de la suspension du téléphone:', error);
+                        console.error('Erreur lors de la création de la demande:', error);
+                }
+        };
+
+        const handleSimLostConfirm = async ({ action, notes, reason, billing }) => {
+                try {
+                        if (action === 'order_new_sim') {
+                                // 🆕 CRÉER UNE DEMANDE de blocage (statut inchangé) + facturer immédiatement
+                                const payload = {
+                                        phoneId: client.id,
+                                        reason: reason,
+                                        notes: `${notes} - Nouvelle SIM commandée`,
+                                        billing: billing // Informations de facturation
+                                };
+                                const result = await requestBlockPhone(payload).unwrap();
+                                
+                                // Afficher confirmation
+                                if (result.billing && result.billing.invoiceNumber) {
+                                        console.log('✅ Demande création - Nouvelle SIM commandée et facturée:', {
+                                                status: result.status,
+                                                invoice: result.billing.invoiceNumber,
+                                                amount: result.billing.amount,
+                                                paymentMethod: result.billing.paymentMethod
+                                        });
+                                        
+                                        showSnackbar(`✅ Demande créée et SIM facturée ! Facture: ${result.billing.invoiceNumber}`, 'success');
+                                } else {
+                                        showSnackbar(`📋 Demande créée ! En attente validation superviseur.`, 'info');
+                                }
+                        } else if (action === 'pause_line') {
+                                // 🆕 CRÉER UNE DEMANDE de pause (statut inchangé)
+                                const payload = {
+                                        phoneId: client.id,
+                                        reason: 'pause',
+                                        notes: `${notes} - Mise en pause suite à SIM perdue`
+                                };
+                                const result = await requestBlockPhone(payload).unwrap();
+                                console.log('📋 Demande de pause créée:', result);
+                                showSnackbar(`📋 Demande de pause créée ! En attente validation superviseur.`, 'info');
+                        }
+                } catch (error) {
+                        console.error('Erreur lors de la création de la demande:', error);
+                        throw error; // Re-throw pour que le modal puisse gérer l'erreur
+                }
+        };
+
+        const handleSupervisorAction = (action) => {
+                setActionType(action);
+                setConfirmationOpen(true);
+        };
+
+        const handleConfirmAction = async () => {
+                setIsProcessing(true);
+                try {
+                        const result = await confirmBlockRequest({
+                                phoneId: client.id,
+                                approved: actionType === 'approve'
+                        }).unwrap();
+
+                        console.log('✅ Action superviseur effectuée:', result);
+                        setConfirmationOpen(false);
+                        
+                        // Notification de succès avec Snackbar
+                        const actionLabel = actionType === 'approve' ? 'approuvée' : 'rejetée';
+                        showSnackbar(`✅ Demande ${actionLabel} avec succès !`, 'success');
+                        
+                } catch (error) {
+                        console.error('❌ Erreur lors de l\'action superviseur:', error);
+                        showSnackbar('❌ Erreur lors du traitement de la demande', 'error');
+                } finally {
+                        setIsProcessing(false);
+                }
+        };
+
+        const getActionMessage = () => {
+                const reasonLabel = client?.blockReasonLabel || 'blocage';
+                if (actionType === 'approve') {
+                        return `Approuver cette demande de ${reasonLabel.toLowerCase()} ?`;
+                } else {
+                        return `Rejeter cette demande de ${reasonLabel.toLowerCase()} ?`;
                 }
         };
 
@@ -98,56 +247,64 @@ const ClientActions = ({client, currentTab}) => {
         return (
             <Paper sx={{width: '100%', maxWidth: '220px', p: 2}}>
                     <Stack spacing={2}>
-                            <Typography variant="h6" sx={{ fontSize: '1rem' }}>ACTIONS</Typography>
+                            <Typography variant="h6" sx={{ fontSize: '1rem' }}>
+                                {currentTab === 'TO_BLOCK' ? 'ACTIONS SUPERVISEUR' : 'ACTIONS'}
+                            </Typography>
                             
-                            {/* Bouton Facturer - Toujours visible */}
-                            <Button
-                                fullWidth
-                                variant="contained"
-                                startIcon={<EuroIcon/>}
-                                onClick={() => invoiceClient(realClientId)}
-                            >
-                                    Facturer
-                            </Button>
-                            
-                            {/* Bouton Activer - Seulement si la ligne n'est pas active */}
-                            {needsActivation && (
-                                <Button
-                                    fullWidth
-                                    variant="contained"
-                                    color="success"
-                                    onClick={() => handleUnblock(client.id)}
-                                    startIcon={<PlayArrowIcon/>}
-                                >
-                                        Activer
-                                </Button>
-                            )}
-                            
-                            {/* Bouton Suspendre avec menu contextuel - Seulement si la ligne est active */}
-                            {isLineActive && (
-                                <Button
-                                    fullWidth
-                                    variant="contained"
-                                    color="error"
-                                    onClick={(event) => setSuspendMenuAnchor(event.currentTarget)}
-                                    startIcon={<StopIcon/>}
-                                    endIcon={<ExpandMoreIcon/>}
-                                >
-                                        Suspendre
-                                </Button>
+                            {/* Actions normales - Masquées pour l'onglet À BLOQUER */}
+                            {currentTab !== 'TO_BLOCK' && (
+                                <>
+                                    {/* Bouton Facturer - Toujours visible */}
+                                    <Button
+                                        fullWidth
+                                        variant="contained"
+                                        startIcon={<EuroIcon/>}
+                                        onClick={() => invoiceClient(realClientId)}
+                                    >
+                                            Facturer
+                                    </Button>
+                                    
+                                    {/* Bouton Activer - Seulement si la ligne n'est pas active */}
+                                    {needsActivation && (
+                                        <Button
+                                            fullWidth
+                                            variant="contained"
+                                            color="success"
+                                            onClick={() => handleUnblock(client.id)}
+                                            startIcon={<PlayArrowIcon/>}
+                                        >
+                                                Activer
+                                        </Button>
+                                    )}
+                                    
+                                    {/* Bouton Suspendre avec menu contextuel - Seulement si la ligne est active */}
+                                    {isLineActive && (
+                                        <Button
+                                            fullWidth
+                                            variant="contained"
+                                            color="error"
+                                            onClick={(event) => setSuspendMenuAnchor(event.currentTarget)}
+                                            startIcon={<StopIcon/>}
+                                            endIcon={<ExpandMoreIcon/>}
+                                        >
+                                                Suspendre
+                                        </Button>
+                                    )}
+                                </>
                             )}
 
                     </Stack>
 
-                    {/* Menu contextuel pour les raisons de suspension */}
-                    <Menu
-                        anchorEl={suspendMenuAnchor}
-                        open={Boolean(suspendMenuAnchor)}
-                        onClose={() => setSuspendMenuAnchor(null)}
-                        PaperProps={{
-                            sx: { minWidth: 200 }
-                        }}
-                    >
+                    {/* Menu contextuel pour les raisons de suspension - Masqué pour À BLOQUER */}
+                    {currentTab !== 'TO_BLOCK' && (
+                        <Menu
+                            anchorEl={suspendMenuAnchor}
+                            open={Boolean(suspendMenuAnchor)}
+                            onClose={() => setSuspendMenuAnchor(null)}
+                            PaperProps={{
+                                sx: { minWidth: 200 }
+                            }}
+                        >
                         <MenuItem onClick={() => handleSuspendWithReason('pause')}>
                             <ListItemIcon>
                                 <PauseIcon fontSize="small" />
@@ -166,7 +323,33 @@ const ClientActions = ({client, currentTab}) => {
                             </ListItemIcon>
                             <ListItemText primary="Demande de résiliation" />
                         </MenuItem>
-                    </Menu>
+                        </Menu>
+                    )}
+
+            {/* Actions superviseur pour les demandes en attente */}
+            {currentTab === 'TO_BLOCK' && (
+                <>
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        color="success"
+                        startIcon={<ApproveIcon />}
+                        onClick={() => handleSupervisorAction('approve')}
+                    >
+                        Approuver
+                    </Button>
+                    
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        color="error"
+                        startIcon={<RejectIcon />}
+                        onClick={() => handleSupervisorAction('reject')}
+                    >
+                        Rejeter
+                    </Button>
+                </>
+            )}
             
             {invoiceModalOpen && (
                 <RealInvoiceGenerator 
@@ -176,6 +359,94 @@ const ClientActions = ({client, currentTab}) => {
                     selectedLine={client}
                 />
             )}
+
+            {simLostModalOpen && (
+                <SimLostModal
+                    open={simLostModalOpen}
+                    onClose={() => setSimLostModalOpen(false)}
+                    client={client}
+                    onConfirm={handleSimLostConfirm}
+                />
+            )}
+
+            {/* Dialog de confirmation pour actions superviseur */}
+            <Dialog
+                open={confirmationOpen}
+                onClose={() => !isProcessing && setConfirmationOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>
+                    Confirmation Action Superviseur
+                </DialogTitle>
+                
+                <DialogContent>
+                    <Stack spacing={2}>
+                        <Alert 
+                            severity={actionType === 'approve' ? 'info' : 'warning'}
+                        >
+                            <Typography variant="body2">
+                                <strong>Client :</strong> {client?.user?.firstname} {client?.user?.lastname}<br />
+                                <strong>Ligne :</strong> {client?.phoneNumber || 'Numéro en cours'}<br />
+                                <strong>Raison :</strong> {client?.blockReasonLabel}
+                            </Typography>
+                        </Alert>
+
+                        <Typography variant="body1">
+                            {getActionMessage()}
+                        </Typography>
+
+                        {actionType === 'approve' && (
+                            <Alert severity="success">
+                                <Typography variant="body2">
+                                    La ligne sera bloquée/mise en pause selon la demande.
+                                </Typography>
+                            </Alert>
+                        )}
+
+                        {actionType === 'reject' && (
+                            <Alert severity="warning">
+                                <Typography variant="body2">
+                                    La demande sera annulée et la ligne restera dans son état actuel.
+                                </Typography>
+                            </Alert>
+                        )}
+                    </Stack>
+                </DialogContent>
+
+                <DialogActions>
+                    <Button 
+                        onClick={() => setConfirmationOpen(false)}
+                        disabled={isProcessing}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        onClick={handleConfirmAction}
+                        variant="contained"
+                        color={actionType === 'approve' ? 'success' : 'error'}
+                        disabled={isProcessing}
+                    >
+                        {isProcessing ? 'Traitement...' : 'Confirmer'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Snackbar pour notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            >
+                <Alert 
+                    onClose={handleCloseSnackbar} 
+                    severity={snackbar.severity}
+                    variant="filled"
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
             </Paper>
         );
 };

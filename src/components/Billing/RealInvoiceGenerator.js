@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import config from '../../config/index.js';
+import API_CONFIG from '../../config/api.js';
 import {
   Dialog,
   DialogTitle,
@@ -728,7 +728,7 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                     }
                     
                     // Force un fetch direct de l'API pour tester avec auth
-                    fetch(`${config.api.baseURL}/line-payments/client/13/overview`, {
+                    fetch(`${API_CONFIG.BASE_URL}/line-payments/client/13/overview`, {
                       method: 'GET',
                       headers
                     })

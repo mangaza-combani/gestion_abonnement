@@ -809,7 +809,7 @@ const ClientManagement = () => {
                                 gap: 2,
                                 alignItems: 'flex-start'
                             }}>
-                                {selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_ACTIVATE && (
+                                {selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_ACTIVATE && currentTab !== TAB_TYPES.TO_BLOCK && (
                                         <>
                                                 <ClientDetails
                                                     client={selectedClient}
@@ -825,6 +825,14 @@ const ClientManagement = () => {
                                 )}
                                 {currentTab === TAB_TYPES.TO_ACTIVATE && (
                                     <ActivationInfo client={selectedClient} />
+                                )}
+                                {currentTab === TAB_TYPES.TO_BLOCK && (
+                                    <Box sx={{ flex: '0 0 auto', alignSelf: 'flex-start' }}>
+                                        <ClientActions
+                                            client={selectedClient}
+                                            currentTab={currentTab}
+                                        />
+                                    </Box>
                                 )}
                             </Box>
                     </Box>

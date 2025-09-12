@@ -74,11 +74,28 @@ export const phoneApiSlice = apiSliceWithPrefix.injectEndpoints({
                         invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
                 }),
                 blockPhone: builder.mutation({
-                        query: (id) => ({
-                                url: `/phones/${id}/block`,
-                                method: 'POST',
-                        }),
-                        invalidatesTags: (result, error, id) => [{ type: 'Phone', id }],
+                        query: (payload) => {
+                                // Support pour les anciennes et nouvelles signatures
+                                const isOldFormat = typeof payload === 'number' || typeof payload === 'string';
+                                const phoneId = isOldFormat ? payload : payload.phoneId || payload.id;
+                                const body = isOldFormat ? {} : {
+                                        reason: payload.reason,
+                                        notes: payload.notes
+                                };
+                                
+                                return {
+                                        url: `/phones/${phoneId}/block`,
+                                        method: 'POST',
+                                        body: body
+                                };
+                        },
+                        invalidatesTags: (result, error, payload) => {
+                                const phoneId = typeof payload === 'number' ? payload : (payload.phoneId || payload.id);
+                                return [
+                                        { type: 'Phone', id: phoneId },
+                                        { type: 'Phone', id: 'LIST' }
+                                ];
+                        },
                 }),
                 unblockPhone: builder.mutation({
                         query: (id) => ({
@@ -118,6 +135,42 @@ export const phoneApiSlice = apiSliceWithPrefix.injectEndpoints({
                                 { type: 'Phone', id: phoneId }
                         ]
                 }),
+                // 🆕 Demander un blocage (sans changer le statut)
+                requestBlockPhone: builder.mutation({
+                        query: (payload) => {
+                                const phoneId = payload.phoneId || payload.id;
+                                const body = {
+                                        reason: payload.reason,
+                                        notes: payload.notes,
+                                        billing: payload.billing
+                                };
+                                
+                                return {
+                                        url: `/phones/${phoneId}/request-block`,
+                                        method: 'POST',
+                                        body: body
+                                };
+                        },
+                        invalidatesTags: (result, error, payload) => {
+                                const phoneId = payload.phoneId || payload.id;
+                                return [
+                                        { type: 'Phone', id: phoneId },
+                                        { type: 'Phone', id: 'LIST' }
+                                ];
+                        },
+                }),
+                // 🆕 Confirmer/rejeter une demande de blocage (action superviseur)
+                confirmBlockRequest: builder.mutation({
+                        query: ({ phoneId, approved }) => ({
+                                url: `/phones/${phoneId}/confirm-block`,
+                                method: 'POST',
+                                body: { approved }
+                        }),
+                        invalidatesTags: (result, error, { phoneId }) => [
+                                { type: 'Phone', id: phoneId },
+                                { type: 'Phone', id: 'LIST' }
+                        ],
+                }),
         }),
 });
 
@@ -135,6 +188,8 @@ export const {
         useGetPhonesOverdueQuery,
         useGetPhonesToActivateQuery,
         useGetPhonePaymentHistoryQuery,
+        useRequestBlockPhoneMutation, // 🆕
+        useConfirmBlockRequestMutation, // 🆕
 } = phoneApiSlice;
 
 // Slice Redux pour la gestion d'état locale des phone

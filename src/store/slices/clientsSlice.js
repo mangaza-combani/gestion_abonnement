@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { apiSlice } from '../api/apiSlice';
+import { apiSlice, apiSliceWithPrefix } from '../api/apiSlice';
 
-// RTK Query API endpoints pour les clients
+// RTK Query API endpoints pour les clients (auth routes)
 export const clientsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getClients: builder.query({
@@ -12,20 +12,6 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
         { type: 'Client', id: `LIST_${id}` },
         { type: 'Client', id: 'LIST' }
       ],
-    }),
-    getAllUsers: builder.query({
-        query: () => '/auth/get-users',
-        providesTags: (result) =>
-            result ? [...result.map(({ id }) => ({ type: 'Client', id })), { type: 'Client', id: 'LIST' }] : [{ type: 'Client', id: 'LIST' }],
-    }),
-    getClientById: builder.query({
-      query: (id) => `/auth/get-user/${id}`,
-      providesTags: (result, error, id) => [{ type: 'Client', id }],
-    }),
-    getClientsToOrder: builder.query({
-      query: () => `/clients-to-order?_t=${Date.now()}`, // Ajouter timestamp pour éviter le cache
-      providesTags: ['ClientToOrder'],
-      keepUnusedDataFor: 0, // Ne pas garder les données en cache
     }),
     createClient: builder.mutation({
       query: (client) => ({
@@ -64,15 +50,39 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
   }),
 });
 
+// RTK Query API endpoints pour les clients (routes avec /api prefix)
+export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
+  endpoints: (builder) => ({
+    getAllUsers: builder.query({
+        query: () => '/auth/get-users',
+        providesTags: (result) =>
+            result ? [...result.map(({ id }) => ({ type: 'Client', id })), { type: 'Client', id: 'LIST' }] : [{ type: 'Client', id: 'LIST' }],
+    }),
+    getClientById: builder.query({
+      query: (id) => `/auth/get-user/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Client', id }],
+    }),
+    getClientsToOrder: builder.query({
+      query: () => `/clients-to-order?_t=${Date.now()}`, // Ajouter timestamp pour éviter le cache
+      providesTags: ['ClientToOrder'],
+      keepUnusedDataFor: 0, // Ne pas garder les données en cache
+    }),
+  }),
+});
+
 export const {
   useGetClientsQuery,
-  useGetAllUsersQuery,
-  useGetClientByIdQuery,
-  useGetClientsToOrderQuery,
   useCreateClientMutation,
   useAssociateClientMutation,
   useUpdateClientMutation,
 } = clientsApiSlice;
+
+// Export des hooks pour les endpoints avec prefix
+export const {
+  useGetAllUsersQuery,
+  useGetClientByIdQuery,
+  useGetClientsToOrderQuery,
+} = clientsApiSliceWithPrefix;
 
 // Slice Redux pour la gestion d'état locale des clients
 const initialState = {

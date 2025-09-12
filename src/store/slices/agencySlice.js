@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { apiSlice } from '../api/apiSlice';
+import { apiSliceWithPrefix } from '../api/apiSlice';
 
 const initialState = {
   agencies: [],
@@ -52,8 +52,8 @@ export const {
   resetFilters 
 } = agencySlice.actions;
 
-// Extension de apiSlice avec les endpoints d'agence
-export const agencyApiSlice = apiSlice.injectEndpoints({
+// Extension de apiSliceWithPrefix avec les endpoints d'agence
+export const agencyApiSlice = apiSliceWithPrefix.injectEndpoints({
   endpoints: (builder) => ({
     // Récupérer toutes les agences
     getAgencies: builder.query({

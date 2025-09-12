@@ -1,8 +1,8 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import config from '../../config/index.js';
+import API_CONFIG from '../../config/api.js';
 
 // Base URL without /api suffix for auth endpoints
-const baseServerURL = config.api.baseURL.replace('/api', '');
+const baseServerURL = API_CONFIG.SERVER_URL;
 
 // Create separate base queries for different endpoint types
 const authBaseQuery = fetchBaseQuery({ 
@@ -18,7 +18,7 @@ const authBaseQuery = fetchBaseQuery({
 });
 
 export const apiBaseQuery = fetchBaseQuery({ 
-  baseUrl: config.api.baseURL,
+  baseUrl: API_CONFIG.BASE_URL,
   prepareHeaders: (headers, { getState }) => {
     // Ajout du token d'authentification
     const token = localStorage.getItem('token') || getState().auth.token;

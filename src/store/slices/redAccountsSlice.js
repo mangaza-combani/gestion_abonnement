@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { apiSlice } from '../api/apiSlice';
+import { apiSliceWithPrefix } from '../api/apiSlice';
 
 // Status constants
 export const LINE_STATUSES = {
@@ -49,7 +49,7 @@ export const analyzeAccountsAvailability = (accounts, agencyId = null) => {
 };
 
 // Extension de l'API avec les endpoints pour les comptes RED
-export const redAccountsApiSlice = apiSlice.injectEndpoints({
+export const redAccountsApiSlice = apiSliceWithPrefix.injectEndpoints({
   endpoints: (builder) => ({
     // Récupérer tous les comptes RED
     getRedAccounts: builder.query({
@@ -247,21 +247,21 @@ export default redAccountsSlice.reducer;
 
 // Sélectionner les comptes avec disponibilité
 export const selectAvailableAccounts = (state, agencyId = null) => {
-  const { data: accounts = [] } = apiSlice.endpoints.getRedAccounts.select()(state);
+  const { data: accounts = [] } = redAccountsApiSlice.endpoints.getRedAccounts.select()(state);
   const { availableAccounts } = analyzeAccountsAvailability(accounts, agencyId);
   return availableAccounts;
 };
 
 // Sélectionner les lignes résiliées disponibles
 export const selectTerminatedLines = (state) => {
-  const { data: accounts = [] } = apiSlice.endpoints.getRedAccounts.select()(state);
+  const { data: accounts = [] } = redAccountsApiSlice.endpoints.getRedAccounts.select()(state);
   const { terminatedLines } = analyzeAccountsAvailability(accounts);
   return terminatedLines;
 };
 
 // Sélectionner les lignes non attribuées
 export const selectUnattributedLines = (state) => {
-  const { data: accounts = [] } = apiSlice.endpoints.getRedAccounts.select()(state);
+  const { data: accounts = [] } = redAccountsApiSlice.endpoints.getRedAccounts.select()(state);
   const lines = [];
   
   accounts.forEach(account => {

@@ -48,7 +48,7 @@ export const authApiSlice = apiSlice.injectEndpoints({
     // Endpoints d'authentification
     login: builder.mutation({
       query: (credentials) => ({
-        url: '/auth/login',
+        url: '/api/auth/login',
         method: 'POST',
         body: {
           email: credentials.identifiant,
@@ -58,7 +58,7 @@ export const authApiSlice = apiSlice.injectEndpoints({
     }),
     whoIAm: builder.query({
       query: () => ({
-        url: "/auth/who-i-am",
+        url: "/api/auth/who-i-am",
         method: "GET",
       }),
       transformResponse: (response) => response.user,
@@ -67,20 +67,20 @@ export const authApiSlice = apiSlice.injectEndpoints({
     }),
     register: builder.mutation({
       query: (userData) => ({
-        url: '/auth/register',
+        url: '/api/auth/register',
         method: 'POST',
         body: userData,
       }),
     }),
     logout: builder.mutation({
       query: () => ({
-        url: '/auth/logout',
+        url: '/api/auth/logout',
         method: 'POST',
       }),
     }),
     forgotPasswordEmail: builder.mutation({
       query: (email) => ({
-        url: '/auth/send-password-reset-link',
+        url: '/api/auth/send-password-reset-link',
         method: 'POST',
         body: {
           fetchBy: 'email',
@@ -90,7 +90,7 @@ export const authApiSlice = apiSlice.injectEndpoints({
     }),
     forgotPasswordSms: builder.mutation({
       query: (phoneNumber) => ({
-        url: '/auth/send-password-reset-link',
+        url: '/api/auth/send-password-reset-link',
         method: 'POST',
         body: {
           fetchBy: 'phone',
@@ -100,21 +100,21 @@ export const authApiSlice = apiSlice.injectEndpoints({
     }),
     verifyCode: builder.mutation({
       query: (data) => ({
-        url: '/auth/verify-code',
+        url: '/api/auth/verify-code',
         method: 'POST',
         body: data,
       }),
     }),
     resetPassword: builder.mutation({
       query: (data) => ({
-        url: '/auth/reset-password',
+        url: '/api/auth/reset-password',
         method: 'POST',
         body: data,
       }),
     }),
     changePassword: builder.mutation({
       query: (data) => ({
-        url: '/auth/reset-password',
+        url: '/api/auth/reset-password',
         method: 'POST',
         body: data,
       }),

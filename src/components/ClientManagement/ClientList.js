@@ -24,8 +24,11 @@ import {
 import StatusChip from './StatusChip';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
 
-const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = false }) => {
+const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = false, action = null }) => {
   const [hoveredRow, setHoveredRow] = useState(null);
+
+  // Déterminer si on doit afficher la colonne de raison de blocage
+  const showBlockReason = action === 'block';
 
   return (
     <Card sx={{ flex: 1 }}>
@@ -33,15 +36,17 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: isOrderView ? '15%' : '18%' }}>NOM</TableCell>
-              <TableCell sx={{ width: isOrderView ? '15%' : '18%' }}>PRENOM</TableCell>
-              {isOrderView &&(
+              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : '18%') }}>NOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : '18%') }}>PRENOM</TableCell>
+              {isOrderView && (
                 <TableCell sx={{ width: '20%' }}>TELEPHONE</TableCell>
               )}
-              <TableCell sx={{ width: isOrderView ? '15%' : '16%' }}>COMPTE RED</TableCell>
-              <TableCell sx={{ width: isOrderView ? '17.5%' : '24%' }}>ETAT PAIEMENT</TableCell>
-              <TableCell sx={{ width: isOrderView ? '17.5%' : '24%' }}>ETAT TÉLÉPHONE</TableCell>
-
+              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '12%' : '16%') }}>COMPTE RED</TableCell>
+              <TableCell sx={{ width: isOrderView ? '17.5%' : (showBlockReason ? '15%' : '24%') }}>ETAT PAIEMENT</TableCell>
+              <TableCell sx={{ width: isOrderView ? '17.5%' : (showBlockReason ? '15%' : '24%') }}>ETAT TÉLÉPHONE</TableCell>
+              {showBlockReason && (
+                <TableCell sx={{ width: '23%' }}>RAISON DU BLOCAGE</TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -87,6 +92,26 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 <TableCell>
                   <StatusChip status={formatPaymentAndStatusToHumanReadable(client.phoneStatus)} />
                 </TableCell>
+                {showBlockReason && (
+                  <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {client.blockReasonLabel ? (
+                      <Chip 
+                        label={client.blockReasonLabel}
+                        size="small"
+                        color={
+                          client.blockReason === 'PAUSE' ? 'warning' :
+                          client.blockReason === 'SIM_LOST' ? 'error' :
+                          client.blockReason === 'TERMINATION' ? 'secondary' :
+                          'default'
+                        }
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem' }}
+                      />
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">N/A</Typography>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

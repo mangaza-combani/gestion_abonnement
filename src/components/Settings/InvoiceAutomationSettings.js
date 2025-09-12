@@ -60,7 +60,9 @@ const InvoiceAutomationSettings = () => {
   const [loadingClients, setLoadingClients] = useState(false);
   
   const authToken = localStorage.getItem('token');
-  const apiBaseURL = 'http://localhost:65488';
+  // Import de la configuration centralisée
+  const API_CONFIG = require('../../config/api.js').default;
+  const apiBaseURL = API_CONFIG.SERVER_URL;
 
   // Options de fuseaux horaires
   const timezoneOptions = [
