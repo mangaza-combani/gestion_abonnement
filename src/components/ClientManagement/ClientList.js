@@ -19,7 +19,8 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Phone as PhoneIcon,
-  Block as BlockIcon
+  Block as BlockIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
@@ -60,7 +61,17 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 onMouseLeave={() => setHoveredRow(null)}
                 sx={{ cursor: 'pointer', position: 'relative' }}
               >
-                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client?.user?.lastname}</TableCell>
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {client?.user?.lastname}
+                    {/* Marqueur pour remplacement SIM vol/perte */}
+                    {(client?.replacementReason === 'SIM_LOST_THEFT' || client?.trackingNotes?.includes('REMPLACEMENT SIM')) && (
+                      <Tooltip title="Remplacement SIM - Vol/Perte">
+                        <WarningIcon sx={{ color: 'error.main', fontSize: 16 }} />
+                      </Tooltip>
+                    )}
+                  </Box>
+                </TableCell>
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client?.user?.firstname}</TableCell>
                 {isOrderView &&(
                         <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.phoneNumber || 'N/C'}</TableCell>

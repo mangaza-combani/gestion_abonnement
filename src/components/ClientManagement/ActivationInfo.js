@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -36,9 +36,9 @@ const ActivationInfo = ({ client }) => {
   const [selectedManualNumber, setSelectedManualNumber] = useState(null);
   const [analysisTriggered, setAnalysisTriggered] = useState(false);
   
-  // Détecter si l'ICCID est déjà renseigné par l'agence
-  const preFilledIccid = client?.activatedWithIccid || client?.user?.activatedWithIccid;
-  const isPreFilledMode = !!preFilledIccid;
+  // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1)
+  const preFilledIccid = client?.preAssignedIccid || client?.activatedWithIccid || client?.user?.activatedWithIccid;
+  const isPreFilledMode = client?.isPreAssigned || !!preFilledIccid;
   
   const { data: agenciesData } = useGetAgenciesQuery();
   
@@ -85,6 +85,22 @@ const ActivationInfo = ({ client }) => {
       sim.agencyId === clientAgencyId && !sim.isAlreadyInUse
     );
   };
+
+  const filteredSimCards = getFilteredSimCards();
+
+  // Auto-sélectionner la carte SIM si ICCID pré-rempli (CAS 1)
+  useEffect(() => {
+    if (isPreFilledMode && preFilledIccid && filteredSimCards.length > 0) {
+      // Chercher la carte SIM correspondant à l'ICCID pré-rempli
+      const matchingSimCard = filteredSimCards.find(sim => sim.iccid === preFilledIccid);
+      if (matchingSimCard && !selectedSimCard) {
+        console.log('🎯 Auto-sélection carte SIM pour CAS 1:', matchingSimCard.iccid);
+        setSelectedSimCard(matchingSimCard);
+        setIccid(preFilledIccid);
+        setAnalysisTriggered(true);
+      }
+    }
+  }, [isPreFilledMode, preFilledIccid, filteredSimCards, selectedSimCard]);
 
   const handleIccidChange = (e) => {
     const newIccid = e.target.value;
@@ -163,8 +179,6 @@ const ActivationInfo = ({ client }) => {
     setSelectedLine('');
     setSelectedManualNumber(null);
   };
-  
-  const filteredSimCards = getFilteredSimCards();
   
   if (!client) {
     return (

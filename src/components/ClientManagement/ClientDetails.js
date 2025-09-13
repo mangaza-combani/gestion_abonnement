@@ -20,9 +20,10 @@ import {
   Info as InfoIcon,
   Block as BlockIcon,
   Cancel as CancelIcon,
-  Timer as TimerIcon, // Ajoutez cet import
+  Timer as TimerIcon,
   AccountCircle as AccountCircleIcon,
-  VisibilityOff as VisibilityOffIcon
+  VisibilityOff as VisibilityOffIcon,
+  ContentCopy as CopyIcon
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import RedAccountManagement from '../RedAccountManagement';
@@ -120,25 +121,21 @@ const SubscriptionCard = ({ client, simCard }) => {
     lastPaymentDate,
     unpaidMonths = [],
     updatedAt,
-    activeSubscription,
   } = client;
 
-  // Extraire les informations d'abonnement depuis phoneSubscriptions
-  const firstActiveSubscription = client?.phoneSubscriptions?.find(ps => ps.status === 'ACTIVE');
-  const subscriptionData = firstActiveSubscription?.subscription;
-  const totalMonthlyPrice = subscriptionData ? 
-    (subscriptionData.price + (subscriptionData.equipmentMonthlyFee || 0)) : 0;
+  // Utiliser les données d'abonnement optimisées du backend (activeSubscription)
+  const activeSubscription = client?.activeSubscription;
+  const totalMonthlyPrice = activeSubscription?.totalMonthlyPrice || 0;
 
   // DEBUG: Log des données pour diagnostiquer le problème
-  console.log('🔍 CLIENT DETAILS DEBUG (FIXED):', {
+  console.log('🔍 CLIENT DETAILS DEBUG (USING activeSubscription):', {
     clientId: client?.id,
     phoneNumber: client?.phoneNumber,
     phoneStatus: phoneStatus,
     dueAmount: dueAmount,
-    hasPhoneSubscriptions: !!client?.phoneSubscriptions?.length,
-    firstActiveSubscription: firstActiveSubscription,
-    subscriptionData: subscriptionData,
-    calculatedTotalMonthlyPrice: totalMonthlyPrice,
+    hasActiveSubscription: !!activeSubscription,
+    activeSubscription: activeSubscription,
+    totalMonthlyPrice: totalMonthlyPrice,
     priceCalculation: dueAmount > 0 ? dueAmount : totalMonthlyPrice
   });
 
@@ -150,12 +147,12 @@ const SubscriptionCard = ({ client, simCard }) => {
     '⏳ En attente de carte SIM pour activation',
     '📱 Ligne réservée - Activation en cours',
     '🔧 Superviseur doit activer avec carte SIM'
-  ] : subscriptionData ? [
-    `📱 ${subscriptionData.name}`,
-    `📊 ${subscriptionData.dataAllowanceMb ? `${Math.round(subscriptionData.dataAllowanceMb/1024)}GB données` : 'Données illimitées'}`,
-    `💰 ${totalMonthlyPrice.toFixed(2)} EUR`,
-    ...(subscriptionData.equipmentMonthlyFee ? [`📦 Équipement +${subscriptionData.equipmentMonthlyFee}€/mois`] : []),
-    `🔄 Type: ${subscriptionData.subscriptionType}`,
+  ] : activeSubscription ? [
+    `📱 ${activeSubscription.name}`,
+    `📊 ${activeSubscription.dataSummary || 'Données illimitées'}`,
+    `💰 ${activeSubscription.formattedTotalPrice || totalMonthlyPrice.toFixed(2) + ' EUR'}`,
+    ...(activeSubscription.hasEquipment ? [activeSubscription.equipmentInfo || '📦 Équipement inclus'] : []),
+    `🔄 Type: ${activeSubscription.subscriptionType}`,
   ] : features || [];
 
   const formatDate = (date) => {
@@ -443,9 +440,33 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
                 <Typography variant="body2" color="text.secondary">
                   Identifiant :
                 </Typography>
-                <Typography variant="body1" fontWeight="medium">
-                  {redAccount?.redAccountId || 'N/A'}
-                </Typography>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography 
+                    variant="body1" 
+                    fontWeight="medium"
+                    sx={{ 
+                      fontFamily: 'monospace',
+                      bgcolor: 'grey.100',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 0.5,
+                      border: 1,
+                      borderColor: 'grey.300'
+                    }}
+                  >
+                    {redAccount?.redAccountId || 'N/A'}
+                  </Typography>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => {
+                      navigator.clipboard.writeText(redAccount?.redAccountId || '')
+                      // TODO: Add toast notification
+                    }}
+                    title="Copier l'identifiant"
+                  >
+                    <CopyIcon fontSize="small" />
+                  </IconButton>
+                </Box>
               </Box>
 
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -453,15 +474,39 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
                   Mot de passe :
                 </Typography>
                 <Box display="flex" alignItems="center" gap={1}>
-                  <Typography variant="body1" fontFamily="monospace" fontWeight="medium">
+                  <Typography 
+                    variant="body1" 
+                    fontFamily="monospace" 
+                    fontWeight="medium"
+                    sx={{ 
+                      bgcolor: 'grey.100',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 0.5,
+                      border: 1,
+                      borderColor: 'grey.300'
+                    }}
+                  >
                     {showPassword ? redAccount?.password : '••••••••••'}
                   </Typography>
                   <IconButton 
                     size="small" 
                     onClick={() => setShowPassword(!showPassword)}
                     color={showPassword ? 'primary' : 'default'}
+                    title={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
                     {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  </IconButton>
+                  <IconButton 
+                    size="small" 
+                    onClick={() => {
+                      navigator.clipboard.writeText(redAccount?.password || '')
+                      // TODO: Add toast notification
+                    }}
+                    title="Copier le mot de passe"
+                    disabled={!showPassword}
+                  >
+                    <CopyIcon fontSize="small" />
                   </IconButton>
                 </Box>
               </Box>

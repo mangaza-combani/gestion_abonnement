@@ -21,10 +21,9 @@ import {
         Stop as StopIcon,
         Pause as PauseIcon,
         PhoneDisabled as PhoneLostIcon,
-        Cancel as CancelIcon,
         ExpandMore as ExpandMoreIcon,
-        CheckCircle as ApproveIcon,
-        Cancel as RejectIcon
+        CheckCircle as ConfirmIcon,
+        Cancel as CancelIcon
 } from '@mui/icons-material';
 
 import {
@@ -207,14 +206,14 @@ const ClientActions = ({client, currentTab}) => {
                 try {
                         const result = await confirmBlockRequest({
                                 phoneId: client.id,
-                                approved: actionType === 'approve'
+                                approved: actionType === 'confirm'
                         }).unwrap();
 
                         console.log('✅ Action superviseur effectuée:', result);
                         setConfirmationOpen(false);
                         
                         // Notification de succès avec Snackbar
-                        const actionLabel = actionType === 'approve' ? 'approuvée' : 'rejetée';
+                        const actionLabel = actionType === 'confirm' ? 'confirmée' : 'annulée';
                         showSnackbar(`✅ Demande ${actionLabel} avec succès !`, 'success');
                         
                 } catch (error) {
@@ -227,10 +226,10 @@ const ClientActions = ({client, currentTab}) => {
 
         const getActionMessage = () => {
                 const reasonLabel = client?.blockReasonLabel || 'blocage';
-                if (actionType === 'approve') {
-                        return `Approuver cette demande de ${reasonLabel.toLowerCase()} ?`;
+                if (actionType === 'confirm') {
+                        return `Confirmer que les modifications ont été effectuées sur le compte RED pour cette demande de ${reasonLabel.toLowerCase()} ?`;
                 } else {
-                        return `Rejeter cette demande de ${reasonLabel.toLowerCase()} ?`;
+                        return `Annuler cette demande de ${reasonLabel.toLowerCase()} ?`;
                 }
         };
 
@@ -333,20 +332,20 @@ const ClientActions = ({client, currentTab}) => {
                         fullWidth
                         variant="contained"
                         color="success"
-                        startIcon={<ApproveIcon />}
-                        onClick={() => handleSupervisorAction('approve')}
+                        startIcon={<ConfirmIcon />}
+                        onClick={() => handleSupervisorAction('confirm')}
                     >
-                        Approuver
+                        Confirmer
                     </Button>
                     
                     <Button
                         fullWidth
                         variant="contained"
                         color="error"
-                        startIcon={<RejectIcon />}
-                        onClick={() => handleSupervisorAction('reject')}
+                        startIcon={<CancelIcon />}
+                        onClick={() => handleSupervisorAction('cancel')}
                     >
-                        Rejeter
+                        Annuler
                     </Button>
                 </>
             )}
@@ -377,13 +376,13 @@ const ClientActions = ({client, currentTab}) => {
                 fullWidth
             >
                 <DialogTitle>
-                    Confirmation Action Superviseur
+                    {actionType === 'confirm' ? 'Confirmer les modifications RED' : 'Annuler la demande'}
                 </DialogTitle>
                 
                 <DialogContent>
                     <Stack spacing={2}>
                         <Alert 
-                            severity={actionType === 'approve' ? 'info' : 'warning'}
+                            severity={actionType === 'confirm' ? 'info' : 'error'}
                         >
                             <Typography variant="body2">
                                 <strong>Client :</strong> {client?.user?.firstname} {client?.user?.lastname}<br />
@@ -396,18 +395,18 @@ const ClientActions = ({client, currentTab}) => {
                             {getActionMessage()}
                         </Typography>
 
-                        {actionType === 'approve' && (
+                        {actionType === 'confirm' && (
                             <Alert severity="success">
                                 <Typography variant="body2">
-                                    La ligne sera bloquée/mise en pause selon la demande.
+                                    Confirme que les modifications ont été effectuées sur le compte RED et que la ligne a été traitée.
                                 </Typography>
                             </Alert>
                         )}
 
-                        {actionType === 'reject' && (
-                            <Alert severity="warning">
+                        {actionType === 'cancel' && (
+                            <Alert severity="error">
                                 <Typography variant="body2">
-                                    La demande sera annulée et la ligne restera dans son état actuel.
+                                    La demande sera annulée définitivement et disparaîtra de la liste.
                                 </Typography>
                             </Alert>
                         )}
@@ -424,10 +423,10 @@ const ClientActions = ({client, currentTab}) => {
                     <Button
                         onClick={handleConfirmAction}
                         variant="contained"
-                        color={actionType === 'approve' ? 'success' : 'error'}
+                        color={actionType === 'confirm' ? 'success' : 'error'}
                         disabled={isProcessing}
                     >
-                        {isProcessing ? 'Traitement...' : 'Confirmer'}
+                        {isProcessing ? 'Traitement...' : (actionType === 'confirm' ? 'Confirmer' : 'Annuler')}
                     </Button>
                 </DialogActions>
             </Dialog>

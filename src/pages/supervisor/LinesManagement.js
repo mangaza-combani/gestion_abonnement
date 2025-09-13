@@ -505,9 +505,20 @@ const ClientManagement = () => {
                                 const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL ||
                                     client?.phoneStatus === selectedStatus || client?.paymentStatus === selectedStatus;
                                 // Vérifier si la ligne a un abonnement (peu importe le statut de la ligne)
-                                const hasSubscription = client?.phoneSubscriptions > 0 || client?.activeSubscription;
+                                const hasSubscription = client?.phoneSubscriptions?.length > 0 || client?.activeSubscription;
+                                
+                                // 🧪 TEMPORAIRE: Afficher toutes les lignes pour debug, même sans abonnement
+                                console.log('🔍 DEBUG FILTRE LIST:', {
+                                        clientId: client?.id,
+                                        phoneNumber: client?.phoneNumber,
+                                        hasPhoneSubscriptions: client?.phoneSubscriptions?.length || 0,
+                                        hasActiveSubscription: !!client?.activeSubscription,
+                                        matchesSearch, matchesStatus, hasSubscription,
+                                        finalResult: matchesSearch && matchesStatus // Temporairement ignorer hasSubscription
+                                });
+                                
                                 // Inclure même les lignes BLOCKED, PAUSED, TERMINATED car elles restent visibles dans la liste
-                                return matchesSearch && matchesStatus && hasSubscription;
+                                return matchesSearch && matchesStatus; // Temporairement ignorer hasSubscription
                         }
 
                         // Filtres basés sur la logique métier
@@ -793,19 +804,21 @@ const ClientManagement = () => {
                     </Box>
                     <Box sx={{display: 'flex', p: 2, gap: 2, maxWidth: '100vw', overflow: 'hidden'}}>
                             <Box sx={{
-                                flex: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? '0 0 45%' : '1 1 auto', 
+                                flex: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '0 0 45%' : 
+                                      selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '0 0 75%' : '1 1 auto', 
                                 minWidth: 0, 
                                 overflow: 'hidden',
-                                maxWidth: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? '45%' : '100%'
+                                maxWidth: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '45%' : 
+                                         selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '75%' : '100%'
                             }}>
                                     {renderTabContent()}
                             </Box>
                             <Box sx={{ 
                                 display: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? 'flex' : 'none',
-                                flex: '0 0 55%',
-                                width: '55%',
+                                flex: selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '0 0 25%' : '0 0 55%',
+                                width: selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '25%' : '55%',
                                 overflow: 'auto',
-                                minWidth: '500px',
+                                minWidth: selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '200px' : '500px',
                                 gap: 2,
                                 alignItems: 'flex-start'
                             }}>
