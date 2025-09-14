@@ -50,6 +50,18 @@ export const formatPaymentAndStatusToHumanReadable = (status) => {
                         return "RÉSILIÉ";
                 case 'NEW_CLIENT':
                         return "NOUVEAU CLIENT";
+                case 'À JOUR':
+                        return "À JOUR";
+                case 'EN RETARD':
+                        return "EN RETARD";
+                case 'DETTE':
+                        return "DETTE";
+                case 'BLOCKED_NONPAYMENT':
+                        return "BLOQUÉ IMPAYÉ";
+                case 'PENDING_PAYMENT':
+                        return "EN ATTENTE PAIEMENT";
+                default:
+                        return status || "NON DÉFINI";
         }
 }
 

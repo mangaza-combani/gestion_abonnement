@@ -37,14 +37,12 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : '18%') }}>NOM</TableCell>
-              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : '18%') }}>PRENOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '25%' : (showBlockReason ? '30%' : '33%') }}>NOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '25%' : (showBlockReason ? '30%' : '33%') }}>PRENOM</TableCell>
               {isOrderView && (
-                <TableCell sx={{ width: '20%' }}>TELEPHONE</TableCell>
+                <TableCell sx={{ width: '25%' }}>TELEPHONE</TableCell>
               )}
-              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '12%' : '16%') }}>COMPTE RED</TableCell>
-              <TableCell sx={{ width: isOrderView ? '17.5%' : (showBlockReason ? '15%' : '24%') }}>ETAT PAIEMENT</TableCell>
-              <TableCell sx={{ width: isOrderView ? '17.5%' : (showBlockReason ? '15%' : '24%') }}>ETAT TÉLÉPHONE</TableCell>
+              <TableCell sx={{ width: isOrderView ? '25%' : (showBlockReason ? '20%' : '34%') }}>COMPTE RED</TableCell>
               {showBlockReason && (
                 <TableCell sx={{ width: '23%' }}>RAISON DU BLOCAGE</TableCell>
               )}
@@ -97,16 +95,10 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                     <Typography variant="caption" color="text.secondary">N/A</Typography>
                   )}
                 </TableCell>
-                <TableCell>
-                  <StatusChip status={formatPaymentAndStatusToHumanReadable(client.paymentStatus)} />
-                </TableCell>
-                <TableCell>
-                  <StatusChip status={formatPaymentAndStatusToHumanReadable(client.phoneStatus)} />
-                </TableCell>
                 {showBlockReason && (
                   <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {client.blockReasonLabel ? (
-                      <Chip 
+                      <Chip
                         label={client.blockReasonLabel}
                         size="small"
                         color={

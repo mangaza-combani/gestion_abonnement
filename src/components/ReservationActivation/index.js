@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
 import {
   Dialog,
   DialogTitle,
@@ -21,7 +22,8 @@ import {
   Phone as PhoneIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
-import { useActivateWithSimMutation } from '../../store/slices/lineReservationsSlice';
+import { useActivateWithSimMutation, lineReservationsApiSlice } from '../../store/slices/lineReservationsSlice';
+import { redAccountsApiSlice } from '../../store/slices/redAccountsSlice';
 
 const ReservationActivation = ({ 
   open, 
@@ -29,6 +31,7 @@ const ReservationActivation = ({
   reservation, 
   onSuccess 
 }) => {
+  const dispatch = useDispatch();
   const [iccid, setIccid] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   const [activateWithSim, { isLoading, error }] = useActivateWithSimMutation();
@@ -47,6 +50,27 @@ const ReservationActivation = ({
         phoneId: reservation.id,
         iccid: iccid.trim()
       }).unwrap();
+
+      // Invalider tous les caches pertinents pour mise à jour immédiate
+      dispatch(lineReservationsApiSlice.util.invalidateTags([
+        { type: 'LineReservation', id: 'RESERVED' },
+        { type: 'LineReservation', id: 'AVAILABLE' },
+        { type: 'Phone', id: reservation.id },
+        { type: 'Phone', id: 'LIST' },
+        { type: 'Client', id: 'LIST' },
+        { type: 'SimCard', id: 'LIST' },
+        'LineReservation', // Invalider toutes les réservations
+        'Phone', // Invalider tous les téléphones
+        'Client' // Invalider tous les clients
+      ]));
+
+      // Invalider aussi les comptes RED
+      dispatch(redAccountsApiSlice.util.invalidateTags([
+        { type: 'RedAccount', id: 'LIST' },
+        'RedAccount' // Invalider tous les comptes RED
+      ]));
+
+      console.log('✅ Cache invalidé après activation ReservationActivation');
 
       setActiveStep(2);
       

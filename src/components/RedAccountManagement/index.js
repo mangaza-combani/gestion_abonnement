@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  Typography, 
+import { useDispatch } from 'react-redux';
+import {
+  Card,
+  CardContent,
+  Typography,
   Box,
   Alert,
   AlertTitle,
@@ -23,7 +24,9 @@ import {
   DialogActions,
   Stepper,
   Step,
-  StepLabel
+  StepLabel,
+  Snackbar,
+  Alert as MuiAlert
 } from '@mui/material';
 import {
   SimCard as SimCardIcon,
@@ -35,7 +38,7 @@ import {
   Close as CloseIcon,
   Check as CheckIcon
 } from '@mui/icons-material';
-import { useGetRedAccountsQuery } from '../../store/slices/redAccountsSlice';
+import { useGetRedAccountsQuery, redAccountsApiSlice } from '../../store/slices/redAccountsSlice';
 import { 
   useGetAvailableLinesQuery,
   useReserveLineMutation,
@@ -45,8 +48,10 @@ import {
   useReserveExistingLineRequestMutation
 } from '../../store/slices/lineReservationsSlice';
 import NewAccountDialog from '../AccountManagement/NewAccountDialog';
+import NewLineDialog from '../AccountManagement/NewLineDialog';
 
 const RedAccountManagement = ({ client }) => {
+  const dispatch = useDispatch();
   const [selectedNumber, setSelectedNumber] = useState('');
   const [showPasswords, setShowPasswords] = useState({});
   const [selectedAccount, setSelectedAccount] = useState('');
@@ -54,13 +59,23 @@ const RedAccountManagement = ({ client }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
+
+  // États pour NewLineDialog simplifié
+  const [newLineDialogOpen, setNewLineDialogOpen] = useState(false);
+  const [selectedAccountForNewLine, setSelectedAccountForNewLine] = useState(null);
   const [newLineNumber, setNewLineNumber] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   
   // États pour les modales de confirmation
   const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', onConfirm: null });
-  const [successDialog, setSuccessDialog] = useState({ open: false, message: '' });
-  const [errorDialog, setErrorDialog] = useState({ open: false, message: '' });
+
+  // États pour les notifications toast
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  // Fonction utilitaire pour afficher les toasts
+  const showToast = (message, severity = 'success') => {
+    setToast({ open: true, message, severity });
+  };
   
   // Vérifier si l'utilisateur connecté est un superviseur
   const getCurrentUser = () => {
@@ -99,17 +114,21 @@ const RedAccountManagement = ({ client }) => {
   const allRedAccounts = redAccountsData?.redAccounts || [];
 
   // Récupérer les lignes disponibles pour réservation
-  const { data: availableLinesData, isLoading: linesLoading } = useGetAvailableLinesQuery();
+  const { data: availableLinesData, isLoading: linesLoading, refetch: refetchAvailableLines } = useGetAvailableLinesQuery();
   const allAvailableLines = availableLinesData?.data || [];
 
   // Filtrer les comptes RED par l'agence du client sélectionné
   const redAccounts = allRedAccounts.filter(account => account.agencyId === targetAgencyId);
 
-  // Filtrer les lignes disponibles : SEULEMENT celles liées aux comptes RED de cette agence
+  // Filtrer les lignes disponibles : SEULEMENT celles liées aux comptes RED de cette agence ET réellement disponibles
   const redAccountIds = redAccounts.map(account => account.id);
-  const filteredAvailableLines = allAvailableLines.filter(line => 
+  const filteredAvailableLines = allAvailableLines.filter(line =>
     // SEULEMENT les lignes attachées à un compte RED de cette agence
-    redAccountIds.includes(line.redAccountId)
+    redAccountIds.includes(line.redAccountId) &&
+    // ET qui sont vraiment disponibles (pas réservées)
+    line.reservationStatus === 'AVAILABLE' &&
+    // ET qui ne sont pas déjà réservées par un autre client
+    !line.reservedForClientId
   );
 
   // Renommer la variable pour éviter les conflits
@@ -123,7 +142,15 @@ const RedAccountManagement = ({ client }) => {
     allAvailableLinesCount: allAvailableLines.length,
     filteredCount: filteredAvailableLines.length,
     finalCount: availableLines.length,
-    redAccountsCount: redAccounts.length
+    redAccountsCount: redAccounts.length,
+    // Debug détaillé des statuts des lignes
+    lineStatuses: allAvailableLines.map(line => ({
+      id: line.id,
+      redAccountId: line.redAccountId,
+      reservationStatus: line.reservationStatus,
+      reservedForClientId: line.reservedForClientId,
+      deliveryStatus: line.deliveryStatus
+    }))
   });
   
   // Forcer un re-render si les données ont changé
@@ -399,108 +426,55 @@ const RedAccountManagement = ({ client }) => {
   };
 
   const renderCreationForm = () => {
-    const { availableAccounts, terminatedLines } = analyzeAccountsForSuggestion();
-    const hasTerminatedLines = terminatedLines.length > 0;
-    const selectedAccountData = availableAccounts.find(acc => acc.id === selectedAccount);
+    const { availableAccounts } = analyzeAccountsForSuggestion();
 
     return (
       <Paper sx={{ p: 2, mt: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
-            Créer une nouvelle ligne
+            Sélectionner le compte RED
           </Typography>
           <IconButton size="small" onClick={() => setShowCreateForm(false)}>
             <CloseIcon />
           </IconButton>
         </Box>
         
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <FormControl fullWidth>
-              <InputLabel>Type de ligne</InputLabel>
-              <Select
-                value={selectedLineType}
-                onChange={(e) => {
-                  setSelectedLineType(e.target.value);
-                  setSelectedNumber('');
-                  setSelectedAccount('');
-                }}
-                label="Type de ligne"
-              >
-                <MenuItem value="new">Nouvelle ligne</MenuItem>
-                {hasTerminatedLines && (
-                  <MenuItem value="reuse">Réutiliser une ligne</MenuItem>
-                )}
-              </Select>
-            </FormControl>
+        <Stack spacing={2}>
+          <Alert severity="info">
+            Sélectionnez le compte RED sur lequel créer la nouvelle ligne
+          </Alert>
+
+          <Grid container spacing={2}>
+            {availableAccounts.map(account => (
+              <Grid item xs={12} key={account.id}>
+                <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        Compte {account.redAccountId}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {account.activeLines || 0}/{account.maxLines} lignes utilisées
+                        • {Math.max(0, account.maxLines - (account.activeLines || 0))} places libres
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="contained"
+                      startIcon={<PhoneIcon />}
+                      onClick={() => {
+                        setSelectedAccountForNewLine(account);
+                        setNewLineDialogOpen(true);
+                        setShowCreateForm(false);
+                      }}
+                    >
+                      Créer ligne
+                    </Button>
+                  </Stack>
+                </Paper>
+              </Grid>
+            ))}
           </Grid>
-
-          {selectedLineType && (
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Compte</InputLabel>
-                <Select
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  label="Compte"
-                >
-                  {selectedLineType === 'new' ? (
-                    availableAccounts.map(account => (
-                      <MenuItem key={account.id} value={account.id}>
-                        {account.redAccountId} ({(account.activeLines || 0) + (account.reservedLines || 0)}/{account.maxLines})
-                      </MenuItem>
-                    ))
-                  ) : (
-                    availableAccounts
-                      .filter(account => account.terminatedLines.length > 0)
-                      .map(account => (
-                        <MenuItem key={account.id} value={account.id}>
-                          {account.redAccountId} ({account.terminatedLines.length} lignes)
-                        </MenuItem>
-                      ))
-                  )}
-                </Select>
-              </FormControl>
-            </Grid>
-          )}
-
-
-          {selectedLineType === 'reuse' && selectedAccount && (
-            <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel>Ligne à réutiliser</InputLabel>
-                <Select
-                  value={selectedNumber}
-                  onChange={(e) => setSelectedNumber(e.target.value)}
-                  label="Ligne à réutiliser"
-                >
-                  {availableAccounts
-                    .find(acc => acc.id === selectedAccount)
-                    ?.terminatedLines.map(line => (
-                      <MenuItem key={line.number} value={line.number}>
-                        {line.number} - Ancien client: {line.clientData.prenom} {line.clientData.nom}
-                      </MenuItem>
-                    ))
-                  }
-                </Select>
-              </FormControl>
-            </Grid>
-          )}
-        </Grid>
-
-        <Button
-          variant="contained"
-          fullWidth
-          sx={{ mt: 2 }}
-          disabled={!selectedAccount || (selectedLineType === 'reuse' && !selectedNumber)}
-          onClick={handleCreateNewLine}
-          startIcon={<CheckIcon />}
-        >
-          {selectedLineType === 'reuse' 
-            ? 'Continuer avec cette ligne'
-            : 'Continuer'
-          }
-        </Button>
+        </Stack>
       </Paper>
     );
   };
@@ -630,39 +604,64 @@ const RedAccountManagement = ({ client }) => {
           <Grid container spacing={2}>
             {/* Lignes disponibles pour réservation */}
             <Grid item xs={12}>
-              {filteredAvailableLines.length > 0 ? (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  <AlertTitle>🚚 Lignes en cours de livraison disponibles ({filteredAvailableLines.length})</AlertTitle>
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    {filteredAvailableLines.length} ligne(s) commandée(s) en attente de livraison SIM. Vous pouvez réserver une ligne pour ce client. Le numéro exact sera connu lors de l'activation de la carte SIM.
-                  </Typography>
+              {(() => {
+                const reallyAvailableLines = filteredAvailableLines.filter(line =>
+                  line.reservationStatus === 'AVAILABLE' && !line.reservedForClientId
+                );
+
+                console.log('📊 DEBUG Lignes en livraison:', {
+                  total: filteredAvailableLines.length,
+                  reallyAvailable: reallyAvailableLines.length,
+                  reserved: filteredAvailableLines.filter(line => line.reservationStatus === 'RESERVED').length,
+                  withReservedClient: filteredAvailableLines.filter(line => line.reservedForClientId).length
+                });
+
+                return reallyAvailableLines.length > 0 ? (
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    <AlertTitle>🚚 Lignes en cours de livraison disponibles ({reallyAvailableLines.length})</AlertTitle>
+                    <Typography variant="body2" sx={{ mb: 2 }}>
+                      {reallyAvailableLines.length} ligne(s) commandée(s) en attente de livraison SIM. Vous pouvez réserver une ligne pour ce client. Le numéro exact sera connu lors de l'activation de la carte SIM.
+                    </Typography>
                   
                   {/* Regroupement par compte RED pour clarté */}
                   {Object.entries(
-                    filteredAvailableLines.reduce((acc, line) => {
-                      const accountId = line.redAccount?.id || 'Inconnu';
-                      if (!acc[accountId]) acc[accountId] = [];
-                      acc[accountId].push(line);
-                      return acc;
-                    }, {})
-                  ).map(([accountId, lines]) => (
-                    <Box key={accountId} sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                        📋 Compte {accountId}: {lines.length} ligne(s) disponible(s)
-                      </Typography>
+                    filteredAvailableLines
+                      // D'abord filtrer les lignes vraiment disponibles
+                      .filter(line => line.reservationStatus === 'AVAILABLE' && !line.reservedForClientId)
+                      .reduce((acc, line) => {
+                        const accountId = line.redAccount?.id || 'Inconnu';
+                        if (!acc[accountId]) acc[accountId] = [];
+                        acc[accountId].push(line);
+                        return acc;
+                      }, {})
+                  ).filter(([accountId, lines]) =>
+                    // Exclure les comptes sans lignes disponibles
+                    lines.length > 0
+                  ).map(([accountId, lines]) => {
+                    // Récupérer l'identifiant visible du compte (redAccountId) au lieu de l'ID interne
+                    const accountIdentifier = lines[0]?.redAccount?.redAccountId || accountId;
+
+                    // Les lignes sont déjà filtrées en amont, donc actuallyAvailableLines = lines
+                    const actuallyAvailableLines = lines;
+
+                    return (
+                      <Box key={accountId} sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                          📋 Compte {accountIdentifier}: {actuallyAvailableLines.length} ligne(s) disponible(s)
+                        </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Ces lignes sont commandées mais les cartes SIM ne sont pas encore arrivées. Le numéro exact sera révélé lors de l'activation.
                       </Typography>
                       <Button
                         variant="contained"
                         color="warning"
-                        disabled={isReserving}
+                        disabled={isReserving || actuallyAvailableLines.length === 0}
                         onClick={() => {
                           // Réserver une place sur ce compte RED
                           setConfirmDialog({
                             open: true,
                             title: 'Réserver une ligne en cours de livraison',
-                            message: `Réserver UNE ligne du compte ${accountId} pour ${client?.user?.firstname} ${client?.user?.lastname} ?\n\n⚠️ Le numéro exact sera connu quand la carte SIM arrivera et sera activée.`,
+                            message: `Réserver UNE ligne du compte ${accountIdentifier} pour ${client?.user?.firstname} ${client?.user?.lastname} ?\n\n⚠️ Le numéro exact sera connu quand la carte SIM arrivera et sera activée.`,
                             onConfirm: async () => {
                               try {
                                 console.log('🚨 DEBUG Frontend - Réservation directe:', {
@@ -695,16 +694,31 @@ const RedAccountManagement = ({ client }) => {
                                 }
                                 
                                 console.log('✅ Résultat final:', result);
-                                setSuccessDialog({
-                                  open: true,
-                                  message: `Ligne réservée avec succès pour ${client.user.firstname} ${client.user.lastname} !\n\nQuand la carte SIM arrivera, vous pourrez l'activer depuis l'onglet "Activation" et le numéro sera révélé.`
-                                });
+
+                                // Invalider le cache RTK Query AVANT de refetch pour forcer une récupération complète
+                                dispatch(redAccountsApiSlice.util.invalidateTags([
+                                  { type: 'RedAccount', id: accountId },
+                                  { type: 'RedAccount', id: 'LIST' },
+                                  { type: 'LineReservation', id: 'AVAILABLE' },
+                                  { type: 'LineReservation', id: 'RESERVED' },
+                                  { type: 'Client', id: client.user.id },
+                                  { type: 'Phone', id: 'LIST' },
+                                  // Invalider tous les caches liés aux lignes
+                                  'LineReservation', // Tous les types LineReservation
+                                  'Phone' // Tous les types Phone
+                                ]));
+
+                                // Attendre un petit délai puis refetch pour s'assurer que l'invalidation est prise en compte
+                                setTimeout(() => {
+                                  refetchRedAccounts();
+                                  refetchAvailableLines();
+                                }, 100);
+
+                                // Notification toast au lieu de modal
+                                showToast(`✅ Ligne réservée pour ${client.user.firstname} ${client.user.lastname}`, 'success');
                               } catch (error) {
                                 console.error('Erreur réservation:', error);
-                                setErrorDialog({
-                                  open: true,
-                                  message: 'Erreur lors de la réservation: ' + (error.data?.message || error.message)
-                                });
+                                showToast(`❌ Erreur: ${error.data?.message || error.message}`, 'error');
                               }
                               setConfirmDialog({ open: false, title: '', message: '', onConfirm: null });
                             }
@@ -718,16 +732,18 @@ const RedAccountManagement = ({ client }) => {
                         💡 Date de livraison estimée: {lines[0].estimatedDeliveryDate ? new Date(lines[0].estimatedDeliveryDate).toLocaleDateString() : 'En cours'}
                       </Typography>
                     </Box>
-                  ))}
+                    );
+                  })}
                 </Alert>
-              ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  <AlertTitle>ℹ️ Aucune ligne en cours de livraison</AlertTitle>
-                  <Typography variant="body2">
-                    Aucune ligne n'est actuellement en cours de livraison dans cette agence. Vous devez commander de nouvelles lignes ou utiliser des lignes existantes ci-dessous.
-                  </Typography>
-                </Alert>
-              )}
+                ) : (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <AlertTitle>ℹ️ Aucune ligne en cours de livraison</AlertTitle>
+                    <Typography variant="body2">
+                      Aucune ligne n'est actuellement en cours de livraison dans cette agence. Vous devez commander de nouvelles lignes ou utiliser des lignes existantes ci-dessous.
+                    </Typography>
+                  </Alert>
+                );
+              })()}
             </Grid>
             
             <Grid item xs={12} md={6}>
@@ -844,10 +860,11 @@ const RedAccountManagement = ({ client }) => {
             
             {/* Lignes disponibles pour ce compte */}
             {(() => {
-              const accountAvailableLines = filteredAvailableLines.filter(line => 
-                line.redAccount?.id === account.id && 
+              const accountAvailableLines = filteredAvailableLines.filter(line =>
+                line.redAccount?.id === account.id &&
                 line.deliveryStatus === 'PENDING_DELIVERY' &&
-                line.reservationStatus === 'AVAILABLE'
+                line.reservationStatus === 'AVAILABLE' &&
+                !line.reservedForClientId // Double vérification pour s'assurer qu'elle n'est pas réservée
               );
               return accountAvailableLines.length > 0 ? (
                 <Typography variant="caption" sx={{ 
@@ -884,10 +901,7 @@ const RedAccountManagement = ({ client }) => {
                     message: `Attribuer une nouvelle ligne dans le compte ${account.redAccountId} à ${client?.user?.firstname} ${client?.user?.lastname} ?`,
                     onConfirm: () => {
                       console.log('Attribution nouvelle ligne:', { account, client });
-                      setSuccessDialog({
-                        open: true,
-                        message: 'Nouvelle ligne attribuée avec succès !'
-                      });
+                      showToast(`✅ Nouvelle ligne attribuée sur compte ${account.redAccountId}`, 'success');
                       setConfirmDialog({ open: false, title: '', message: '', onConfirm: null });
                     }
                   });
@@ -909,10 +923,7 @@ const RedAccountManagement = ({ client }) => {
                     message: `Attribuer la ligne non attribuée (${line.phoneNumber || 'numéro en cours'}) à ${client?.user?.firstname} ${client?.user?.lastname} ?`,
                     onConfirm: () => {
                       console.log('Attribution ligne existante:', { line, client });
-                      setSuccessDialog({
-                        open: true,
-                        message: 'Ligne existante attribuée avec succès !'
-                      });
+                      showToast(`✅ Ligne ${line.phoneNumber || 'non-attribuée'} assignée avec succès`, 'success');
                       setConfirmDialog({ open: false, title: '', message: '', onConfirm: null });
                     }
                   });
@@ -934,10 +945,7 @@ const RedAccountManagement = ({ client }) => {
                     message: `Réutiliser la ligne ${line.number} (ex-client: ${line.clientData?.prenom || 'Inconnu'}) pour ${client?.user?.firstname} ${client?.user?.lastname} ?`,
                     onConfirm: () => {
                       console.log('Réutilisation ligne:', { line, client });
-                      setSuccessDialog({
-                        open: true,
-                        message: 'Ligne réutilisée avec succès !'
-                      });
+                      showToast(`✅ Ligne ${line.number} réutilisée avec succès`, 'success');
                       setConfirmDialog({ open: false, title: '', message: '', onConfirm: null });
                     }
                   });
@@ -1031,55 +1039,6 @@ const RedAccountManagement = ({ client }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Modale de succès */}
-      <Dialog
-        open={successDialog.open}
-        onClose={() => setSuccessDialog({ open: false, message: '' })}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CheckIcon color="success" />
-          Succès
-        </DialogTitle>
-        <DialogContent>
-          <Typography>{successDialog.message}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            variant="contained" 
-            onClick={() => setSuccessDialog({ open: false, message: '' })}
-            color="success"
-          >
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Modale d'erreur */}
-      <Dialog
-        open={errorDialog.open}
-        onClose={() => setErrorDialog({ open: false, message: '' })}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-          <CloseIcon color="error" />
-          Erreur
-        </DialogTitle>
-        <DialogContent>
-          <Typography>{errorDialog.message}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            variant="contained" 
-            onClick={() => setErrorDialog({ open: false, message: '' })}
-            color="error"
-          >
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
       
       {/* Modal de création de compte RED */}
       <NewAccountDialog
@@ -1092,6 +1051,53 @@ const RedAccountManagement = ({ client }) => {
         }}
         preselectedAgency={client?.agency}
       />
+
+      {/* Modal de création de ligne simplifiée */}
+      <NewLineDialog
+        open={newLineDialogOpen}
+        onClose={() => {
+          setNewLineDialogOpen(false);
+          setSelectedAccountForNewLine(null);
+        }}
+        onSubmit={(lineData) => {
+          console.log('Nouvelle ligne créée:', lineData);
+          setNewLineDialogOpen(false);
+          setSelectedAccountForNewLine(null);
+
+          // Mettre à jour les données des comptes RED pour refléter la nouvelle ligne
+          // 1. Refetch direct
+          refetchRedAccounts();
+
+          // 2. Invalider le cache RTK Query pour forcer une mise à jour
+          dispatch(redAccountsApiSlice.util.invalidateTags([
+            { type: 'RedAccount', id: selectedAccountForNewLine?.id },
+            { type: 'RedAccount', id: 'LIST' },
+            { type: 'LineReservation', id: 'AVAILABLE' }
+          ]));
+
+          showToast('✅ Ligne créée avec succès! Les statistiques ont été mises à jour.', 'success');
+        }}
+        accountId={selectedAccountForNewLine?.id}
+        clients={[]} // Liste vide pour masquer la section client
+        simplifiedMode={true} // Mode simplifié
+      />
+
+      {/* Composant Toast pour les notifications */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={5000}
+        onClose={() => setToast({ ...toast, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <MuiAlert
+          onClose={() => setToast({ ...toast, open: false })}
+          severity={toast.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {toast.message}
+        </MuiAlert>
+      </Snackbar>
     </Card>
   );
 };

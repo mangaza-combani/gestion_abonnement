@@ -37,13 +37,20 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
         method: 'POST',
         body: { redAccountId, clientId, notes }
       }),
-      invalidatesTags: [
-        { type: 'LineReservation', id: 'AVAILABLE' },
-        { type: 'LineReservation', id: 'RESERVED' },
-        { type: 'RedAccount', id: 'LIST' },
-        { type: 'Phone', id: 'LIST' }, 
-        { type: 'Client', id: 'LIST' }
-      ]
+      invalidatesTags: (result, error, { redAccountId, clientId }) => {
+        console.log('🗑️ Invalidation tags pour reserveLine:', { result, error, redAccountId, clientId });
+        return [
+          { type: 'LineReservation', id: 'AVAILABLE' },
+          { type: 'LineReservation', id: 'RESERVED' },
+          { type: 'RedAccount', id: redAccountId },
+          { type: 'RedAccount', id: 'LIST' },
+          { type: 'Phone', id: 'LIST' },
+          { type: 'Client', id: clientId },
+          { type: 'Client', id: 'LIST' },
+          'LineReservation', // Invalider toutes les réservations
+          'Phone' // Invalider tous les téléphones
+        ];
+      }
     }),
 
     // Réserver une place pour une demande existante (superviseur transforme ligne fantôme)
@@ -79,21 +86,28 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
 
     // Activer une ligne avec une carte SIM
     activateWithSim: builder.mutation({
-      query: ({ phoneId, iccid }) => ({
+      query: ({ phoneId, iccid, clientId }) => ({
         url: '/api/line-reservations/activate',
         method: 'POST',
-        body: { phoneId, iccid }
+        body: { phoneId, iccid, clientId }
       }),
-      invalidatesTags: [
-        { type: 'LineReservation', id: 'RESERVED' },
-        { type: 'RedAccount', id: 'LIST' },
-        { type: 'Phone', id: 'LIST' },
-        { type: 'SimCard', id: 'LIST' },
-        { type: 'Client', id: 'LIST' },
-        'Phone', // Invalider tous les téléphones
-        'ClientToOrder', // Invalider les clients à commander
-        'LineReservation' // Invalider toutes les réservations
-      ]
+      invalidatesTags: (result, error, { phoneId, clientId }) => {
+        console.log('🗑️ Invalidation tags pour activateWithSim:', { result, error, phoneId, clientId });
+        return [
+          { type: 'LineReservation', id: 'RESERVED' },
+          { type: 'LineReservation', id: 'AVAILABLE' },
+          { type: 'RedAccount', id: 'LIST' },
+          { type: 'Phone', id: phoneId }, // Invalider la ligne spécifique
+          { type: 'Phone', id: 'LIST' },
+          { type: 'SimCard', id: 'LIST' },
+          { type: 'Client', id: clientId }, // Invalider le client spécifique
+          { type: 'Client', id: 'LIST' },
+          'Phone', // Invalider tous les téléphones
+          'ClientToOrder', // Invalider les clients à commander
+          'LineReservation', // Invalider toutes les réservations
+          'RedAccount' // Invalider tous les comptes RED
+        ];
+      }
     }),
 
     // Récupérer les demandes de ligne en attente
@@ -118,17 +132,20 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
         method: 'POST',
         body: { lineRequestId }
       }),
-      invalidatesTags: [
-        { type: 'LineReservation', id: 'AVAILABLE' },
-        { type: 'LineReservation', id: 'RESERVED' },
-        { type: 'LineRequest', id: 'LIST' },
-        { type: 'RedAccount', id: 'LIST' },
-        { type: 'Phone', id: 'LIST' }, 
-        { type: 'Client', id: 'LIST' },
-        'Phone', // Invalider tous les téléphones
-        'ClientToOrder', // Invalider les clients à commander
-        'LineReservation' // Invalider toutes les réservations
-      ]
+      invalidatesTags: (result, error, { lineRequestId }) => {
+        console.log('🗑️ Invalidation tags pour reserveExistingLineRequest:', { result, error, lineRequestId });
+        return [
+          { type: 'LineReservation', id: 'AVAILABLE' },
+          { type: 'LineReservation', id: 'RESERVED' },
+          { type: 'LineRequest', id: 'LIST' },
+          { type: 'RedAccount', id: 'LIST' },
+          { type: 'Phone', id: 'LIST' },
+          { type: 'Client', id: 'LIST' },
+          'Phone', // Invalider tous les téléphones
+          'ClientToOrder', // Invalider les clients à commander
+          'LineReservation' // Invalider toutes les réservations
+        ];
+      }
     }),
 
     // Analyser ICCID pour aide superviseur

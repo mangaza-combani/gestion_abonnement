@@ -69,7 +69,7 @@ const NotificationCenter = () => {
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
-    refetch(); // Rafraîchir les données à l'ouverture
+    if (refetch) refetch(); // Rafraîchir les données à l'ouverture
   };
 
   const handleMenuClose = () => {

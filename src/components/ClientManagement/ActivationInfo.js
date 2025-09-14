@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { 
   Box, 
   Typography, 
@@ -26,10 +27,14 @@ import {
   Business as BusinessIcon
 } from '@mui/icons-material';
 import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
-import { useAnalyzeIccidForSupervisorQuery, useGetAvailableSimCardsQuery, useGetValidNumbersForAgencyQuery, useActivateWithSimMutation } from '../../store/slices/lineReservationsSlice';
+import { useAnalyzeIccidForSupervisorQuery, useGetAvailableSimCardsQuery, useGetValidNumbersForAgencyQuery, useActivateWithSimMutation, lineReservationsApiSlice } from '../../store/slices/lineReservationsSlice';
+import { useConfirmReactivationMutation } from '../../store/slices/linesSlice';
+import { redAccountsApiSlice } from '../../store/slices/redAccountsSlice';
 
 const ActivationInfo = ({ client }) => {
+  const dispatch = useDispatch();
   const [showActivationDialog, setShowActivationDialog] = useState(false);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [selectedSimCard, setSelectedSimCard] = useState(null);
   const [iccid, setIccid] = useState('');
   const [selectedLine, setSelectedLine] = useState('');
@@ -45,8 +50,9 @@ const ActivationInfo = ({ client }) => {
   // Récupérer les cartes SIM disponibles
   const { data: simCardsData, isLoading: isLoadingSims } = useGetAvailableSimCardsQuery();
   
-  // Mutation pour activer la ligne
+  // Mutations pour activer la ligne
   const [activateWithSim, { isLoading: isActivating }] = useActivateWithSimMutation();
+  const [confirmReactivation, { isLoading: isConfirming }] = useConfirmReactivationMutation();
   
   // Récupérer l'ID de l'agence du client
   const getClientAgencyId = () => {
@@ -116,7 +122,18 @@ const ActivationInfo = ({ client }) => {
     }
   };
 
+  const handleSimpleConfirmation = async () => {
+    try {
+      await confirmReactivation({ phoneId: client.id }).unwrap();
+      console.log('✅ Réactivation confirmée avec succès');
+      setShowConfirmationDialog(false);
+    } catch (error) {
+      console.error('❌ Erreur lors de la confirmation de réactivation:', error);
+    }
+  };
+
   const handleActivationConfirm = async () => {
+    // Cette fonction ne gère que les nouvelles activations (logique existante préservée)
     const finalIccid = isPreFilledMode ? preFilledIccid : iccid;
     
     if (!selectedManualNumber && (!finalIccid || !selectedLine)) return;
@@ -153,7 +170,29 @@ const ActivationInfo = ({ client }) => {
         iccid: finalIccid,
         client: client?.user?.firstname + ' ' + client?.user?.lastname
       });
-      
+
+      // Invalider tous les caches pertinents pour mise à jour immédiate
+      dispatch(lineReservationsApiSlice.util.invalidateTags([
+        { type: 'LineReservation', id: 'RESERVED' },
+        { type: 'LineReservation', id: 'AVAILABLE' },
+        { type: 'Phone', id: phoneIdToActivate },
+        { type: 'Phone', id: 'LIST' },
+        { type: 'Client', id: clientId },
+        { type: 'Client', id: 'LIST' },
+        { type: 'SimCard', id: 'LIST' },
+        'LineReservation', // Invalider toutes les réservations
+        'Phone', // Invalider tous les téléphones
+        'Client' // Invalider tous les clients
+      ]));
+
+      // Invalider aussi les comptes RED
+      dispatch(redAccountsApiSlice.util.invalidateTags([
+        { type: 'RedAccount', id: 'LIST' },
+        'RedAccount' // Invalider tous les comptes RED
+      ]));
+
+      console.log('✅ Cache invalidé après activation - les données devraient se mettre à jour automatiquement');
+
       // Fermer le dialog après succès
       handleCloseDialog();
       
@@ -238,6 +277,33 @@ const ActivationInfo = ({ client }) => {
             />
           </Box>
           
+          {/* 🆕 Informations sur le type d'activation et la raison */}
+          {(client?.activationType || client?.reactivationReason) && (
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Type d'activation
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip 
+                  label={
+                    client?.activationType === 'NEW_ACTIVATION' ? 'Nouvelle activation' :
+                    client?.activationType === 'REACTIVATION_AFTER_PAUSE' ? 'Réactivation (Pause)' :
+                    client?.activationType === 'REACTIVATION_AFTER_DEBT' ? 'Réactivation (Impayé)' :
+                    client?.activationType === 'REACTIVATION' ? 'Réactivation' : 
+                    'Activation'
+                  }
+                  size="small" 
+                  color={client?.activationType === 'NEW_ACTIVATION' ? 'success' : 'info'}
+                />
+              </Stack>
+              {client?.reactivationReason && (
+                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                  {client.reactivationReason}
+                </Typography>
+              )}
+            </Box>
+          )}
+          
           {/* Compte RED rattaché */}
           {(client?.redAccountId || client?.lineRequest?.redAccountId) && (
             <Box>
@@ -253,12 +319,21 @@ const ActivationInfo = ({ client }) => {
           
           <Button
             variant="contained"
-            color="primary"
-            startIcon={<PhoneIcon />}
-            onClick={() => setShowActivationDialog(true)}
+            color={client?.activationType === 'NEW_ACTIVATION' ? "primary" : "success"}
+            startIcon={client?.activationType === 'NEW_ACTIVATION' ? <PhoneIcon /> : <CheckIcon />}
+            onClick={() => {
+              if (client?.activationType === 'NEW_ACTIVATION') {
+                setShowActivationDialog(true);
+              } else {
+                setShowConfirmationDialog(true);
+              }
+            }}
             fullWidth
           >
-            Activer la ligne (Superviseur)
+            {client?.activationType === 'NEW_ACTIVATION' 
+              ? 'Activer la ligne (Superviseur)' 
+              : 'Confirmer activation sur RED'
+            }
           </Button>
         </Stack>
       </CardContent>
@@ -272,15 +347,55 @@ const ActivationInfo = ({ client }) => {
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PhoneIcon color="primary" />
-            Activation superviseur - {client?.user?.firstname} {client?.user?.lastname}
+            {client?.activationType === 'NEW_ACTIVATION' ? (
+              <PhoneIcon color="primary" />
+            ) : (
+              <CheckIcon color="success" />
+            )}
+            {client?.activationType === 'NEW_ACTIVATION' 
+              ? `Activation superviseur - ${client?.user?.firstname} ${client?.user?.lastname}`
+              : `Confirmer activation RED - ${client?.user?.firstname} ${client?.user?.lastname}`
+            }
           </Box>
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             
-            {/* Étape 1: ICCID - Mode Pré-rempli ou Sélection SIM */}
-            <Paper sx={{ p: 2, bgcolor: isPreFilledMode ? 'success.lighter' : 'grey.50' }}>
+            {/* ✅ CAS CONFIRMATION : Réactivation après pause/impayé */}
+            {client?.activationType !== 'NEW_ACTIVATION' ? (
+              <Paper sx={{ p: 3, bgcolor: 'success.lighter' }}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" color="success.main" gutterBottom>
+                    ✅ Confirmation d'activation sur RED
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Cette ligne nécessite uniquement une confirmation que l'activation a été effectuée sur le compte RED.
+                  </Typography>
+                </Box>
+
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Ligne :</strong> {client?.phoneNumber}<br />
+                    <strong>Type :</strong> {
+                      client?.activationType === 'REACTIVATION_AFTER_PAUSE' ? 'Retour après pause temporaire' :
+                      client?.activationType === 'REACTIVATION_AFTER_DEBT' ? 'Retour après règlement impayé' :
+                      'Réactivation'
+                    }<br />
+                    <strong>Raison :</strong> {client?.reactivationReason}
+                  </Typography>
+                </Alert>
+
+                <Typography variant="body1" sx={{ mb: 2 }}>
+                  <strong>Avez-vous activé cette ligne sur le compte RED ?</strong>
+                </Typography>
+                
+                <Typography variant="body2" color="text.secondary">
+                  En confirmant, le statut de la ligne passera à "ACTIVE" dans le système.
+                </Typography>
+              </Paper>
+            ) : (
+              /* 🔧 CAS NOUVELLE ACTIVATION : Workflow complet avec ICCID */
+              <Paper sx={{ p: 2, bgcolor: isPreFilledMode ? 'success.lighter' : 'grey.50' }}>
               {isPreFilledMode ? (
                 <>
                   <Typography variant="subtitle2" gutterBottom color="success.main">
@@ -384,6 +499,7 @@ const ActivationInfo = ({ client }) => {
                 </>
               )}
             </Paper>
+            )}
             
             {/* Étape 2: Résultats de l'analyse */}
             {iccidAnalysis && (
@@ -614,10 +730,73 @@ const ActivationInfo = ({ client }) => {
           <Button
             variant="contained"
             onClick={handleActivationConfirm}
-            disabled={isActivating || (!selectedManualNumber && (!iccid || !selectedLine))}
+            disabled={isActivating || (client?.activationType === 'NEW_ACTIVATION' && (!selectedManualNumber && (!iccid || !selectedLine)))}
             startIcon={isActivating ? <CircularProgress size={20} /> : <CheckIcon />}
+            color={client?.activationType === 'NEW_ACTIVATION' ? "primary" : "success"}
           >
-            {isActivating ? 'Activation en cours...' : 'Activer la ligne'}
+            {isActivating ? 
+              (client?.activationType === 'NEW_ACTIVATION' ? 'Activation en cours...' : 'Confirmation en cours...') : 
+              (client?.activationType === 'NEW_ACTIVATION' ? 'Activer la ligne' : 'Confirmer activation sur RED')
+            }
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 🆕 Dialog simple pour confirmations de réactivation */}
+      <Dialog
+        open={showConfirmationDialog}
+        onClose={() => setShowConfirmationDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckIcon color="success" />
+            Confirmer activation sur RED
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          <Stack spacing={2}>
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Client :</strong> {client?.user?.firstname} {client?.user?.lastname}<br />
+                <strong>Ligne :</strong> {client?.phoneNumber}<br />
+                <strong>Type :</strong> {
+                  client?.activationType === 'REACTIVATION_AFTER_PAUSE' ? 'Retour après pause temporaire' :
+                  client?.activationType === 'REACTIVATION_AFTER_DEBT' ? 'Retour après règlement impayé' :
+                  'Réactivation'
+                }<br />
+                {client?.reactivationReason && (
+                  <>
+                    <strong>Raison :</strong> {client.reactivationReason}
+                  </>
+                )}
+              </Typography>
+            </Alert>
+
+            <Typography variant="h6" sx={{ textAlign: 'center', color: 'success.main' }}>
+              Avez-vous activé cette ligne sur le compte RED ?
+            </Typography>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+              En confirmant, le statut de la ligne passera à "ACTIVE" dans le système.
+            </Typography>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setShowConfirmationDialog(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleSimpleConfirmation}
+            disabled={isConfirming}
+            startIcon={isConfirming ? <CircularProgress size={20} /> : <CheckIcon />}
+          >
+            {isConfirming ? 'Confirmation...' : 'Oui, confirmer l\'activation'}
           </Button>
         </DialogActions>
       </Dialog>

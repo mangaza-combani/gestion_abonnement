@@ -72,9 +72,9 @@ const ClientManagement = () => {
                 isLoading: phonesToBlockLoading,
                 refetch: refetchPhonesToBlock
         } = useGetPhonesToBlockQuery(undefined, {
-                pollingInterval: 30000,
-                refetchOnFocus: true,
-                refetchOnReconnect: true
+                // Pas de polling automatique pour éviter les erreurs refetch
+                // refetchOnFocus: true,
+                // refetchOnReconnect: true
         })
 
         const {
@@ -82,9 +82,9 @@ const ClientManagement = () => {
                 isLoading: phonesOverdueLoading,
                 refetch: refetchPhonesOverdue
         } = useGetPhonesOverdueQuery(undefined, {
-                pollingInterval: 30000,
-                refetchOnFocus: true,
-                refetchOnReconnect: true
+                // Pas de polling automatique pour éviter les erreurs refetch
+                // refetchOnFocus: true,
+                // refetchOnReconnect: true
         })
 
         const {
@@ -92,9 +92,9 @@ const ClientManagement = () => {
                 isLoading: phonesToActivateLoading,
                 refetch: refetchPhonesToActivate
         } = useGetPhonesToActivateQuery(undefined, {
-                pollingInterval: 30000,
-                refetchOnFocus: true,
-                refetchOnReconnect: true
+                // Pas de polling automatique pour éviter les erreurs refetch
+                // refetchOnFocus: true,
+                // refetchOnReconnect: true
         })
 
         // 🧪 MODE TEST - Hook pour récupérer toutes les lignes avec statut de paiement pour la LISTE
@@ -102,9 +102,9 @@ const ClientManagement = () => {
                 data: allLinesWithPaymentStatus,
                 isLoading: allLinesLoading
         } = useGetPhoneWithPaymentStatusQuery(undefined, {
-                pollingInterval: 30000,
-                refetchOnFocus: true,
-                refetchOnReconnect: true
+                // Pas de polling automatique pour éviter les erreurs refetch
+                // refetchOnFocus: true,
+                // refetchOnReconnect: true
         })
         
         // Handle URL parameters for navigation from AccountDetails
@@ -126,15 +126,15 @@ const ClientManagement = () => {
                 }
         }, [searchParams, linesData, linesLoading]);
 
-        // Rafraîchissement automatique spécifique pour TO_ORDER et TO_ACTIVATE
-        useEffect(() => {
+        // Rafraîchissement automatique spécifique pour TO_ORDER et TO_ACTIVATE - TEMPORAIREMENT DÉSACTIVÉ
+        /*useEffect(() => {
                 let interval;
                 
                 if (currentTab === TAB_TYPES.TO_ORDER || currentTab === TAB_TYPES.TO_ACTIVATE) {
                         // Rafraîchissement plus fréquent sur ces onglets critiques
                         interval = setInterval(() => {
-                                refetchLines();
-                                refetchClientsToOrder();
+                                if (refetchLines) refetchLines();
+                                if (refetchClientsToOrder) refetchClientsToOrder();
                         }, 15000); // 15 secondes
                 }
                 
@@ -143,31 +143,31 @@ const ClientManagement = () => {
                                 clearInterval(interval);
                         }
                 };
-        }, [currentTab, refetchLines, refetchClientsToOrder]);
+        }, [currentTab, refetchLines, refetchClientsToOrder]);*/
 
-        // Rafraîchissement quand la page regagne le focus
-        useEffect(() => {
+        // Rafraîchissement quand la page regagne le focus - TEMPORAIREMENT DÉSACTIVÉ
+        /*useEffect(() => {
                 const handleFocus = () => {
                         if (currentTab === TAB_TYPES.TO_ORDER || currentTab === TAB_TYPES.TO_ACTIVATE) {
-                                refetchLines();
-                                refetchClientsToOrder();
+                                if (refetchLines) refetchLines();
+                                if (refetchClientsToOrder) refetchClientsToOrder();
                         }
                 };
 
                 window.addEventListener('focus', handleFocus);
                 return () => window.removeEventListener('focus', handleFocus);
-        }, [currentTab, refetchLines, refetchClientsToOrder]);
+        }, [currentTab, refetchLines, refetchClientsToOrder]);*/
 
-        // Actualisation automatique des données toutes les 30 secondes
-        React.useEffect(() => {
+        // Actualisation automatique des données toutes les 30 secondes - TEMPORAIREMENT DÉSACTIVÉ
+        /*React.useEffect(() => {
                 const interval = setInterval(() => {
-                        refetchAgencies();
-                        refetchClientsToOrder();
-                        refetchLines();
+                        if (refetchAgencies) refetchAgencies();
+                        if (refetchClientsToOrder) refetchClientsToOrder();
+                        if (refetchLines) refetchLines();
                 }, 30000); // 30 secondes
                 
                 return () => clearInterval(interval);
-        }, [refetchAgencies, refetchClientsToOrder, refetchLines]);
+        }, [refetchAgencies, refetchClientsToOrder, refetchLines]);*/
         
         // Debug temporaire pour voir les données
         React.useEffect(() => {
@@ -457,11 +457,11 @@ const ClientManagement = () => {
                         setSelectedClient(null)
                         setCurrentTab(newValue)
                         
-                        // Rafraîchir les données quand on change d'onglet
-                        if (newValue === TAB_TYPES.TO_ORDER || newValue === TAB_TYPES.TO_ACTIVATE) {
-                                refetchLines();
-                                refetchClientsToOrder();
-                        }
+                        // Rafraîchir les données quand on change d'onglet - TEMPORAIREMENT DÉSACTIVÉ
+                        /*if (newValue === TAB_TYPES.TO_ORDER || newValue === TAB_TYPES.TO_ACTIVATE) {
+                                if (refetchLines) refetchLines();
+                                if (refetchClientsToOrder) refetchClientsToOrder();
+                        }*/
                 }, 0)
         }
 
@@ -508,14 +508,7 @@ const ClientManagement = () => {
                                 const hasSubscription = client?.phoneSubscriptions?.length > 0 || client?.activeSubscription;
                                 
                                 // 🧪 TEMPORAIRE: Afficher toutes les lignes pour debug, même sans abonnement
-                                console.log('🔍 DEBUG FILTRE LIST:', {
-                                        clientId: client?.id,
-                                        phoneNumber: client?.phoneNumber,
-                                        hasPhoneSubscriptions: client?.phoneSubscriptions?.length || 0,
-                                        hasActiveSubscription: !!client?.activeSubscription,
-                                        matchesSearch, matchesStatus, hasSubscription,
-                                        finalResult: matchesSearch && matchesStatus // Temporairement ignorer hasSubscription
-                                });
+                                // console.log('🔍 DEBUG FILTRE LIST:') - Log supprimé pour éviter les rerenders
                                 
                                 // Inclure même les lignes BLOCKED, PAUSED, TERMINATED car elles restent visibles dans la liste
                                 return matchesSearch && matchesStatus; // Temporairement ignorer hasSubscription
@@ -590,30 +583,40 @@ const ClientManagement = () => {
                                         // À activer: 
                                         // 1. Lignes avec statut NEEDS_TO_BE_ACTIVATED
                                         // 2. Lignes avec réservation active MAIS PAS ENCORE ACTIVÉES (éviter les lignes déjà activées)
+                                        // 3. 🆕 Lignes en pause pour impayé MAIS avec paymentStatus = 'NEEDS_ACTIVATION' (dette réglée)
                                         const needsActivation = client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
                                         const hasReservation = client?.user?.hasActiveReservation === true ||
                                                               client?.user?.reservationStatus === 'RESERVED' ||
                                                               client?.hasActiveReservation === true ||
                                                               client?.reservationStatus === 'RESERVED';
                                         
+                                        // 🆕 NOUVEAU : Lignes en pause pour impayé mais dette réglée
+                                        const needsReactivation = client?.phoneStatus === PHONE_STATUS.PAUSED && 
+                                                                 client?.paymentStatus === 'À JOUR' &&
+                                                                 client?.blockedReason === 'nonpayment';
+                                        
                                         // Exclure les lignes déjà activées (statut ACTIVE)
                                         const isAlreadyActive = client?.phoneStatus === PHONE_STATUS.ACTIVE;
                                         
-                                        const qualifies = (needsActivation || hasReservation) && !isAlreadyActive;
+                                        const qualifies = (needsActivation || hasReservation || needsReactivation) && !isAlreadyActive;
                                         
                                         // Identifier le type de ligne pour À ACTIVER
                                         const isWaitingForSim = client.trackingNotes?.includes('EN ATTENTE DE SIM');
                                         const hasIccid = client.activatedWithIccid || client.phoneNumber;
                                         
                                         // Debug détaillé pour comprendre la logique
-                                        if (needsActivation || hasReservation) {
+                                        if (needsActivation || hasReservation || needsReactivation) {
                                           console.log('🔍 LIGNE ANALYSÉE pour À ACTIVER:', {
                                             id: client.id,
                                             phoneNumber: client.phoneNumber,
                                             needsActivation,
                                             hasReservation,
+                                            needsReactivation,
                                             isAlreadyActive,
                                             phoneStatus: client.phoneStatus,
+                                            paymentStatus: client.paymentStatus,
+                                            blockedReason: client.blockedReason,
+                                            reactivationReason: client.reactivationReason,
                                             isWaitingForSim,
                                             hasIccid,
                                             qualifies: qualifies,
@@ -636,13 +639,8 @@ const ClientManagement = () => {
                         }
                 });
                 
-                // Log temporaire pour debug
-                console.log(`🔍 FILTRAGE onglet ${currentTab}:`, {
-                        totalLines: linesData?.length || 0,
-                        filteredCount: filteredClients?.length || 0,
-                        tab: currentTab,
-                        sampleFiltered: filteredClients?.slice(0, 3)
-                });
+                // Log temporaire pour debug - Supprimé pour éviter les rerenders
+                // console.log(`🔍 FILTRAGE onglet ${currentTab}:`) - Log supprimé
                 
                 return filteredClients;
         };

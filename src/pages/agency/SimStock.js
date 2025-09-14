@@ -22,7 +22,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Snackbar
+  Snackbar,
+  Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -369,13 +370,29 @@ const SimCardManagement = () => {
       {/* En-tête */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">Gestion des Cartes SIM</Typography>
-        <Button
-          variant="contained"
-          startIcon={<LocalShippingIcon />}
-          onClick={() => setShowReceiveModal(true)}
-        >
-          Déclarer Réception
-        </Button>
+        {(() => {
+          const ordersInProgress = simOrders?.filter(order => (order.quantityReceived || 0) < order.quantity) || [];
+          const hasOrdersInProgress = ordersInProgress.length > 0;
+          
+          const tooltipTitle = !hasOrdersInProgress 
+            ? "Impossible de déclarer une réception : aucune commande en cours. Toutes les commandes ont été entièrement reçues ou il n'y a aucune commande active."
+            : "Déclarer la réception d'une livraison de cartes SIM";
+          
+          return (
+            <Tooltip title={tooltipTitle} arrow placement="bottom">
+              <span>
+                <Button
+                  variant="contained"
+                  startIcon={<LocalShippingIcon />}
+                  onClick={() => setShowReceiveModal(true)}
+                  disabled={!hasOrdersInProgress}
+                >
+                  Déclarer Réception
+                </Button>
+              </span>
+            </Tooltip>
+          );
+        })()}
       </Box>
 
       {/* Cartes statistiques */}
@@ -506,8 +523,25 @@ const SimCardManagement = () => {
           <Typography variant="h6">Commandes en cours</Typography>
         </Box>
         <Box sx={{ p: 2 }}>
-          {simOrders?.filter(order => (order.quantityReceived || 0) < order.quantity)
-            ?.map(order => (
+          {(() => {
+            const ordersInProgress = simOrders?.filter(order => (order.quantityReceived || 0) < order.quantity) || [];
+            console.log('🔍 SimStock - Commandes en cours:', ordersInProgress.length, ordersInProgress);
+            
+            if (ordersInProgress.length === 0) {
+              return (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <InventoryIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Aucune commande en cours
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Toutes les commandes ont été entièrement reçues ou il n'y a aucune commande active
+                  </Typography>
+                </Box>
+              );
+            }
+            
+            return ordersInProgress.map(order => (
               <Box 
                 key={order.id} 
                 sx={{ 
@@ -542,7 +576,8 @@ const SimCardManagement = () => {
                   </Button>
                 </Box>
               </Box>
-            ))}
+            ));
+          })()}
         </Box>
       </Paper>
 

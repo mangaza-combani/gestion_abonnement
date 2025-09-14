@@ -13,7 +13,11 @@ import {
         DialogContent,
         DialogActions,
         Alert,
-        Snackbar
+        Snackbar,
+        Box,
+        Checkbox,
+        FormControlLabel,
+        Divider
 } from '@mui/material';
 import {
         EuroSymbol as EuroIcon,
@@ -30,7 +34,8 @@ import {
         useBlockPhoneMutation,
         useUnblockPhoneMutation,
         useRequestBlockPhoneMutation,
-        useConfirmBlockRequestMutation
+        useConfirmBlockRequestMutation,
+        useRequestActivationMutation
 } from "../../store/slices/linesSlice";
 
 import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
@@ -42,6 +47,7 @@ const ClientActions = ({client, currentTab}) => {
         const [unblockPhone] = useUnblockPhoneMutation();
         const [requestBlockPhone] = useRequestBlockPhoneMutation();
         const [confirmBlockRequest] = useConfirmBlockRequestMutation();
+        const [requestActivation] = useRequestActivationMutation();
         const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
         const [suspendMenuAnchor, setSuspendMenuAnchor] = useState(null);
         const [simLostModalOpen, setSimLostModalOpen] = useState(false);
@@ -50,6 +56,10 @@ const ClientActions = ({client, currentTab}) => {
         const [confirmationOpen, setConfirmationOpen] = useState(false);
         const [actionType, setActionType] = useState(null);
         const [isProcessing, setIsProcessing] = useState(false);
+
+        // États pour les demandes SIM perdue/volée (comme dans SupervisorActions)
+        const [linePaused, setLinePaused] = useState(false);
+        const [simOrdered, setSimOrdered] = useState(false);
         
         // États pour Snackbar
         const [snackbar, setSnackbar] = useState({
@@ -114,6 +124,63 @@ const ClientActions = ({client, currentTab}) => {
                         console.error('Erreur lors du blocage du téléphone:', error);
                 }
         };
+
+        const handleActivationRequest = async (id) => {
+                try {
+                        // Déterminer la raison de la demande d'activation selon le statut
+                        const phoneStatus = client?.phoneStatus;
+                        let reason;
+                        
+                        if (phoneStatus === 'PAUSED') {
+                                reason = 'AFTER_PAUSE';
+                        } else if (phoneStatus === 'BLOCKED' && client?.paymentStatus === 'À JOUR') {
+                                reason = 'AFTER_DEBT_PAYMENT';
+                        } else {
+                                reason = 'MANUAL_REQUEST';
+                        }
+                        
+                        // Faire la demande d'activation via une nouvelle mutation
+                        const response = await requestActivation({
+                                phoneId: id,
+                                reason: reason
+                        }).unwrap();
+
+                        // Vérifier le type de réponse
+                        if (response.requiresNewSim) {
+                                showSnackbar('📦 Demande de nouvelle SIM créée ! Vérifiez l\'onglet "À COMMANDER".', 'info');
+                        } else if (response.requiresSupervisorValidation) {
+                                showSnackbar('🔧 Ligne mise en attente d\'activation superviseur (SIM perdue/résiliation)', 'info');
+                        } else {
+                                showSnackbar('📋 Demande d\'activation créée ! La ligne apparaîtra dans "À ACTIVER".', 'success');
+                        }
+                        console.log('Demande d\'activation créée avec succès:', response);
+                } catch (error) {
+                        console.error('Erreur lors de la demande d\'activation:', error);
+                        
+                        // 🆕 Gestion spéciale pour la facturation
+                        if (error?.data?.requiresManualPayment) {
+                                const details = error.data.details;
+                                showSnackbar(
+                                        `💰 Facture impayée de ${details.amountDue}€ détectée. Ouverture du modal d'encaissement...`, 
+                                        'warning'
+                                );
+                                console.log('📋 Déclenche modal encaissement pour facture:', error.data.invoiceDetails);
+                                // TODO: Déclencher le modal d'encaissement ici
+                                // setInvoiceModalOpen(true); avec les détails de la facture
+                        } else if (error?.data?.insufficientBalance) {
+                                const details = error.data.details;
+                                showSnackbar(
+                                        `💰 Solde insuffisant ! Requis: ${details.required}€ - Disponible: ${details.totalAvailable}€ (Ligne: ${details.lineBalance}€ + Client: ${details.clientBalance}€)`, 
+                                        'error'
+                                );
+                                console.log('💳 Solde insuffisant:', details);
+                        } else if (error?.data?.error) {
+                                showSnackbar(error.data.error, 'error');
+                        } else {
+                                showSnackbar('❌ Erreur lors de la demande d\'activation', 'error');
+                        }
+                }
+        }
 
         const handleUnblock = async (id) => {
                 try {
@@ -199,23 +266,86 @@ const ClientActions = ({client, currentTab}) => {
         const handleSupervisorAction = (action) => {
                 setActionType(action);
                 setConfirmationOpen(true);
+                // Reset checkbox states
+                setLinePaused(false);
+                setSimOrdered(false);
         };
+
+        // Vérifier si c'est une demande SIM perdue/volée (logique de SupervisorActions)
+        const isSimLostRequest = client?.blockReason === 'PENDING_SIM_LOST' ||
+                                 client?.blockReason === 'SIM_LOST' ||
+                                 client?.blockedReason === 'lost_sim' ||
+                                 client?.pendingBlockReason === 'lost_sim' ||
+                                 // Vérifier aussi si le label contient ces mots-clés
+                                 (client?.blockReasonLabel &&
+                                  (client.blockReasonLabel.toLowerCase().includes('sim perdue') ||
+                                   client.blockReasonLabel.toLowerCase().includes('sim volée') ||
+                                   client.blockReasonLabel.toLowerCase().includes('sim lost')));
+
+        // Debug pour identifier les vraies propriétés en cas de problème
+        if (client && isSimLostRequest) {
+          console.log('🔍 DEBUG ClientActions - SIM LOST DETECTED:', {
+            blockReason: client?.blockReason,
+            blockedReason: client?.blockedReason,
+            pendingBlockReason: client?.pendingBlockReason,
+            blockReasonLabel: client?.blockReasonLabel,
+            phoneStatus: client?.phoneStatus,
+            isSimLostRequest,
+            clientId: client?.id,
+            phoneNumber: client?.phoneNumber
+          });
+        }
+
+        // Debug avant confirmation pour voir l'état
+        if (actionType && confirmationOpen) {
+          console.log('🔍 DEBUG AVANT CONFIRMATION:', {
+            actionType,
+            isSimLostRequest,
+            linePaused,
+            simOrdered,
+            currentPhoneStatus: client?.phoneStatus
+          });
+        }
 
         const handleConfirmAction = async () => {
                 setIsProcessing(true);
                 try {
-                        const result = await confirmBlockRequest({
+                        // Payload de base
+                        const payload = {
                                 phoneId: client.id,
                                 approved: actionType === 'confirm'
-                        }).unwrap();
+                        };
+
+                        // Ajouter les données spécifiques aux demandes SIM perdue/volée
+                        if (isSimLostRequest && actionType === 'confirm') {
+                                payload.simLostActions = {
+                                        linePaused,
+                                        simOrdered
+                                };
+                        }
+
+                        const result = await confirmBlockRequest(payload).unwrap();
 
                         console.log('✅ Action superviseur effectuée:', result);
+                        console.log('📋 PAYLOAD ENVOYÉ:', payload);
+                        console.log('📋 RÉSULTAT REÇU:', JSON.stringify(result, null, 2));
                         setConfirmationOpen(false);
-                        
-                        // Notification de succès avec Snackbar
-                        const actionLabel = actionType === 'confirm' ? 'confirmée' : 'annulée';
-                        showSnackbar(`✅ Demande ${actionLabel} avec succès !`, 'success');
-                        
+
+                        // Messages spécifiques selon le cas
+                        let successMessage;
+                        if (isSimLostRequest && actionType === 'confirm') {
+                                if (!simOrdered) {
+                                        successMessage = `✅ Actions confirmées ! La ligne ${linePaused ? 'est mise en pause et ' : ''}sera transférée vers "À COMMANDER" pour nouvelle SIM.`;
+                                } else {
+                                        successMessage = `✅ Actions confirmées ! ${linePaused ? 'Ligne mise en pause et SIM commandée.' : 'SIM commandée.'}`;
+                                }
+                        } else {
+                                const actionLabel = actionType === 'confirm' ? 'confirmée' : 'annulée';
+                                successMessage = `✅ Demande ${actionLabel} avec succès !`;
+                        }
+
+                        showSnackbar(successMessage, 'success');
+
                 } catch (error) {
                         console.error('❌ Erreur lors de l\'action superviseur:', error);
                         showSnackbar('❌ Erreur lors du traitement de la demande', 'error');
@@ -235,13 +365,27 @@ const ClientActions = ({client, currentTab}) => {
 
         // Logique intelligente pour afficher les boutons
         const phoneStatus = client?.phoneStatus;
+        const paymentStatus = client?.paymentStatus;
         const isLineActive = phoneStatus === PHONE_STATUS.ACTIVE;
         const isLineSuspended = phoneStatus === PHONE_STATUS.SUSPENDED || 
                                phoneStatus === PHONE_STATUS.BLOCKED || 
                                phoneStatus === PHONE_STATUS.PAUSED;
+        
+        // Nouvelles logiques d'activation
+        const isBlockedForNonPayment = phoneStatus === PHONE_STATUS.BLOCKED && 
+                                       ['BLOCKED_NONPAYMENT', 'PAST_DUE'].includes(paymentStatus);
+        const isPausedLine = phoneStatus === PHONE_STATUS.PAUSED;
+        const canRequestActivation = (isPausedLine && paymentStatus === 'À JOUR') || 
+                                    (isBlockedForNonPayment && paymentStatus === 'À JOUR') ||
+                                    (phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED);
+        
+        // Masquer le bouton si problème de paiement : bloqué pour impayé OU en retard OU en dette
+        const hasPaymentIssues = ['EN RETARD', 'DETTE'].includes(paymentStatus);
+        const hideActivateButton = (isBlockedForNonPayment && paymentStatus !== 'À JOUR') || hasPaymentIssues;
+        
         const needsActivation = phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || 
                                phoneStatus === PHONE_STATUS.INACTIVE || 
-                               isLineSuspended;
+                               (isLineSuspended && !hideActivateButton);
 
         return (
             <Paper sx={{width: '100%', maxWidth: '220px', p: 2}}>
@@ -263,16 +407,16 @@ const ClientActions = ({client, currentTab}) => {
                                             Facturer
                                     </Button>
                                     
-                                    {/* Bouton Activer - Seulement si la ligne n'est pas active */}
-                                    {needsActivation && (
+                                    {/* Bouton Activer - Seulement si la ligne n'est pas active ET pas bloquée pour impayé */}
+                                    {needsActivation && !hideActivateButton && (
                                         <Button
                                             fullWidth
                                             variant="contained"
                                             color="success"
-                                            onClick={() => handleUnblock(client.id)}
+                                            onClick={() => canRequestActivation ? handleActivationRequest(client.id) : handleUnblock(client.id)}
                                             startIcon={<PlayArrowIcon/>}
                                         >
-                                                Activer
+                                                {canRequestActivation ? 'Demander Activation' : 'Activer'}
                                         </Button>
                                     )}
                                     
@@ -395,7 +539,50 @@ const ClientActions = ({client, currentTab}) => {
                             {getActionMessage()}
                         </Typography>
 
-                        {actionType === 'confirm' && (
+                        {actionType === 'confirm' && isSimLostRequest && (
+                            <>
+                                <Divider />
+                                <Alert severity="info">
+                                    <Typography variant="body2" sx={{ mb: 2 }}>
+                                        <strong>Actions à effectuer pour vol/perte de SIM :</strong>
+                                    </Typography>
+
+                                    <Stack spacing={2}>
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    checked={linePaused}
+                                                    onChange={(e) => setLinePaused(e.target.checked)}
+                                                    color="primary"
+                                                />
+                                            }
+                                            label="J'ai mis la ligne en pause sur RED"
+                                        />
+
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    checked={simOrdered}
+                                                    onChange={(e) => setSimOrdered(e.target.checked)}
+                                                    color="primary"
+                                                />
+                                            }
+                                            label="J'ai déjà commandé une nouvelle carte SIM"
+                                        />
+                                    </Stack>
+
+                                    {!simOrdered && (
+                                        <Alert severity="warning" sx={{ mt: 2 }}>
+                                            <Typography variant="body2">
+                                                Si la SIM n'est pas commandée, la ligne sera transférée vers l'onglet "À COMMANDER" avec la mention vol/perte.
+                                            </Typography>
+                                        </Alert>
+                                    )}
+                                </Alert>
+                            </>
+                        )}
+
+                        {actionType === 'confirm' && !isSimLostRequest && (
                             <Alert severity="success">
                                 <Typography variant="body2">
                                     Confirme que les modifications ont été effectuées sur le compte RED et que la ligne a été traitée.

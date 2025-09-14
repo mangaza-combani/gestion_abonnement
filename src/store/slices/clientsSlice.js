@@ -67,6 +67,16 @@ export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
       providesTags: ['ClientToOrder'],
       keepUnusedDataFor: 0, // Ne pas garder les données en cache
     }),
+
+    // Confirmer commande SIM avec date
+    confirmSimOrder: builder.mutation({
+      query: ({ lineRequestId, orderDate, quantity = 1 }) => ({
+        url: `/line-requests/${lineRequestId}/confirm-sim-order`,
+        method: 'POST',
+        body: { orderDate, quantity },
+      }),
+      invalidatesTags: ['ClientToOrder'],
+    }),
   }),
 });
 
@@ -82,6 +92,7 @@ export const {
   useGetAllUsersQuery,
   useGetClientByIdQuery,
   useGetClientsToOrderQuery,
+  useConfirmSimOrderMutation,
 } = clientsApiSliceWithPrefix;
 
 // Slice Redux pour la gestion d'état locale des clients

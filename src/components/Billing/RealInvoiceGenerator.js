@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import API_CONFIG from '../../config/api.js';
 import {
   Dialog,
@@ -49,6 +49,7 @@ import {
   useCreateAdvancePaymentMutation,
   useGetClientOverviewQuery,
   useGetClientUnpaidInvoicesQuery,
+  useGetLineAllInvoicesQuery, // 🆕 NOUVEAU : Pour toutes les factures d'une ligne
   useProcessGroupPaymentMutation,
   usePaySpecificInvoiceMutation,
   useAddLineBalanceMutation // NOUVEAU système par ligne
@@ -56,9 +57,28 @@ import {
 import { useGetPhonePaymentHistoryQuery, useGetPhoneByIdQuery } from '../../store/slices/linesSlice';
 
 const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
+  // Protection contre les refetch après démontage
+  const isMountedRef = useRef(true);
+  
+  // Nettoyer à la fermeture du modal
+  useEffect(() => {
+    if (!open) {
+      isMountedRef.current = false;
+    } else {
+      isMountedRef.current = true;
+    }
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [open]);
+  
   const [selectedAction, setSelectedAction] = useState('overview'); // 'overview', 'invoices', 'pay-advance', 'history'
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
+  
+  // 🆕 NOUVEAU : État pour les filtres des factures
+  const [invoiceFilter, setInvoiceFilter] = useState('all'); // 'all', 'paid', 'unpaid', 'overdue'
   
   // États pour le modal de paiement détaillé
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -70,7 +90,6 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
   // États pour paiement d'avance amélioré
   const [selectedLines, setSelectedLines] = useState([]);
   const [selectedPeriods, setSelectedPeriods] = useState([]);
-  const [monthlyRate] = useState(94.99); // Prix mensuel par ligne
   
   // États pour les notifications
   const [snackbar, setSnackbar] = useState({
@@ -133,11 +152,33 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
     refetch: refetchOverview
   } = useGetClientOverviewQuery(clientId, { skip: !clientId });
 
+  // 🎯 NOUVEAU : Fonction pour obtenir le prix mensuel d'une ligne (définie après clientOverview)
+  const getLineMonthlyPrice = (lineId) => {
+    if (!clientOverview?.lines) return 94.99; // Fallback
+    
+    const line = clientOverview.lines.find(l => l.id === lineId);
+    return line?.subscription?.price || 94.99; // Fallback si pas de subscription
+  };
+
+  // Prix mensuel pour la ligne sélectionnée
+  const monthlyRate = getLineMonthlyPrice(selectedLineId);
+
   const {
     data: unpaidInvoices,
     isLoading: isLoadingInvoices,
     refetch: refetchUnpaidInvoices
   } = useGetClientUnpaidInvoicesQuery(clientId, { skip: !clientId || selectedAction !== 'invoices' });
+
+  // 🆕 NOUVEAU : Hook pour récupérer TOUTES les factures de la ligne sélectionnée
+  const {
+    data: allInvoicesData,
+    isLoading: isLoadingAllInvoices,
+    error: allInvoicesError,
+    refetch: refetchAllInvoices
+  } = useGetLineAllInvoicesQuery(selectedLineId, { 
+    skip: !selectedLineId || selectedAction !== 'all-invoices',
+    refetchOnMountOrArgChange: true
+  });
 
   console.log('📊 CLIENT OVERVIEW DATA:', {
     clientOverview,
@@ -170,6 +211,45 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
   };
 
   const unpaidInvoicesList = getUnpaidInvoicesListSafe();
+
+  // 🎯 NOUVEAU : Fonction pour vérifier le vrai statut de paiement basé sur les factures réelles
+  const getRealPaymentStatus = () => {
+    // Si on a des données de factures impayées, c'est la source de vérité
+    if (unpaidInvoicesList.length > 0) {
+      return 'IMPAYÉ';
+    }
+    
+    // Si on a chargé les données et qu'il n'y a pas de factures impayées
+    if (!isLoadingInvoices && unpaidInvoicesList.length === 0) {
+      return 'À JOUR';
+    }
+    
+    // Fallback sur le statut de la ligne
+    return selectedLine?.payment_status || selectedLine?.paymentStatus || 'INCONNU';
+  };
+
+  const realPaymentStatus = getRealPaymentStatus();
+
+  // 🆕 NOUVEAU : Fonction pour filtrer les factures selon le filtre sélectionné
+  const getFilteredInvoices = () => {
+    if (!allInvoicesData?.invoices) return [];
+    
+    const invoices = allInvoicesData.invoices;
+    
+    switch (invoiceFilter) {
+      case 'paid':
+        return invoices.filter(invoice => invoice.isPaid);
+      case 'unpaid':
+        return invoices.filter(invoice => !invoice.isPaid);
+      case 'overdue':
+        return invoices.filter(invoice => invoice.isOverdue);
+      case 'all':
+      default:
+        return invoices;
+    }
+  };
+
+  const filteredInvoices = getFilteredInvoices();
 
   console.log('🔍 UNPAID INVOICES DATA:', {
     unpaidInvoices,
@@ -243,10 +323,15 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
       
       // Rafraîchir toutes les données après paiement groupé
       setTimeout(() => {
-        refetchOverview();
-        refetchUnpaidInvoices();
+        if (!isMountedRef.current) return; // Protection
+        if (refetchOverview) refetchOverview();
+        if (refetchUnpaidInvoices) refetchUnpaidInvoices();
+        // 🆕 NOUVEAU : Rafraîchir aussi toutes les factures
+        if (selectedLineId && refetchAllInvoices) {
+          refetchAllInvoices();
+        }
         // Seulement refetch history si on est sur la page history et si phoneId existe
-        if (selectedAction === 'history' && phoneId) {
+        if (selectedAction === 'history' && phoneId && refetchHistory) {
           refetchHistory();
         }
       }, 500);
@@ -345,10 +430,15 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
       
       // Rafraîchir toutes les données après paiement spécifique
       setTimeout(() => {
-        refetchOverview();
-        refetchUnpaidInvoices();
+        if (!isMountedRef.current) return; // Protection
+        if (refetchOverview) refetchOverview();
+        if (refetchUnpaidInvoices) refetchUnpaidInvoices();
+        // 🆕 NOUVEAU : Rafraîchir aussi toutes les factures
+        if (selectedLineId && refetchAllInvoices) {
+          refetchAllInvoices();
+        }
         // Seulement refetch history si on est sur la page history et si phoneId existe
-        if (selectedAction === 'history' && phoneId) {
+        if (selectedAction === 'history' && phoneId && refetchHistory) {
           refetchHistory();
         }
       }, 500);
@@ -404,9 +494,19 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
     return periods;
   };
 
-  // Calculer le montant total pour les paiements d'avance
+  // 🎯 NOUVEAU : Calculer le montant total avec les vrais prix de chaque ligne
   const calculateAdvanceTotal = () => {
-    return selectedLines.length * selectedPeriods.length * monthlyRate;
+    if (selectedLines.length === 0 || selectedPeriods.length === 0) {
+      return 0;
+    }
+    
+    // Calculer le prix total basé sur le prix réel de chaque ligne sélectionnée
+    const totalPerMonth = selectedLines.reduce((sum, lineId) => {
+      const linePrice = getLineMonthlyPrice(lineId);
+      return sum + linePrice;
+    }, 0);
+    
+    return totalPerMonth * selectedPeriods.length;
   };
 
   // Handler pour sélection de lignes
@@ -579,15 +679,15 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
       console.log('🔄 RAFRAICHISSEMENT IMMEDIAT des données...');
       
       // Refetch immédiat sans délai
-      refetchOverview();
+      if (refetchOverview) refetchOverview();
       
       // 🎯 NOUVEAU : Refetch des données de la ligne pour mettre à jour le solde
-      if (phoneId) {
+      if (phoneId && refetchLineData) {
         refetchLineData();
       }
       
       // Refetch de l'historique seulement si la query est active
-      if (phoneId && selectedAction === 'history') {
+      if (phoneId && selectedAction === 'history' && refetchHistory) {
         try {
           refetchHistory();
         } catch (error) {
@@ -597,11 +697,12 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
       
       // Refetch supplémentaire avec délai au cas où l'invalidation met du temps
       setTimeout(() => {
-        refetchOverview();
-        if (phoneId) {
+        if (!isMountedRef.current) return; // Protection
+        if (refetchOverview) refetchOverview();
+        if (phoneId && refetchLineData) {
           refetchLineData(); // 🎯 NOUVEAU : Refetch différé de la ligne aussi
         }
-        if (phoneId && selectedAction === 'history') {
+        if (phoneId && selectedAction === 'history' && refetchHistory) {
           try {
             refetchHistory();
           } catch (error) {
@@ -750,6 +851,16 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                   Factures impayées
                 </Button>
                 <Button
+                  variant={selectedAction === 'all-invoices' ? 'contained' : 'outlined'}
+                  startIcon={<ReceiptIcon />}
+                  onClick={() => {
+                    setSelectedAction('all-invoices');
+                    setInvoiceFilter('all'); // Réinitialiser le filtre
+                  }}
+                >
+                  Toutes les factures
+                </Button>
+                <Button
                   variant={selectedAction === 'pay-advance' ? 'contained' : 'outlined'}
                   startIcon={<PaymentIcon />}
                   onClick={() => setSelectedAction('pay-advance')}
@@ -762,8 +873,9 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                   onClick={() => {
                     setSelectedAction('history');
                     // Refetch immédiat de l'historique quand on clique sur l'onglet
-                    if (phoneId) {
+                    if (phoneId && refetchHistory) {
                       setTimeout(() => {
+                        if (!isMountedRef.current) return; // Protection
                         try {
                           refetchHistory();
                         } catch (error) {
@@ -818,7 +930,11 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                     />
                     <Chip
                       label={selectedLine?.payment_status || selectedLine?.paymentStatus || 'N/A'}
-                      color={selectedLine?.payment_status === 'À JOUR' ? 'success' : 'error'}
+                      color={
+                        (selectedLine?.payment_status === 'À JOUR' || selectedLine?.paymentStatus === 'À JOUR') 
+                          ? 'success' 
+                          : 'error'
+                      }
                       size="small"
                     />
                   </Stack>
@@ -859,33 +975,51 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
                     💰 Ligne sélectionnée: {selectedLine?.phoneNumber} - Solde: {selectedLineBalance.toFixed(2)}€
-                    {/* Chip statut paiement */}
+                    {/* Chip statut paiement - basé sur les vraies factures */}
                     <Chip 
-                      label={
-                        selectedLine?.payment_status === 'À JOUR' || selectedLine?.paymentStatus === 'UP_TO_DATE'
-                          ? 'À JOUR'
-                          : 'IMPAYÉ'
-                      }
-                      color={
-                        selectedLine?.payment_status === 'À JOUR' || selectedLine?.paymentStatus === 'UP_TO_DATE' 
-                          ? 'success' 
-                          : 'error'
-                      }
+                      label={realPaymentStatus}
+                      color={realPaymentStatus === 'À JOUR' ? 'success' : 'error'}
                       size="small"
                       sx={{ ml: 2 }}
                     />
+                    
+                    {/* Alert d'incohérence si nécessaire */}
+                    {realPaymentStatus !== (selectedLine?.payment_status || selectedLine?.paymentStatus) && (
+                      <Chip 
+                        label="⚠️ Données incohérentes"
+                        color="warning"
+                        size="small"
+                        sx={{ ml: 1 }}
+                        onClick={() => {
+                          setSnackbar({
+                            open: true,
+                            message: `Incohérence détectée: Statut ligne "${selectedLine?.payment_status || selectedLine?.paymentStatus}" vs vraies factures "${realPaymentStatus}"`,
+                            severity: 'warning'
+                          });
+                        }}
+                      />
+                    )}
+                    
                     {/* Chip mois impayé si applicable */}
-                    {(selectedLine?.payment_status !== 'À JOUR' && selectedLine?.paymentStatus !== 'UP_TO_DATE') && (
+                    {realPaymentStatus === 'IMPAYÉ' && (
                       <Chip
                         icon={<CalendarIcon />}
                         label={(() => {
-                          // TODO: Récupérer le vrai mois impayé depuis l'API
-                          // Pour l'instant, on suppose le mois courant
-                          const currentMonth = new Date().toLocaleDateString('fr-FR', { 
+                          // Récupérer le vrai mois impayé depuis les factures
+                          if (unpaidInvoicesList.length > 0) {
+                            const oldestUnpaid = unpaidInvoicesList[0]; // Premier = plus ancien
+                            if (oldestUnpaid.paymentMonth) {
+                              return new Date(oldestUnpaid.paymentMonth + '-01').toLocaleDateString('fr-FR', {
+                                month: 'long',
+                                year: 'numeric'
+                              });
+                            }
+                          }
+                          // Fallback
+                          return new Date().toLocaleDateString('fr-FR', { 
                             month: 'long', 
                             year: 'numeric' 
                           });
-                          return currentMonth;
                         })()}
                         color="warning"
                         variant="outlined"
@@ -906,7 +1040,7 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                             if (line.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' || line.line_status === 'NEEDS_TO_BE_ACTIVATED') {
                               return false;
                             }
-                            return line.payment_status !== 'À JOUR' && line.paymentStatus !== 'UP_TO_DATE';
+                            return line.payment_status !== 'À JOUR' && line.paymentStatus !== 'À JOUR';
                           }) || [];
                         
                         return otherLinesWithUnpaid.length > 0 && (
@@ -982,12 +1116,12 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    💳 Factures impayées - Focus ligne sélectionnée
+                    📋 Factures impayées - Ligne: {selectedLine?.phoneNumber}
                   </Typography>
                   
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    📱 Ligne sélectionnée: <strong>{selectedLine?.phoneNumber}</strong> - 
-                    Les factures de cette ligne sont affichées en premier
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    Seules les factures impayées sont affichées ici.
+                    Vous pouvez les payer individuellement ou toutes d'un coup.
                   </Alert>
                   
                   {isLoadingInvoices ? (
@@ -1113,6 +1247,240 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
               </Card>
             )}
 
+            {selectedAction === 'all-invoices' && (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    📋 Toutes les factures - Ligne: {selectedLine?.phoneNumber}
+                  </Typography>
+                  
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Visualisation complète de toutes les factures (payées et impayées) avec leurs statuts détaillés.
+                  </Alert>
+                  
+                  {/* Statistiques globales avec filtres cliquables */}
+                  {allInvoicesData?.statistics && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                        🔍 Cliquez sur un statut pour filtrer les factures :
+                      </Typography>
+                      <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap">
+                        <Chip 
+                          label={`Toutes (${allInvoicesData.statistics.total})`}
+                          color="primary"
+                          variant={invoiceFilter === 'all' ? 'filled' : 'outlined'}
+                          onClick={() => setInvoiceFilter('all')}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'primary.50' },
+                            fontWeight: invoiceFilter === 'all' ? 'bold' : 'normal'
+                          }}
+                        />
+                        <Chip 
+                          icon={<CheckCircleIcon />}
+                          label={`Payées (${allInvoicesData.statistics.paid})`}
+                          color="success" 
+                          variant={invoiceFilter === 'paid' ? 'filled' : 'outlined'}
+                          onClick={() => setInvoiceFilter('paid')}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'success.50' },
+                            fontWeight: invoiceFilter === 'paid' ? 'bold' : 'normal'
+                          }}
+                        />
+                        <Chip 
+                          icon={<ErrorIcon />}
+                          label={`Impayées (${allInvoicesData.statistics.unpaid})`}
+                          color="error" 
+                          variant={invoiceFilter === 'unpaid' ? 'filled' : 'outlined'}
+                          onClick={() => setInvoiceFilter('unpaid')}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'error.50' },
+                            fontWeight: invoiceFilter === 'unpaid' ? 'bold' : 'normal'
+                          }}
+                        />
+                        <Chip 
+                          icon={<CalendarIcon />}
+                          label={`En retard (${allInvoicesData.statistics.overdue})`}
+                          color="warning" 
+                          variant={invoiceFilter === 'overdue' ? 'filled' : 'outlined'}
+                          onClick={() => setInvoiceFilter('overdue')}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'warning.50' },
+                            fontWeight: invoiceFilter === 'overdue' ? 'bold' : 'normal'
+                          }}
+                        />
+                      </Stack>
+                      
+                      <Paper sx={{ p: 2, bgcolor: 'info.50' }}>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} sm={3}>
+                            <Typography variant="body2" color="textSecondary">
+                              {invoiceFilter === 'all' ? 'Total factures' : `Factures ${invoiceFilter}`}
+                            </Typography>
+                            <Typography variant="h6">
+                              {invoiceFilter === 'all' ? allInvoicesData.statistics.total : filteredInvoices.length}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={3}>
+                            <Typography variant="body2" color="textSecondary">
+                              {invoiceFilter === 'all' ? 'Montant total' : 'Montant filtré'}
+                            </Typography>
+                            <Typography variant="h6" color="primary.main">
+                              {invoiceFilter === 'all' 
+                                ? allInvoicesData.statistics.totalAmount.toFixed(2)
+                                : filteredInvoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)
+                              }€
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={3}>
+                            <Typography variant="body2" color="textSecondary">Montant payé</Typography>
+                            <Typography variant="h6" color="success.main">
+                              {allInvoicesData.statistics.paidAmount.toFixed(2)}€
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={3}>
+                            <Typography variant="body2" color="textSecondary">Montant impayé</Typography>
+                            <Typography variant="h6" color="error.main">
+                              {allInvoicesData.statistics.unpaidAmount.toFixed(2)}€
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </Paper>
+                    </Box>
+                  )}
+                  
+                  {/* Chargement */}
+                  {isLoadingAllInvoices ? (
+                    <LinearProgress />
+                  ) : allInvoicesError ? (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      Erreur lors du chargement des factures: {allInvoicesError.message}
+                    </Alert>
+                  ) : allInvoicesData?.invoices?.length > 0 ? (
+                    <Box>
+                      {/* Indicateur de filtrage */}
+                      <Alert 
+                        severity={filteredInvoices.length === 0 ? 'warning' : 'info'} 
+                        sx={{ mb: 2 }}
+                      >
+                        {invoiceFilter === 'all' ? (
+                          `Affichage de toutes les ${filteredInvoices.length} factures`
+                        ) : (
+                          `Filtre "${invoiceFilter}" : ${filteredInvoices.length} facture(s) trouvée(s) sur ${allInvoicesData.invoices.length} au total`
+                        )}
+                        {filteredInvoices.length === 0 && (
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            Aucune facture ne correspond au filtre sélectionné. Cliquez sur "Toutes" pour voir l'ensemble.
+                          </Typography>
+                        )}
+                      </Alert>
+                      
+                      {/* Affichage des vraies factures filtrées */}
+                      <Stack spacing={2}>
+                        {filteredInvoices.map((invoice) => {
+                        const monthYear = invoice.paymentMonth ? 
+                          new Date(invoice.paymentMonth + '-01').toLocaleDateString('fr-FR', {
+                            month: 'long',
+                            year: 'numeric'
+                          }) : 'Mois non défini';
+                        
+                        // Couleur de bordure selon le statut
+                        const borderColor = invoice.isPaid ? 'success.light' : 'error.light';
+                        const bgColor = invoice.isPaid ? 'success.50' : 'error.50';
+                        const textColor = invoice.isPaid ? 'success.dark' : 'error.dark';
+                        
+                        return (
+                          <Paper key={invoice.id} sx={{ p: 3, border: '1px solid', borderColor, bgcolor: bgColor }}>
+                            <Grid container spacing={2} alignItems="center">
+                              <Grid item xs={12} sm={5}>
+                                <Box sx={{ mb: 1 }}>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: textColor }}>
+                                    📄 {invoice.invoiceNumber}
+                                  </Typography>
+                                  <Typography variant="subtitle1" sx={{ color: 'primary.main', fontWeight: 'medium' }}>
+                                    📅 Mois: {monthYear}
+                                  </Typography>
+                                </Box>
+                                <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                                  📱 Ligne: {invoice.phoneNumber}
+                                </Typography>
+                                {invoice.paymentDate && (
+                                  <Typography variant="body2" color="textSecondary">
+                                    ✅ Payé le: {new Date(invoice.paymentDate).toLocaleDateString('fr-FR')}
+                                  </Typography>
+                                )}
+                                {invoice.daysOverdue > 0 && (
+                                  <Chip
+                                    label={`⚠️ ${invoice.daysOverdue} jours de retard`}
+                                    color="error"
+                                    size="small"
+                                    sx={{ mt: 0.5 }}
+                                  />
+                                )}
+                              </Grid>
+                              
+                              <Grid item xs={12} sm={3}>
+                                <Box sx={{ textAlign: 'center' }}>
+                                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: textColor }}>
+                                    {invoice.amount.toFixed(2)}€
+                                  </Typography>
+                                  <Chip
+                                    icon={invoice.isPaid ? <CheckCircleIcon /> : <ErrorIcon />}
+                                    label={invoice.statusLabel}
+                                    color={invoice.statusColor}
+                                    size="small"
+                                    sx={{ mt: 1 }}
+                                  />
+                                </Box>
+                              </Grid>
+                              
+                              <Grid item xs={12} sm={4}>
+                                <Box sx={{ textAlign: 'center' }}>
+                                  {invoice.isPaid ? (
+                                    <Box>
+                                      <Typography variant="body2" color="textSecondary">
+                                        Méthode: {invoice.paymentMethod || 'Non spécifiée'}
+                                      </Typography>
+                                      <Typography variant="body2" color="textSecondary">
+                                        Référence: {invoice.invoiceNumber}
+                                      </Typography>
+                                    </Box>
+                                  ) : (
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      startIcon={<PaymentIcon />}
+                                      onClick={() => handleOpenPaymentModal(invoice)}
+                                      fullWidth
+                                    >
+                                      Payer
+                                    </Button>
+                                  )}
+                                  {invoice.notes && (
+                                    <Typography variant="caption" display="block" sx={{ mt: 1, fontStyle: 'italic' }}>
+                                      💬 {invoice.notes}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Grid>
+                            </Grid>
+                          </Paper>
+                        );
+                        })}
+                      </Stack>
+                    </Box>
+                  ) : (
+                    <Alert severity="info">
+                      Aucune facture trouvée pour cette ligne ({selectedLine?.phoneNumber})
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {selectedAction === 'pay-advance' && (
               <Card>
                 <CardContent>
@@ -1120,7 +1488,10 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                     💳 Paiement d'avance multi-lignes
                   </Typography>
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    Sélectionnez les lignes et les mois futurs pour lesquels vous souhaitez payer à l'avance. Le montant sera calculé automatiquement ({monthlyRate}€ par ligne par mois).
+                    Sélectionnez les lignes et les mois futurs pour lesquels vous souhaitez payer à l'avance. 
+                    Le montant sera calculé automatiquement selon le prix d'abonnement de chaque ligne.
+                    <br/>
+                    <strong>Ligne sélectionnée ({selectedLine?.phoneNumber}) : {monthlyRate.toFixed(2)}€/mois</strong>
                   </Alert>
                   
                   <Stack spacing={3}>
@@ -1175,6 +1546,12 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                                     size="small" 
                                     color={line.phoneStatus === 'ACTIVE' ? 'success' : 'default'}
                                   />
+                                  <Chip 
+                                    label={`${getLineMonthlyPrice(line.id).toFixed(2)}€/mois`}
+                                    size="small" 
+                                    color="primary"
+                                    variant="outlined"
+                                  />
                                 </Box>
                               }
                             />
@@ -1202,8 +1579,8 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                         </Typography>
                         <Typography variant="body2">
                           • Solde ligne sélectionnée ({selectedLine?.phoneNumber}): <strong>{selectedLineBalance.toFixed(2)}€</strong><br/>
-                          • Coût mensuel par ligne: <strong>{monthlyRate.toFixed(2)}€</strong><br/>
-                          • Mois couverts pour cette ligne: <strong>{Math.floor(selectedLineBalance / monthlyRate)}</strong>
+                          • Prix abonnement de cette ligne: <strong>{monthlyRate.toFixed(2)}€/mois</strong><br/>
+                          • Mois couverts par le solde actuel: <strong>{Math.floor(selectedLineBalance / monthlyRate)}</strong>
                         </Typography>
                       </Alert>
                     </Box>
@@ -1277,18 +1654,33 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                               📅 Mois sélectionnés: <strong>{selectedPeriods.length}</strong>
                             </Typography>
                           </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <Typography variant="body2">
-                              💰 Prix unitaire: <strong>{monthlyRate}€</strong>
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <Typography variant="body2">
-                              🧮 Calcul: <strong>{selectedLines.length} × {selectedPeriods.length} × {monthlyRate}€</strong>
-                            </Typography>
-                          </Grid>
+                          
+                          {/* Détail par ligne sélectionnée */}
+                          {selectedLines.length > 0 && (
+                            <Grid item xs={12}>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                💰 Détail par ligne :
+                              </Typography>
+                              {selectedLines.map((lineId) => {
+                                const line = clientOverview?.lines?.find(l => l.id === lineId);
+                                const linePrice = getLineMonthlyPrice(lineId);
+                                return (
+                                  <Typography key={lineId} variant="body2" sx={{ ml: 2 }}>
+                                    📞 {line?.phoneNumber}: {linePrice.toFixed(2)}€/mois
+                                  </Typography>
+                                );
+                              })}
+                              <Typography variant="body2" sx={{ ml: 2, fontWeight: 'bold' }}>
+                                Total/mois: {selectedLines.reduce((sum, lineId) => sum + getLineMonthlyPrice(lineId), 0).toFixed(2)}€
+                              </Typography>
+                            </Grid>
+                          )}
+                          
                           <Grid item xs={12}>
                             <Divider sx={{ my: 1, bgcolor: 'primary.contrastText' }} />
+                            <Typography variant="body2" sx={{ textAlign: 'center' }}>
+                              🧮 Calcul: {selectedLines.reduce((sum, lineId) => sum + getLineMonthlyPrice(lineId), 0).toFixed(2)}€/mois × {selectedPeriods.length} mois
+                            </Typography>
                             <Typography variant="h6" sx={{ textAlign: 'center', fontWeight: 'bold' }}>
                               💸 Total: {calculateAdvanceTotal().toFixed(2)}€
                             </Typography>
@@ -1330,8 +1722,9 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                       💡 <strong>Logique intelligente:</strong><br/>
                       • Les mois déjà couverts par le solde actuel sont automatiquement bloqués ✅<br/>
                       • Vous ne payez que pour les mois supplémentaires non couverts<br/>
-                      • Le système débitera automatiquement {monthlyRate * (selectedLines.length || 1)}€ le 20 de chaque mois<br/>
-                      • Ce paiement ajoutera {calculateAdvanceTotal().toFixed(2)}€ au solde client
+                      • Chaque ligne a son propre prix d'abonnement (prix adapté automatiquement)<br/>
+                      • Le système débitera automatiquement selon le prix de chaque ligne le 20 de chaque mois<br/>
+                      • Ce paiement ajoutera {calculateAdvanceTotal().toFixed(2)}€ au solde de la ligne sélectionnée
                     </Alert>
                   </Stack>
                 </CardContent>

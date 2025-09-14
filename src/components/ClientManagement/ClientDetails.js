@@ -139,15 +139,57 @@ const SubscriptionCard = ({ client, simCard }) => {
     priceCalculation: dueAmount > 0 ? dueAmount : totalMonthlyPrice
   });
 
-  // 🚦 LOGIQUE SPÉCIALE: Si ligne en attente d'activation, afficher message spécial
+  // 🚦 LOGIQUE SPÉCIALE: Si ligne en attente d'activation, différencier les cas
   const isWaitingForActivation = phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
 
+  // Déterminer le message selon le contexte de réactivation
+  const getActivationMessage = () => {
+    if (!isWaitingForActivation) return null;
+    
+    const reason = client.reactivationReason;
+    
+    if (reason && reason.includes('Dette réglée')) {
+      return [
+        '💳 Dette réglée - Ligne prête pour réactivation',
+        '✅ Paiements à jour - En attente du superviseur',
+        '🔧 Réactivation superviseur requise'
+      ];
+    }
+    
+    if (reason && reason.includes('pause')) {
+      return [
+        '▶️ Demande de réactivation après pause',
+        '✅ Paiements à jour - Ligne prête',
+        '🔧 Activation superviseur requise'
+      ];
+    }
+    
+    if (reason && reason.includes('résiliation')) {
+      return [
+        '🔄 Réactivation après résiliation',
+        '✅ Paiements à jour - Ligne disponible',
+        '🔧 Activation superviseur requise'
+      ];
+    }
+    
+    if (reason && reason.includes('Nouvelle activation')) {
+      return [
+        '⏳ En attente de carte SIM pour activation',
+        '📱 Ligne réservée - Activation en cours',
+        '🔧 Superviseur doit activer avec carte SIM'
+      ];
+    }
+    
+    // Cas par défaut pour nouvelles lignes
+    return [
+      '⏳ En attente de carte SIM pour activation',
+      '📱 Ligne réservée - Activation en cours',
+      '🔧 Superviseur doit activer avec carte SIM'
+    ];
+  };
+
   // Utiliser les vraies données d'abonnement si disponibles
-  const subscriptionFeatures = isWaitingForActivation ? [
-    '⏳ En attente de carte SIM pour activation',
-    '📱 Ligne réservée - Activation en cours',
-    '🔧 Superviseur doit activer avec carte SIM'
-  ] : activeSubscription ? [
+  const subscriptionFeatures = isWaitingForActivation ? getActivationMessage() : activeSubscription ? [
     `📱 ${activeSubscription.name}`,
     `📊 ${activeSubscription.dataSummary || 'Données illimitées'}`,
     `💰 ${activeSubscription.formattedTotalPrice || totalMonthlyPrice.toFixed(2) + ' EUR'}`,
@@ -160,7 +202,7 @@ const SubscriptionCard = ({ client, simCard }) => {
   };
 
   const getStatusInfo = () => {
-    const status = phoneStatus === PHONE_STATUS.SUSPENDED ? phoneStatus : paymentStatus;
+    const status = phoneStatus === PHONE_STATUS.SUSPENDED || phoneStatus === PHONE_STATUS.PAUSED ? phoneStatus : paymentStatus;
 
     switch(status) {
       case PHONE_STATUS.SUSPENDED:
@@ -169,6 +211,13 @@ const SubscriptionCard = ({ client, simCard }) => {
           label: 'Ligne bloquée',
           color: 'error',
           severity: 'error'
+        };
+      case PHONE_STATUS.PAUSED:
+        return {
+          icon: <BlockIcon />,
+          label: 'Ligne en pause',
+          color: 'warning',
+          severity: 'warning'
         };
       case 'late':
         return {
@@ -278,18 +327,41 @@ const SubscriptionCard = ({ client, simCard }) => {
           </Box>
         </Box>
 
-        {/* Alerte pour les lignes en attente, impayés ou la résiliation */}
-        {(isWaitingForActivation || dueAmount > 0 || phoneStatus === PHONE_STATUS.SUSPENDED) && (
-          <Alert 
-            severity={isWaitingForActivation ? 'info' : statusInfo.severity}
-            icon={isWaitingForActivation ? <TimerIcon /> : statusInfo.icon}
+        {/* Alerte pour les lignes en attente, impayés, la résiliation, en pause ou bloquées */}
+        {(isWaitingForActivation || dueAmount > 0 || phoneStatus === PHONE_STATUS.SUSPENDED ||
+          phoneStatus === PHONE_STATUS.PAUSED || phoneStatus === PHONE_STATUS.BLOCKED ||
+          client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+          client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
+          <Alert
+            severity={
+              isWaitingForActivation ? 'info' :
+              phoneStatus === PHONE_STATUS.PAUSED ? 'warning' :
+              (client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+               client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? 'error' :
+              statusInfo.severity
+            }
+            icon={
+              isWaitingForActivation ? <TimerIcon /> :
+              phoneStatus === PHONE_STATUS.PAUSED ? <BlockIcon /> :
+              (client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+               client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? <BlockIcon /> :
+              statusInfo.icon
+            }
             sx={{ mb: 2 }}
           >
             <AlertTitle>
               {isWaitingForActivation
                 ? 'Ligne en attente d\'activation'
+                : phoneStatus === PHONE_STATUS.PAUSED
+                ? 'Ligne en pause'
                 : phoneStatus === PHONE_STATUS.SUSPENDED
-                ? 'Abonnement résilié' 
+                ? 'Abonnement résilié'
+                : client?.paymentStatus === 'DETTE'
+                ? 'Ligne bloquée - Dette de paiement'
+                : client?.paymentStatus === 'EN RETARD'
+                ? 'Paiement en retard'
+                : client?.phoneStatus === 'BLOCKED_NONPAYMENT'
+                ? 'Ligne bloquée pour impayé'
                 : (paymentStatus === PAYMENT_STATUS.CANCELLED || paymentStatus === PAYMENT_STATUS.OVERDUE)
                   ? 'Ligne bloquée - Paiement requis'
                   : 'Paiement en retard'}
@@ -298,6 +370,71 @@ const SubscriptionCard = ({ client, simCard }) => {
               <Typography variant="body2">
                 Cette ligne a été réservée pour le client et attend l'activation par un superviseur avec une carte SIM physique.
               </Typography>
+            ) : phoneStatus === PHONE_STATUS.PAUSED ? (
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  Cette ligne est actuellement mise en pause.
+                </Typography>
+                {(client?.blockReasonLabel || client?.blockedReason || client?.pendingBlockReason ||
+                  client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <InfoIcon fontSize="small" color="warning" />
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Raison :</strong> {
+                        client.blockReasonLabel ||
+                        (client.blockedReason === 'pause' ? 'Pause temporaire confirmée' :
+                         client.blockedReason === 'lost_sim' ? 'SIM perdue/volée/endommagée' :
+                         client.blockedReason === 'termination' ? 'Demande de résiliation client' :
+                         client.pendingBlockReason === 'pause' ? '⏳ Demande pause temporaire' :
+                         client.pendingBlockReason === 'lost_sim' ? '⏳ Demande SIM perdue/volée' :
+                         client.pendingBlockReason === 'termination' ? '⏳ Demande résiliation' :
+                         client.paymentStatus === 'DETTE' ? 'Dette de paiement (2+ factures impayées)' :
+                         client.paymentStatus === 'EN RETARD' ? 'Paiement en retard (< 1 mois)' :
+                         client.phoneStatus === 'BLOCKED_NONPAYMENT' ? 'Ligne bloquée pour impayé' :
+                         'Pause temporaire')
+                      }
+                    </Typography>
+                  </Box>
+                )}
+                {(client?.notes || client?.blockedNotes || client?.pendingBlockNotes) && (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    {client.notes || client.blockedNotes || client.pendingBlockNotes}
+                  </Typography>
+                )}
+              </Stack>
+            ) : (client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+                 client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? (
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  {client?.paymentStatus === 'DETTE' ?
+                    'Cette ligne est bloquée en raison d\'une dette de paiement (2+ factures impayées).' :
+                  client?.paymentStatus === 'EN RETARD' ?
+                    'Cette ligne a des paiements en retard mais reste active (période de grâce).' :
+                    'Cette ligne est bloquée pour impayé.'}
+                </Typography>
+                {(client?.blockReasonLabel || client?.blockedReason || client?.pendingBlockReason ||
+                  client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <InfoIcon fontSize="small" color="error" />
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Raison :</strong> {
+                        client.blockReasonLabel ||
+                        (client.paymentStatus === 'DETTE' ? 'Dette de paiement (2+ factures impayées)' :
+                         client.paymentStatus === 'EN RETARD' ? 'Paiement en retard (< 1 mois)' :
+                         client.phoneStatus === 'BLOCKED_NONPAYMENT' ? 'Ligne bloquée pour impayé' :
+                         'Problème de paiement')
+                      }
+                    </Typography>
+                  </Box>
+                )}
+                {(client?.notes || client?.blockedNotes || client?.pendingBlockNotes) && (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    {client.notes || client.blockedNotes || client.pendingBlockNotes}
+                  </Typography>
+                )}
+              </Stack>
             ) : phoneStatus === PHONE_STATUS.SUSPENDED ? (
               <Typography variant="body2">
                 Résilié le {formatDate(updatedAt)}

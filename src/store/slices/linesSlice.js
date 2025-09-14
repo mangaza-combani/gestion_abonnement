@@ -171,6 +171,48 @@ export const phoneApiSlice = apiSliceWithPrefix.injectEndpoints({
                                 { type: 'Phone', id: 'LIST' }
                         ],
                 }),
+                // 🆕 Demander l'activation d'une ligne (pause → actif, dette réglée → actif)
+                requestActivation: builder.mutation({
+                        query: ({ phoneId, reason }) => ({
+                                url: `/phones/${phoneId}/request-activation`,
+                                method: 'POST',
+                                body: { reason }
+                        }),
+                        invalidatesTags: (result, error, { phoneId }) => [
+                                { type: 'Phone', id: phoneId },
+                                { type: 'Phone', id: 'LIST' },
+                                { type: 'PhoneToActivate', id: 'LIST' } // Invalider aussi l'onglet À ACTIVER
+                        ],
+                }),
+                // 🆕 Confirmer simplement une réactivation (pour pause/impayé réglé)
+                confirmReactivation: builder.mutation({
+                        query: ({ phoneId }) => ({
+                                url: `/phones/${phoneId}/confirm-reactivation`,
+                                method: 'POST'
+                        }),
+                        invalidatesTags: (result, error, { phoneId }) => [
+                                { type: 'Phone', id: phoneId },
+                                { type: 'Phone', id: 'LIST' },
+                                { type: 'PhoneToActivate', id: 'LIST' } // Retirer de À ACTIVER
+                        ],
+                }),
+                // 🆕 Nouvelles queries pour la gestion des paiements et blocages
+                getPhoneWithPaymentStatus: builder.query({
+                        query: () => `/phones/lines/with-payment-status`,
+                        providesTags: ['Phone', { type: 'Phone', id: 'LIST' }],
+                }),
+                getPhonesToBlock: builder.query({
+                        query: () => `/phones/lines/to-block`,
+                        providesTags: ['Phone', { type: 'Phone', id: 'LIST' }],
+                }),
+                getPhonesOverdue: builder.query({
+                        query: () => `/phones/lines/overdue`,
+                        providesTags: ['Phone', { type: 'Phone', id: 'LIST' }],
+                }),
+                getPhonesToActivate: builder.query({
+                        query: () => `/phones/lines/to-activate`,
+                        providesTags: ['Phone', { type: 'Phone', id: 'LIST' }, { type: 'PhoneToActivate', id: 'LIST' }],
+                }),
         }),
 });
 
@@ -190,6 +232,8 @@ export const {
         useGetPhonePaymentHistoryQuery,
         useRequestBlockPhoneMutation, // 🆕
         useConfirmBlockRequestMutation, // 🆕
+        useRequestActivationMutation, // 🆕
+        useConfirmReactivationMutation, // 🆕
 } = phoneApiSlice;
 
 // Slice Redux pour la gestion d'état locale des phone

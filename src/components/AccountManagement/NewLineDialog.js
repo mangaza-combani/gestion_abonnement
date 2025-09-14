@@ -34,7 +34,7 @@ import {
 // Import de la mutation depuis redAccountsSlice
 import { useCreateLineMutation, LINE_STATUSES } from '../../store/slices/redAccountsSlice';
 
-const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => {
+const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [], simplifiedMode = false }) => {
   // Utilisation de la mutation de redAccountsSlice
   const [createLine, { isLoading: isCreatingLine, isError, error }] = useCreateLineMutation();
 
@@ -46,7 +46,7 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
     assignToClient: false,
     orderDate: new Date().toISOString().split('T')[0], // Date du jour par défaut
     trackingNotes: '',
-    isHistoricalLine: false, // Mode ligne historique
+    isHistoricalLine: false, // Mode ligne historique (forcé à false en mode simplifié)
     skipOrderTracking: false // Ignorer le suivi de commande
   });
 
@@ -296,33 +296,35 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
           
           <Grid container spacing={3}>
 
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isHistoricalLine}
-                    onChange={handleSwitchChange}
-                    name="isHistoricalLine"
-                    color="secondary"
-                  />
-                }
-                label={
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <HistoryIcon color={formData.isHistoricalLine ? "secondary" : "disabled"} />
-                    <Typography>
-                      Mode ligne historique (données d'avant le système)
+            {!simplifiedMode && (
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.isHistoricalLine}
+                      onChange={handleSwitchChange}
+                      name="isHistoricalLine"
+                      color="secondary"
+                    />
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <HistoryIcon color={formData.isHistoricalLine ? "secondary" : "disabled"} />
+                      <Typography>
+                        Mode ligne historique (données d'avant le système)
+                      </Typography>
+                    </Box>
+                  }
+                />
+                {formData.isHistoricalLine && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      Mode historique activé : La date de commande et le suivi ne seront pas requis.
                     </Typography>
-                  </Box>
-                }
-              />
-              {formData.isHistoricalLine && (
-                <Alert severity="warning" sx={{ mt: 1 }}>
-                  <Typography variant="body2">
-                    Mode historique activé : La date de commande et le suivi ne seront pas requis.
-                  </Typography>
-                </Alert>
-              )}
-            </Grid>
+                  </Alert>
+                )}
+              </Grid>
+            )}
             
             <Grid item xs={12}>
               <TextField
@@ -406,32 +408,34 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
               <Divider />
             </Grid>
             
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.assignToClient}
-                    onChange={(e) => {
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        assignToClient: e.target.checked,
-                        clientId: e.target.checked ? prev.clientId : ''
-                      }));
-                    }}
-                    name="assignToClient"
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <ContactPhoneIcon color={formData.assignToClient ? "primary" : "disabled"} />
-                    <Typography>Attribuer à un client</Typography>
-                  </Box>
-                }
-              />
-            </Grid>
+            {!simplifiedMode && (
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.assignToClient}
+                      onChange={(e) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          assignToClient: e.target.checked,
+                          clientId: e.target.checked ? prev.clientId : ''
+                        }));
+                      }}
+                      name="assignToClient"
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <ContactPhoneIcon color={formData.assignToClient ? "primary" : "disabled"} />
+                      <Typography>Attribuer à un client</Typography>
+                    </Box>
+                  }
+                />
+              </Grid>
+            )}
 
-            {formData.assignToClient && (
+            {!simplifiedMode && formData.assignToClient && (
               <Grid item xs={12}>
                 <FormControl fullWidth required>
                   <InputLabel id="client-select-label">Client</InputLabel>
@@ -456,26 +460,28 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
               <Divider />
             </Grid>
             
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.assignSimNow}
-                    onChange={handleSwitchChange}
-                    name="assignSimNow"
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <SimCardIcon color={formData.assignSimNow ? "primary" : "disabled"} />
-                    <Typography>Attribuer une carte SIM maintenant</Typography>
-                  </Box>
-                }
-              />
-            </Grid>
-            
-            {formData.assignSimNow && (
+            {!simplifiedMode && (
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.assignSimNow}
+                      onChange={handleSwitchChange}
+                      name="assignSimNow"
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <SimCardIcon color={formData.assignSimNow ? "primary" : "disabled"} />
+                      <Typography>Attribuer une carte SIM maintenant</Typography>
+                    </Box>
+                  }
+                />
+              </Grid>
+            )}
+
+            {!simplifiedMode && formData.assignSimNow && (
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -488,11 +494,20 @@ const NewLineDialog = ({ open, onClose, onSubmit, accountId, clients = [] }) => 
                 />
               </Grid>
             )}
-            
-            {!formData.assignSimNow && (
+
+            {!simplifiedMode && !formData.assignSimNow && (
               <Grid item xs={12}>
                 <Alert severity="info" icon={<SimCardIcon />}>
                   Vous pourrez attribuer une carte SIM ultérieurement.
+                </Alert>
+              </Grid>
+            )}
+
+            {simplifiedMode && (
+              <Grid item xs={12}>
+                <Alert severity="success" icon={<InfoIcon />}>
+                  Mode création simple : La ligne sera créée sans attribution client ni carte SIM.
+                  Vous pourrez les attribuer ultérieurement depuis l'interface de gestion.
                 </Alert>
               </Grid>
             )}

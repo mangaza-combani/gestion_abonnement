@@ -179,7 +179,7 @@ const AccountSuggestionTool = ({ selectedClient, onAccountSelect, agencyId }) =>
                 subheader={`Analyse pour ${selectedClient.user?.firstname} ${selectedClient.user?.lastname}`}
                 action={
                     <Tooltip title="Actualiser l'analyse">
-                        <IconButton onClick={() => { refetch(); analyzePossibleAccounts(); }}>
+                        <IconButton onClick={() => { if (refetch) refetch(); analyzePossibleAccounts(); }}>
                             <RefreshIcon />
                         </IconButton>
                     </Tooltip>

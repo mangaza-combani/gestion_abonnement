@@ -36,8 +36,33 @@ const SupervisorActions = ({ client, currentUser }) => {
     // Vérifier si la ligne a une demande en attente
     const hasPendingRequest = client?.isPendingRequest || client?.canConfirm;
     
-    // Vérifier si c'est une demande SIM perdue/volée
-    const isSimLostRequest = client?.blockReason === 'PENDING_SIM_LOST' || client?.blockReason === 'SIM_LOST';
+    // Vérifier si c'est une demande SIM perdue/volée (différents formats possibles)
+    const isSimLostRequest = client?.blockReason === 'PENDING_SIM_LOST' ||
+                             client?.blockReason === 'SIM_LOST' ||
+                             client?.blockedReason === 'lost_sim' ||
+                             client?.pendingBlockReason === 'lost_sim' ||
+                             // Vérifier aussi si le label contient ces mots-clés
+                             (client?.blockReasonLabel &&
+                              (client.blockReasonLabel.toLowerCase().includes('sim perdue') ||
+                               client.blockReasonLabel.toLowerCase().includes('sim volée') ||
+                               client.blockReasonLabel.toLowerCase().includes('sim lost')));
+
+    // Debug pour identifier les vraies propriétés en cas de problème
+    // Affichage temporaire même sans hasPendingRequest pour diagnostic
+    if (client && (client.blockedReason === 'lost_sim' || client.pendingBlockReason === 'lost_sim' || (client.blockReasonLabel && client.blockReasonLabel.toLowerCase().includes('sim')))) {
+      console.log('🔍 DEBUG SupervisorActions - Client data (SIM case):', {
+        blockReason: client?.blockReason,
+        blockedReason: client?.blockedReason,
+        pendingBlockReason: client?.pendingBlockReason,
+        blockReasonLabel: client?.blockReasonLabel,
+        isSimLostRequest,
+        hasPendingRequest,
+        isPendingRequest: client?.isPendingRequest,
+        canConfirm: client?.canConfirm,
+        clientId: client?.id,
+        phoneNumber: client?.phoneNumber
+      });
+    }
 
     if (!isSupervisor || !hasPendingRequest) {
         return null;

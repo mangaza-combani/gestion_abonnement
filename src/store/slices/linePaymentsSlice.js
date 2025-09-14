@@ -95,6 +95,15 @@ export const linePaymentsApi = apiSliceWithPrefix.injectEndpoints({
       ],
     }),
 
+    // 🆕 NOUVEAU : Récupérer TOUTES les factures d'une ligne spécifique (payées + impayées)
+    getLineAllInvoices: builder.query({
+      query: (phoneId) => `/line-payments/phone/${phoneId}/all-invoices`,
+      providesTags: (result, error, phoneId) => [
+        { type: 'LineInvoices', id: phoneId },
+        { type: 'LinePayment', id: phoneId }
+      ],
+    }),
+
     // Paiement groupé pour un client
     processGroupPayment: builder.mutation({
       query: (paymentData) => ({
@@ -183,6 +192,8 @@ export const {
   // Nouveaux hooks client-centriques
   useGetClientOverviewQuery,
   useGetClientUnpaidInvoicesQuery,
+  // 🆕 NOUVEAU : Hook pour récupérer toutes les factures d'une ligne
+  useGetLineAllInvoicesQuery,
   useProcessGroupPaymentMutation,
   usePaySpecificInvoiceMutation,
   // Hook pour ajouter du solde

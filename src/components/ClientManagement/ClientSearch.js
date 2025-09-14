@@ -11,12 +11,16 @@ import {
 
 import { CLIENT_STATUSES } from './constant';
 
-const ClientSearch = ({ 
-    searchTerm, 
-    onSearchChange, 
+const ClientSearch = ({
+    searchTerm,
+    onSearchChange,
     resultCount,
     selectedStatus,
-    onStatusChange 
+    onStatusChange,
+    hideFilters = false,
+    selectedFilter,
+    onFilterChange,
+    filterOptions = []
 }) => {
   const getStatusIcon = (status) => {
     switch (status) {
@@ -70,6 +74,23 @@ const ClientSearch = ({
             {resultCount} résultat(s)
           </Typography>
         </Box>
+
+        {/* Filtres pour la vue commande */}
+        {!hideFilters && filterOptions.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {filterOptions.map((filter) => (
+              <Chip
+                key={filter.value}
+                label={filter.label}
+                onClick={() => onFilterChange(filter.value)}
+                color={selectedFilter === filter.value ? 'primary' : 'default'}
+                variant={selectedFilter === filter.value ? 'filled' : 'outlined'}
+                size="small"
+                icon={filter.icon}
+              />
+            ))}
+          </Box>
+        )}
 
       </Stack>
     </Box>

@@ -26,7 +26,8 @@ import {
   ListItemIcon,
   Tabs,
   Tab,
-  Autocomplete
+  Autocomplete,
+  Snackbar
 } from '@mui/material';
 import {
   Schedule as ScheduleIcon,
@@ -51,6 +52,8 @@ const InvoiceAutomationSettings = () => {
   const [loading, setLoading] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [error, setError] = useState('');
+  const [errorSnackbar, setErrorSnackbar] = useState('');
+  const [showErrorSnackbar, setShowErrorSnackbar] = useState(false);
   
   // États pour la génération sélective
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -303,8 +306,22 @@ const InvoiceAutomationSettings = () => {
       
       if (response.ok) {
         const result = await response.json();
-        setSaveMessage(`Génération sélective terminée : ${result.summary?.invoicesGenerated || 0} factures générées pour ${selectedClients.length} clients`);
+        console.log('📋 Résultat de la génération:', result);
+        
+        // Afficher le message de succès
+        setSaveMessage(`Génération sélective terminée : ${result.summary?.invoicesGenerated || 0} factures générées, ${result.summary?.errors || 0} erreurs`);
         setTimeout(() => setSaveMessage(''), 5000);
+        
+        // Si il y a des erreurs, afficher les détails dans un snackbar
+        if (result.summary?.errors > 0 && result.details) {
+          const errorDetails = result.details
+            .filter(detail => !detail.success)
+            .map(detail => `${detail.clientName}: ${detail.reason}`)
+            .join(' | ');
+          
+          setErrorSnackbar(`Erreurs de génération: ${errorDetails}`);
+          setShowErrorSnackbar(true);
+        }
         
         // Rafraîchir la liste des clients disponibles
         if (selectedMonth) {
@@ -768,6 +785,22 @@ const InvoiceAutomationSettings = () => {
           )}
         </CardContent>
       </Card>
+      
+      {/* Snackbar pour les erreurs de génération */}
+      <Snackbar
+        open={showErrorSnackbar}
+        autoHideDuration={10000}
+        onClose={() => setShowErrorSnackbar(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          severity="warning" 
+          onClose={() => setShowErrorSnackbar(false)}
+          sx={{ maxWidth: '80vw' }}
+        >
+          {errorSnackbar}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
