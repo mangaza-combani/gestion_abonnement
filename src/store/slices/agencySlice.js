@@ -195,7 +195,7 @@ export const agencyApiSlice = apiSliceWithPrefix.injectEndpoints({
         console.error('❌ RTK Query receiveSimCard - Erreur API:', error);
         return error;
       },
-      invalidatesTags: ['SimCards', 'Agencies', 'SimCardsReceipt']
+      invalidatesTags: ['SimCards', 'Agencies', 'SimCardsReceipt', 'SimCardsOrders']
     }),
 
     // Récupérer les demandes de ligne d'une agence

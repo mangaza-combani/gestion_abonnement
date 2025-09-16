@@ -33,48 +33,116 @@ const ActivateTab = ({
   newReceptions = []
 }) => {
 
+  console.log('🚀 ActivateTab RENDU - Props reçues:', {
+    clients: clients?.length || 0,
+    lines: lines?.length || 0,
+    isLoading,
+    searchTerm
+  });
+
   // ✅ CORRECTION : Utiliser lines (API spécialisée) en priorité sur clients (données filtrées)
   const dataToDisplay = lines || clients || []
+  console.log('📋 dataToDisplay final:', {
+    source: lines ? 'lines' : 'clients',
+    count: dataToDisplay.length,
+    data: dataToDisplay.slice(0, 2) // Premiers 2 clients pour debug
+  });
+
   const [activationFilter, setActivationFilter] = useState('all'); // 'all', 'ready', 'waiting', 'to_pay'
   const { data: agenciesData } = useGetAgenciesQuery();
   const { data: currentUser } = useWhoIAmQuery();
   const isAgency = currentUser?.role === 'AGENCY';
+
+  console.log('🏢 AgenciesData reçue:', {
+    hasData: !!agenciesData,
+    type: typeof agenciesData,
+    isArray: Array.isArray(agenciesData),
+    keys: agenciesData ? Object.keys(agenciesData) : null
+  });
   
-  // Fonction pour vérifier si un client peut être activé (a des SIM disponibles)
+  // ✅ FONCTION IDENTIQUE À LinesManagement pour éviter les incohérences
   const canBeActivated = (client) => {
-    if (!agenciesData) {
-      return false;
-    }
-
-    // ✅ GÉRER LES DEUX CAS: Admin (array) et Non-Admin (relation object)
-    let agenciesArray = [];
-
-    if (Array.isArray(agenciesData)) {
-      // Cas Admin: tableau d'agences
-      agenciesArray = agenciesData;
-    } else if (typeof agenciesData === 'object' && agenciesData && (agenciesData.simCards || agenciesData.parent)) {
-      // Cas Non-Admin: objet relation avec simCards directement OU structure parent
-      if (agenciesData.simCards) {
-        // Cas direct: l'objet agence a directement les simCards
-        agenciesArray = [agenciesData];
-      } else if (agenciesData.parent && agenciesData.parent.simCards) {
-        // Cas parent: l'agence est dans parent
-        agenciesArray = [agenciesData.parent];
+    // 🔍 DEBUG APPROFONDI: Structure complète du client
+    console.log('🔬 STRUCTURE COMPLÈTE CLIENT ActivateTab:', {
+      clientId: client?.id,
+      rawClient: client,
+      clientKeys: client ? Object.keys(client) : null,
+      userStructure: client?.user ? {
+        userId: client.user.id,
+        agencyId: client.user.agencyId,
+        userKeys: Object.keys(client.user)
+      } : null,
+      agencyStructure: client?.agency ? {
+        agencyId: client.agency.id,
+        name: client.agency.name,
+        agencyKeys: Object.keys(client.agency)
+      } : null,
+      directFields: {
+        directAgencyId: client?.agencyId,
+        clientAgencyId: client?.client?.agencyId,
+        userAgencyId: client?.user?.agencyId
       }
-    } else {
+    });
+
+    console.log('🔍 DEBUG ActivateTab canBeActivated:', {
+      clientId: client?.id,
+      agenciesData: !!agenciesData,
+      isArray: Array.isArray(agenciesData),
+      clientData: {
+        userAgencyId: client?.user?.agencyId,
+        clientAgencyId: client?.client?.agencyId,
+        directAgencyId: client?.agencyId,
+        agencyFromObject: client?.agency?.id
+      }
+    });
+
+    if (!agenciesData || !Array.isArray(agenciesData)) {
+      console.log('❌ ActivateTab canBeActivated - agenciesData pas un array:', {
+        hasData: !!agenciesData,
+        isArray: Array.isArray(agenciesData),
+        type: typeof agenciesData,
+        keys: agenciesData ? Object.keys(agenciesData) : null
+      });
       return false;
     }
 
+    // ✅ CORRECTION: Essayer toutes les sources possibles d'agencyId
     const clientAgencyId = client?.user?.agencyId ||
+                          client?.agency?.id ||
                           client?.client?.agencyId ||
                           client?.agencyId;
 
-    if (!clientAgencyId) return false;
+    console.log('🔍 ClientAgencyId résolu:', {
+      from: 'user.agencyId',
+      value: client?.user?.agencyId,
+      final: clientAgencyId
+    });
 
-    const agency = agenciesArray.find(a => a.id === clientAgencyId);
-    if (!agency || !agency.simCards) return false;
+    if (!clientAgencyId) {
+      console.log('❌ ActivateTab canBeActivated - Pas de clientAgencyId après toutes tentatives');
+      return false;
+    }
+
+    const agency = agenciesData.find(a => a.id === clientAgencyId);
+    if (!agency || !agency.simCards) {
+      console.log('❌ ActivateTab canBeActivated - Agency ou simCards manquants:', {
+        agencyFound: !!agency,
+        hasSimCards: agency?.simCards ? true : false,
+        clientAgencyId,
+        availableAgencies: agenciesData.map(a => ({ id: a.id, name: a.name, hasSimCards: !!a.simCards }))
+      });
+      return false;
+    }
 
     const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
+
+    console.log('🔍 ActivateTab résultat:', {
+      clientId: client?.id,
+      agencyId: clientAgencyId,
+      totalSims: agency.simCards.length,
+      availableSims: availableSims.length,
+      result: availableSims.length > 0
+    });
 
     return availableSims.length > 0;
   };
@@ -124,11 +192,32 @@ const ActivateTab = ({
       case 'waiting':
         // ✅ En attente de SIM seulement : pas de SIM disponible ET pas d'ICCID pré-assigné
         const hasPreAssignedIccidWaiting = client.isPreAssigned === true;
-        return ((needsActivation || hasReservation) && !simAvailable && !hasPreAssignedIccidWaiting);
+        const shouldBeInWaiting = ((needsActivation || hasReservation) && !simAvailable && !hasPreAssignedIccidWaiting);
+        console.log(`🔍 FILTRE WAITING - Client ${client.id || client.user?.id}:`, {
+          needsActivation,
+          hasReservation,
+          simAvailable,
+          hasPreAssignedIccidWaiting,
+          shouldBeInWaiting,
+          phoneStatus: client?.phoneStatus,
+          reservationStatus: client?.reservationStatus || client?.user?.reservationStatus
+        });
+        return shouldBeInWaiting;
       case 'to_pay':
         // ✅ À payer : SIM disponible MAIS paiement requis (utiliser la vraie réponse API)
         const paymentRequiredFromAPI = client.paymentRequired === true;
-        return ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
+        const shouldBeInToPay = ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
+        console.log(`🔍 FILTRE TO_PAY - Client ${client.id || client.user?.id}:`, {
+          needsActivation,
+          hasReservation,
+          simAvailable,
+          paymentRequiredFromAPI,
+          shouldBeInToPay,
+          phoneStatus: client?.phoneStatus,
+          reservationStatus: client?.reservationStatus || client?.user?.reservationStatus,
+          clientName: client?.user?.firstname + ' ' + client?.user?.lastname
+        });
+        return shouldBeInToPay;
       default:
         return true;
     }
@@ -201,6 +290,142 @@ const ActivateTab = ({
     return ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
   }).length || 0;
 
+
+  // ✅ FONCTION CENTRALISÉE pour l'AUTO-SWITCH (SIMPLIFIÉE comme canBeActivated)
+  const performAutoSwitch = (forceLog = false) => {
+    if (!agenciesData || !Array.isArray(agenciesData) || !dataToDisplay) {
+      console.log('❌ AUTO-SWITCH - Données manquantes:', {
+        hasAgencies: !!agenciesData,
+        isArray: Array.isArray(agenciesData),
+        hasData: !!dataToDisplay
+      });
+      return;
+    }
+
+    // 🏭 LOGIQUE GLOBALE: Vérifier le stock SIM total disponible pour toutes les agences
+    let totalAvailableSims = 0;
+
+    // Compter le stock SIM total disponible (version simplifiée)
+    agenciesData.forEach(agency => {
+      if (agency.simCards) {
+        const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
+        totalAvailableSims += availableSims.length;
+      }
+    });
+
+    // Compter les clients en attente
+    const clientsInWaiting = dataToDisplay.filter(client => {
+      const hasReservation = client?.user?.hasActiveReservation ||
+                            client?.user?.reservationStatus === 'RESERVED' ||
+                            client?.hasActiveReservation ||
+                            client?.reservationStatus === 'RESERVED';
+      const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+      const hasPreAssignedIccid = client.isPreAssigned === true;
+      return ((needsActivation || hasReservation) && !hasPreAssignedIccid);
+    });
+
+    if (forceLog || totalAvailableSims > 0 || clientsInWaiting.length > 0) {
+      console.log('📊 STOCK GLOBAL (AUTO-SWITCH):', {
+        totalAvailableSims,
+        clientsWaiting: clientsInWaiting.length,
+        currentFilter: activationFilter,
+        trigger: forceLog ? 'PAGE_LOAD' : 'DATA_CHANGE'
+      });
+    }
+
+    // 🔄 TRANSITIONS GLOBALES:
+    console.log('🔍 DEBUG AUTO-SWITCH - Conditions:', {
+      totalAvailableSims,
+      activationFilter,
+      clientsInWaiting: clientsInWaiting.length,
+      shouldSwitchToPayment: totalAvailableSims > 0 && (activationFilter === 'waiting' || activationFilter === 'all') && clientsInWaiting.length > 0,
+      shouldSwitchToWaiting: totalAvailableSims === 0 && activationFilter === 'to_pay'
+    });
+
+    // 🔄 TRANSITION INTELLIGENTE BASÉE SUR paymentRequired :
+
+    // Analyser les types de clients
+    const clientsWithPaymentRequired = dataToDisplay.filter(client => {
+      const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+      const hasReservation = client?.user?.hasActiveReservation ||
+                            client?.reservationStatus === 'RESERVED';
+      const simAvailable = canBeActivated(client);
+
+      // 🔍 DEBUG: Vérifier la valeur paymentRequired
+      console.log('💰 DEBUG paymentRequired pour client', client?.id, ':', {
+        paymentRequired: client.paymentRequired,
+        type: typeof client.paymentRequired,
+        needsActivation,
+        hasReservation,
+        simAvailable,
+        shouldBeInPaymentRequired: ((needsActivation || hasReservation) && simAvailable && client.paymentRequired === true)
+      });
+
+      return ((needsActivation || hasReservation) && simAvailable && client.paymentRequired === true);
+    });
+
+    const clientsReadyToActivate = dataToDisplay.filter(client => {
+      const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+      const hasReservation = client?.user?.hasActiveReservation ||
+                            client?.reservationStatus === 'RESERVED';
+      const simAvailable = canBeActivated(client);
+      const hasPreAssigned = client.isPreAssigned === true;
+      const noPaymentRequired = client.paymentRequired === false;
+      return hasPreAssigned || ((needsActivation || hasReservation) && simAvailable && noPaymentRequired);
+    });
+
+    console.log('🔍 DEBUG AUTO-SWITCH - Analyse clients:', {
+      totalAvailableSims,
+      clientsInWaiting: clientsInWaiting.length,
+      clientsWithPaymentRequired: clientsWithPaymentRequired.length,
+      clientsReadyToActivate: clientsReadyToActivate.length,
+      currentFilter: activationFilter
+    });
+
+    // TRANSITIONS BASÉES SUR LE CONTENU RÉEL :
+
+    // Si stock disponible ET clients en attente → "waiting" vers "to_pay" ou "ready"
+    if (totalAvailableSims > 0 && (activationFilter === 'waiting' || activationFilter === 'all') && clientsInWaiting.length > 0) {
+      if (clientsWithPaymentRequired.length > 0) {
+        console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients avec paiement requis → "À payer"');
+        setActivationFilter('to_pay');
+      } else if (clientsReadyToActivate.length > 0) {
+        console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients prêts → "Prêt à activer"');
+        setActivationFilter('ready');
+      }
+    }
+    // Si plus de stock ET on est sur "to_pay" → retour à "waiting"
+    else if (totalAvailableSims === 0 && activationFilter === 'to_pay') {
+      console.log('⏳ AUTO-SWITCH: Plus de stock SIM → "En attente"');
+      setActivationFilter('waiting');
+    }
+    // Cas spécial : clients avec paiement requis mais filtre sur "ready"
+    else if (clientsWithPaymentRequired.length > 0 && activationFilter === 'ready') {
+      console.log('💰 AUTO-SWITCH: Clients avec paiement requis détectés → "À payer"');
+      setActivationFilter('to_pay');
+    }
+    // Cas spécial : clients prêts mais filtre sur "to_pay"
+    else if (clientsReadyToActivate.length > 0 && clientsWithPaymentRequired.length === 0 && activationFilter === 'to_pay') {
+      console.log('✅ AUTO-SWITCH: Clients prêts sans paiement → "Prêt à activer"');
+      setActivationFilter('ready');
+    }
+    else {
+      console.log('❌ AUTO-SWITCH: Aucune transition nécessaire');
+    }
+  };
+
+  // 🚀 AUTO-SWITCH au chargement initial de la page
+  useEffect(() => {
+    if (agenciesData && dataToDisplay) {
+      console.log('🚀 INITIALISATION PAGE À ACTIVER - Déclenchement AUTO-SWITCH initial');
+      performAutoSwitch(true); // forceLog = true pour tracer l'initialisation
+    }
+  }, [agenciesData, dataToDisplay]); // Déclenché uniquement au premier chargement des données
+
+  // 🔄 AUTO-SWITCH lors des changements de données
+  useEffect(() => {
+    performAutoSwitch(false);
+  }, [agenciesData, dataToDisplay, activationFilter]);
 
   useEffect(() => {
     if (dataToDisplay && dataToDisplay.length > 0 && !selectedClient) {

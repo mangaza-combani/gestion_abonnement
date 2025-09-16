@@ -496,67 +496,68 @@ const ActivationInfo = ({ client }) => {
     });
   };
 
-  // ✅ LOGIQUE DE DÉTERMINATION DU BOUTON D'ACTION (CORRIGÉE COMME DANS ActivateTab.js)
+  // ✅ FONCTION IDENTIQUE À ActivateTab pour éviter les incohérences
   const canBeActivated = (client) => {
-    console.log('🔍 ActivationInfo canBeActivated - État:', {
-      hasAgenciesData: !!agenciesData,
-      agenciesDataType: Array.isArray(agenciesData) ? 'array' : typeof agenciesData,
-      agenciesDataStructure: agenciesData ? Object.keys(agenciesData) : 'null'
+    console.log('🔍 DEBUG ActivationInfo canBeActivated:', {
+      clientId: client?.id,
+      agenciesData: !!agenciesData,
+      isArray: Array.isArray(agenciesData),
+      clientData: {
+        userAgencyId: client?.user?.agencyId,
+        clientAgencyId: client?.client?.agencyId,
+        directAgencyId: client?.agencyId,
+        agencyFromObject: client?.agency?.id
+      }
     });
 
-    if (!agenciesData) {
-      console.log('❌ ActivationInfo canBeActivated - Pas de données agences');
+    if (!agenciesData || !Array.isArray(agenciesData)) {
+      console.log('❌ ActivationInfo canBeActivated - agenciesData pas un array:', {
+        hasData: !!agenciesData,
+        isArray: Array.isArray(agenciesData),
+        type: typeof agenciesData,
+        keys: agenciesData ? Object.keys(agenciesData) : null
+      });
       return false;
     }
 
-    // ✅ GÉRER LES DEUX CAS: Admin (array) et Non-Admin (relation object)
-    let agenciesArray = [];
-
-    if (Array.isArray(agenciesData)) {
-      // Cas Admin: tableau d'agences
-      agenciesArray = agenciesData;
-      console.log('🔍 ActivationInfo - Cas Admin (array):', agenciesArray.length, 'agences');
-    } else if (typeof agenciesData === 'object' && agenciesData && (agenciesData.simCards || agenciesData.parent)) {
-      // Cas Non-Admin: objet relation avec simCards directement OU structure parent
-      if (agenciesData.simCards) {
-        // Cas direct: l'objet agence a directement les simCards
-        agenciesArray = [agenciesData];
-        console.log('🔍 ActivationInfo - Cas Non-Admin (direct):', agenciesData.simCards.length, 'SIM cards');
-      } else if (agenciesData.parent && agenciesData.parent.simCards) {
-        // Cas parent: l'agence est dans parent
-        agenciesArray = [agenciesData.parent];
-        console.log('🔍 ActivationInfo - Cas Non-Admin (parent):', agenciesData.parent.simCards.length, 'SIM cards');
-      }
-    } else {
-      console.log('❌ ActivationInfo canBeActivated - Structure agenciesData non reconnue');
-      return false;
-    }
-
+    // ✅ CORRECTION: Essayer toutes les sources possibles d'agencyId
     const clientAgencyId = client?.user?.agencyId ||
+                          client?.agency?.id ||
                           client?.client?.agencyId ||
                           client?.agencyId;
 
-    console.log('🔍 ActivationInfo canBeActivated - Client Agency ID:', clientAgencyId);
+    console.log('🔍 ActivationInfo ClientAgencyId résolu:', {
+      from: 'user.agencyId',
+      value: client?.user?.agencyId,
+      final: clientAgencyId
+    });
 
     if (!clientAgencyId) {
-      console.log('❌ ActivationInfo canBeActivated - Pas d\'ID agence client');
+      console.log('❌ ActivationInfo canBeActivated - Pas de clientAgencyId après toutes tentatives');
       return false;
     }
 
-    const agency = agenciesArray.find(a => a.id === clientAgencyId);
-    console.log('🔍 ActivationInfo canBeActivated - Agence trouvée:', {
-      found: !!agency,
-      hasSimCards: agency?.simCards ? true : false,
-      simCardsCount: agency?.simCards?.length || 0
-    });
-
+    const agency = agenciesData.find(a => a.id === clientAgencyId);
     if (!agency || !agency.simCards) {
-      console.log('❌ ActivationInfo canBeActivated - Agence non trouvée ou pas de simCards');
+      console.log('❌ ActivationInfo canBeActivated - Agency ou simCards manquants:', {
+        agencyFound: !!agency,
+        hasSimCards: agency?.simCards ? true : false,
+        clientAgencyId,
+        availableAgencies: agenciesData.map(a => ({ id: a.id, name: a.name, hasSimCards: !!a.simCards }))
+      });
       return false;
     }
 
     const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
-    console.log('🔍 ActivationInfo canBeActivated - SIM disponibles:', availableSims.length);
+
+    console.log('🔍 ActivationInfo résultat:', {
+      clientId: client?.id,
+      agencyId: clientAgencyId,
+      totalSims: agency.simCards.length,
+      availableSims: availableSims.length,
+      result: availableSims.length > 0
+    });
+
     return availableSims.length > 0;
   };
 
