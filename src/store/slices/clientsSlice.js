@@ -13,18 +13,6 @@ export const clientsApiSlice = apiSlice.injectEndpoints({
         { type: 'Client', id: 'LIST' }
       ],
     }),
-    createClient: builder.mutation({
-      query: (client) => ({
-        url: '/clients',
-        method: 'POST',
-        body: client,
-      }),
-      invalidatesTags: (result, error, client) => [
-        { type: 'Client', id: 'LIST' },
-        { type: 'Client', id: `LIST_${client.agencyId}` },
-        'ClientToOrder'
-      ],
-    }),
     associateClient: builder.mutation({
       query: ({ clientId, agencyId, simCardInfo, paymentInfo, needsLine, subscriptionId, notes }) => ({
         url: '/clients/associate',
@@ -62,6 +50,18 @@ export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
       query: (id) => `/auth/get-user/${id}`,
       providesTags: (result, error, id) => [{ type: 'Client', id }],
     }),
+    createClient: builder.mutation({
+      query: (client) => ({
+        url: '/clients',
+        method: 'POST',
+        body: client,
+      }),
+      invalidatesTags: (result, error, client) => [
+        { type: 'Client', id: 'LIST' },
+        { type: 'Client', id: `LIST_${client.agencyId}` },
+        'ClientToOrder'
+      ],
+    }),
     getClientsToOrder: builder.query({
       query: () => `/clients-to-order?_t=${Date.now()}`, // Ajouter timestamp pour éviter le cache
       providesTags: ['ClientToOrder'],
@@ -82,7 +82,6 @@ export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
 
 export const {
   useGetClientsQuery,
-  useCreateClientMutation,
   useAssociateClientMutation,
   useUpdateClientMutation,
 } = clientsApiSlice;
@@ -91,6 +90,7 @@ export const {
 export const {
   useGetAllUsersQuery,
   useGetClientByIdQuery,
+  useCreateClientMutation,
   useGetClientsToOrderQuery,
   useConfirmSimOrderMutation,
 } = clientsApiSliceWithPrefix;

@@ -41,7 +41,10 @@ import {
   CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon
+  Error as ErrorIcon,
+  Visibility as VisibilityIcon,
+  Download as DownloadIcon,
+  PictureAsPdf as PdfIcon
 } from '@mui/icons-material';
 
 import {
@@ -539,6 +542,107 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
       setSelectedLines(activeLinesIds);
     } else {
       setSelectedLines([]);
+    }
+  };
+
+  // 🆕 NOUVEAU : Fonctions pour gérer les PDFs
+  const handleViewInvoice = async (invoice) => {
+    try {
+      const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+      if (!authToken) {
+        setSnackbar({
+          open: true,
+          message: 'Token d\'authentification manquant',
+          severity: 'error'
+        });
+        return;
+      }
+
+      setSnackbar({
+        open: true,
+        message: 'Ouverture de la facture...',
+        severity: 'info'
+      });
+
+      // Récupérer le PDF avec l'authentification Bearer
+      const response = await fetch(`${API_CONFIG.BASE_URL}invoices/${invoice.id}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+      }
+
+      // Convertir en blob et ouvrir dans un nouvel onglet
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+
+    } catch (error) {
+      console.error('Erreur lors de la visualisation:', error);
+      setSnackbar({
+        open: true,
+        message: 'Erreur lors de la visualisation de la facture',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleDownloadInvoice = async (invoice) => {
+    try {
+      const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+      if (!authToken) {
+        setSnackbar({
+          open: true,
+          message: 'Token d\'authentification manquant',
+          severity: 'error'
+        });
+        return;
+      }
+
+      setSnackbar({
+        open: true,
+        message: 'Téléchargement en cours...',
+        severity: 'info'
+      });
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}invoices/${invoice.id}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Facture_${invoice.invoiceNumber}_${invoice.paymentMonth}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setSnackbar({
+        open: true,
+        message: 'Facture téléchargée avec succès',
+        severity: 'success'
+      });
+
+    } catch (error) {
+      console.error('Erreur lors du téléchargement:', error);
+      setSnackbar({
+        open: true,
+        message: 'Erreur lors du téléchargement de la facture',
+        severity: 'error'
+      });
     }
   };
 
@@ -1439,6 +1543,36 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                               
                               <Grid item xs={12} sm={4}>
                                 <Box sx={{ textAlign: 'center' }}>
+                                  {/* Actions PDF pour toutes les factures */}
+                                  <Stack direction="row" spacing={1} justifyContent="center" sx={{ mb: 2 }}>
+                                    <Tooltip title="Visualiser la facture PDF">
+                                      <IconButton
+                                        color="primary"
+                                        onClick={() => handleViewInvoice(invoice)}
+                                        size="small"
+                                        sx={{
+                                          bgcolor: 'primary.50',
+                                          '&:hover': { bgcolor: 'primary.100' }
+                                        }}
+                                      >
+                                        <VisibilityIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Télécharger la facture PDF">
+                                      <IconButton
+                                        color="secondary"
+                                        onClick={() => handleDownloadInvoice(invoice)}
+                                        size="small"
+                                        sx={{
+                                          bgcolor: 'secondary.50',
+                                          '&:hover': { bgcolor: 'secondary.100' }
+                                        }}
+                                      >
+                                        <DownloadIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Stack>
+
                                   {invoice.isPaid ? (
                                     <Box>
                                       <Typography variant="body2" color="textSecondary">

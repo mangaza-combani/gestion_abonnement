@@ -76,8 +76,7 @@ const MainLayout = () => {
       ]
     : [
               { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-              { text: 'Clients', icon: <People />, path: '/clients' },
-              { text: 'Mes Lignes', icon: <PhoneIcon />, path: '/my-lines' },
+              { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
               { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
       ];
 

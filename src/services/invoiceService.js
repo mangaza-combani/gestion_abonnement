@@ -3,12 +3,45 @@ import 'jspdf-autotable';
 
 export class InvoiceService {
   constructor() {
-    this.companySettings = this.getCompanySettings();
+    this.companySettings = null;
+    this.initializeSettings();
   }
 
-  getCompanySettings() {
-    const saved = localStorage.getItem('invoiceSettings');
-    return saved ? JSON.parse(saved) : {
+  async initializeSettings() {
+    this.companySettings = await this.getCompanySettings();
+  }
+
+  async getCompanySettings() {
+    try {
+      const response = await fetch('/api/company-settings', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const apiSettings = await response.json();
+        return {
+          companyName: apiSettings.companyName || 'UWEZO TELECOM',
+          address: apiSettings.companyAddress || '123 Avenue de la République',
+          city: apiSettings.companyCity || 'Moroni',
+          postalCode: apiSettings.companyPostalCode || '97600',
+          country: apiSettings.companyCountry || 'Comores',
+          phone: apiSettings.companyPhone || '+269 773 12 34',
+          email: apiSettings.companyEmail || 'contact@uwezo.com',
+          website: apiSettings.companyWebsite || 'www.uwezo.com',
+          siret: apiSettings.companySiret || '12345678901234',
+          tva: apiSettings.companyTva || 'FR12345678901',
+          logo: apiSettings.companyLogo || null
+        };
+      }
+    } catch (error) {
+      console.warn('Impossible de récupérer les paramètres d\'entreprise depuis l\'API, utilisation des valeurs par défaut');
+    }
+
+    // Fallback sur les valeurs par défaut
+    return {
       companyName: 'UWEZO TELECOM',
       address: '123 Avenue de la République',
       city: 'Moroni',
@@ -97,6 +130,11 @@ export class InvoiceService {
   }
 
   async generateInvoicePDF(client, period) {
+    // S'assurer que les paramètres sont chargés
+    if (!this.companySettings) {
+      await this.initializeSettings();
+    }
+
     const invoiceData = this.calculateInvoiceData(client, period);
     const pdf = new jsPDF();
     

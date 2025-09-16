@@ -97,14 +97,15 @@ const App = () => {
 
               {/* Routes Superviseur */}
               <Route path="agencies" element={<AgenciesManagement />} />
-              <Route path="lines" element={<LinesManagement />} />
               <Route path="subscriptions" element={<SubscriptionsManagement />} />
               <Route path="commissions" element={<CommissionWithdrawal />} />
               <Route path="accountresign" element={<AccountResign />} />
               <Route path="user" element={<UsersManagement />} />
 
+              {/* Routes Communes */}
+              <Route path="lines" element={<LinesManagement />} />
+
               {/* Routes Agence */}
-              <Route path="clients" element={<ClientsManagement />} />
               <Route path="my-lines" element={<MyLines />} />
               <Route path="sim-stock" element={<SimStock />} />
 

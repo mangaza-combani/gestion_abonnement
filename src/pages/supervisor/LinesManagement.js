@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import {Box, Tabs, Tab, Tooltip, IconButton, Badge} from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
-import {PersonAdd as PersonAddIcon, Notifications as NotificationsIcon} from '@mui/icons-material';
+import {PersonAdd as PersonAddIcon, Notifications as NotificationsIcon, Refresh as RefreshIcon} from '@mui/icons-material';
 import {TAB_TYPES, CLIENT_STATUSES, ORDER_FILTERS} from '../../components/ClientManagement/constant';
 import ListTab from '../../components/ClientManagement/TabContent/ListTab';
 import BlockTab from '../../components/ClientManagement/TabContent//BlockTab';
@@ -17,16 +17,27 @@ import {useGetAllUsersQuery, useGetClientsToOrderQuery} from "../../store/slices
 import {useCreateClientMutation} from "../../store/slices/clientsSlice";
 import {useCreateSimCardMutation} from "../../store/slices/simCardsSlice";
 import {useGetAgenciesQuery} from "../../store/slices/agencySlice";
+import {useWhoIAmQuery} from "../../store/slices/authSlice";
 import {PHONE_STATUS, PAYMENT_STATUS} from "../../components/ClientManagement/constant";
 
-// Onglets pour la gestion des lignes et paiements
-const tabs = [
-        {id: TAB_TYPES.LIST, label: 'LISTE DES LIGNES'},
-        {id: TAB_TYPES.TO_BLOCK, label: 'A BLOQUER'}, // Lignes en dette (> 1 mois impayé)
-        {id: TAB_TYPES.OVERDUE, label: 'EN RETARD'}, // Lignes en retard de paiement (< 1 mois)
-        {id: TAB_TYPES.TO_ORDER, label: 'A COMMANDER'},
-        {id: TAB_TYPES.TO_ACTIVATE, label: 'A ACTIVER'},
-];
+// Fonction pour adapter les onglets selon le rôle utilisateur
+const getTabsForRole = (userRole) => {
+        const isAgency = userRole === 'AGENCY';
+
+        const baseTabs = [
+                {id: TAB_TYPES.LIST, label: 'LISTE DES LIGNES'},
+                {id: TAB_TYPES.TO_BLOCK, label: isAgency ? 'EN ATTENTE DE BLOCAGE' : 'A BLOQUER'},
+                {id: TAB_TYPES.TO_ORDER, label: isAgency ? 'COMMANDE EN ATTENTE' : 'A COMMANDER'},
+                {id: TAB_TYPES.TO_ACTIVATE, label: isAgency ? 'LIGNE EN ATTENTE D\'ACTIVATION' : 'A ACTIVER'},
+        ];
+
+        // Pour les agences, on retire l'onglet "EN RETARD"
+        if (!isAgency) {
+                baseTabs.splice(2, 0, {id: TAB_TYPES.OVERDUE, label: 'EN RETARD'});
+        }
+
+        return baseTabs;
+};
 
 const ClientManagement = () => {
         const [searchParams] = useSearchParams();
@@ -39,6 +50,12 @@ const ClientManagement = () => {
         const [createClient] = useCreateClientMutation();
         const [createPhone] = useCreatePhoneMutation();
         const [createSimCard] = useCreateSimCardMutation();
+
+        // Hook pour récupérer les informations utilisateur
+        const { data: currentUser } = useWhoIAmQuery();
+        const userRole = currentUser?.role || 'SUPERVISOR';
+        const tabs = getTabsForRole(userRole);
+
         const {
                 data: linesData,
                 isLoading: linesLoading,
@@ -49,6 +66,7 @@ const ClientManagement = () => {
                 refetchOnReconnect: true // Rafraîchissement lors de la reconnexion
         })
         
+
         const {
                 data: agenciesData,
                 isLoading: agenciesLoading,
@@ -72,9 +90,10 @@ const ClientManagement = () => {
                 isLoading: phonesToBlockLoading,
                 refetch: refetchPhonesToBlock
         } = useGetPhonesToBlockQuery(undefined, {
-                // Pas de polling automatique pour éviter les erreurs refetch
-                // refetchOnFocus: true,
-                // refetchOnReconnect: true
+                pollingInterval: 60000, // Vérification toutes les 60 secondes pour recalculer les statuts
+                refetchOnFocus: true,   // Recalcul quand la fenêtre reprend le focus
+                refetchOnReconnect: true, // Recalcul lors de la reconnexion
+                refetchOnMount: true    // Recalcul au montage du composant
         })
 
         const {
@@ -82,9 +101,10 @@ const ClientManagement = () => {
                 isLoading: phonesOverdueLoading,
                 refetch: refetchPhonesOverdue
         } = useGetPhonesOverdueQuery(undefined, {
-                // Pas de polling automatique pour éviter les erreurs refetch
-                // refetchOnFocus: true,
-                // refetchOnReconnect: true
+                pollingInterval: 60000, // Vérification toutes les 60 secondes pour recalculer les statuts
+                refetchOnFocus: true,   // Recalcul quand la fenêtre reprend le focus
+                refetchOnReconnect: true, // Recalcul lors de la reconnexion
+                refetchOnMount: true    // Recalcul au montage du composant
         })
 
         const {
@@ -106,7 +126,22 @@ const ClientManagement = () => {
                 // refetchOnFocus: true,
                 // refetchOnReconnect: true
         })
-        
+
+        // Gérer le changement d'onglet pour les agences (pas d'onglet EN RETARD)
+        useEffect(() => {
+                const isAgency = userRole === 'AGENCY';
+                const validTabIds = tabs.map(tab => tab.id);
+
+                // Si l'agence a l'onglet EN RETARD sélectionné, rediriger vers LISTE
+                if (isAgency && currentTab === TAB_TYPES.OVERDUE) {
+                        setCurrentTab(TAB_TYPES.LIST);
+                }
+                // Vérifier que l'onglet actuel est valide pour le rôle
+                else if (!validTabIds.includes(currentTab)) {
+                        setCurrentTab(TAB_TYPES.LIST);
+                }
+        }, [userRole, currentTab, tabs]);
+
         // Handle URL parameters for navigation from AccountDetails
         useEffect(() => {
                 const tab = searchParams.get('tab');
@@ -228,8 +263,11 @@ const ClientManagement = () => {
                 const today = new Date();
                 const yesterday = new Date(today);
                 yesterday.setDate(yesterday.getDate() - 1);
-                
-                agenciesData.forEach(agency => {
+
+                // Vérifier si agenciesData existe et est un tableau
+                const agencies = Array.isArray(agenciesData) ? agenciesData : [];
+
+                agencies.forEach(agency => {
                         if (agency.simCards) {
                                 const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
                                 totalAvailableSimCards += availableSims.length;
@@ -269,6 +307,24 @@ const ClientManagement = () => {
                         hasNewReceptions: newReceptions.length > 0
                 };
         }, [agenciesData, linesData]);
+
+        // 🆕 Fonction pour rafraîchir tous les statuts de paiement
+        const refreshAllPaymentStatus = async () => {
+                console.log('🔄 Rafraîchissement de tous les statuts de paiement...');
+
+                // Rafraîchir tous les onglets de paiement en parallèle
+                const promises = [];
+                if (refetchPhonesToBlock) promises.push(refetchPhonesToBlock());
+                if (refetchPhonesOverdue) promises.push(refetchPhonesOverdue());
+                if (refetchLines) promises.push(refetchLines());
+
+                try {
+                        await Promise.all(promises);
+                        console.log('✅ Tous les statuts de paiement ont été actualisés');
+                } catch (error) {
+                        console.error('❌ Erreur lors du rafraîchissement:', error);
+                }
+        };
 
         const handleNewClient = async (data) => {
                 // Vérification préventive de l'authentification
@@ -471,7 +527,13 @@ const ClientManagement = () => {
                         if (!clientsToOrderData || clientsToOrderLoading) return [];
                         return clientsToOrderData.data || [];
                 }
-                
+
+                // Pour l'onglet LISTE DES LIGNES, utiliser les données avec statut de paiement (filtrées par agence)
+                if (currentTab === TAB_TYPES.LIST) {
+                        if (!allLinesWithPaymentStatus || allLinesLoading) return [];
+                        return allLinesWithPaymentStatus || [];
+                }
+
                 if (!linesData) return [];
                 
                 const now = new Date();
@@ -488,9 +550,14 @@ const ClientManagement = () => {
                                                    client?.hasActiveReservation === true ||
                                                    client?.reservationStatus === 'RESERVED';
                         
-                        if (client?.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED && 
-                            currentTab !== TAB_TYPES.TO_ORDER && 
-                            !(currentTab === TAB_TYPES.TO_ACTIVATE && hasActiveReservation)) {
+                        // Exclure les lignes non attribuées avec statut NEEDS_TO_BE_ACTIVATED de tous les onglets SAUF "À COMMANDER"
+                        if (client?.paymentStatus === PAYMENT_STATUS.UNATTRIBUTED &&
+                            client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED') {
+                                // Permettre dans "À COMMANDER" seulement
+                                if (currentTab === TAB_TYPES.TO_ORDER) {
+                                        return true; // Continuer le filtrage normal
+                                }
+                                // Exclure de tous les autres onglets (y compris LISTE DES LIGNES et À ACTIVER)
                                 return false;
                         }
 
@@ -525,11 +592,16 @@ const ClientManagement = () => {
                                                client?.phoneStatus === PHONE_STATUS.SUSPENDED;
                                 
                                 case TAB_TYPES.TO_BLOCK:
-                                        // En retard - clients qui n'ont pas payé au 27 du mois
+                                        // Clients à bloquer : DETTE immédiatement + EN RETARD après le 27
                                         const isAfter27th = currentDay >= 27;
-                                        const hasNotPaid = client?.paymentStatus === PAYMENT_STATUS.OVERDUE || 
-                                                          client?.paymentStatus === PAYMENT_STATUS.PAST_DUE;
-                                        return matchesSearch && isAfter27th && hasNotPaid &&
+                                        const hasDebt = client?.paymentStatus === 'DETTE' || client?.paymentStatus === PAYMENT_STATUS.TO_BLOCK;
+                                        const hasOverdueAfter27th = isAfter27th && (
+                                                client?.paymentStatus === PAYMENT_STATUS.OVERDUE ||
+                                                client?.paymentStatus === PAYMENT_STATUS.PAST_DUE ||
+                                                client?.paymentStatus === 'EN RETARD'
+                                        );
+                                        const shouldBlock = hasDebt || hasOverdueAfter27th;
+                                        return matchesSearch && shouldBlock &&
                                                client?.phoneStatus !== PHONE_STATUS.SUSPENDED;
                                 
                                 case TAB_TYPES.TO_ORDER:
@@ -601,7 +673,44 @@ const ClientManagement = () => {
                                         const qualifies = (needsActivation || hasReservation || needsReactivation) && !isAlreadyActive;
                                         
                                         // Identifier le type de ligne pour À ACTIVER
-                                        const isWaitingForSim = client.trackingNotes?.includes('EN ATTENTE DE SIM');
+                                        // ✅ NOUVEAU : Logique cohérente avec ActivateTab
+                                        const canBeActivated = (client) => {
+                                          console.log('🔍 DEBUG LinesManagement canBeActivated:', {
+                                            clientId: client?.id,
+                                            agenciesData: !!agenciesData,
+                                            isArray: Array.isArray(agenciesData),
+                                            clientData: {
+                                              userAgencyId: client?.user?.agencyId,
+                                              clientAgencyId: client?.client?.agencyId,
+                                              directAgencyId: client?.agencyId
+                                            }
+                                          });
+
+                                          if (!agenciesData || !Array.isArray(agenciesData)) return false;
+
+                                          const clientAgencyId = client?.user?.agencyId ||
+                                                                client?.client?.agencyId ||
+                                                                client?.agencyId;
+
+                                          if (!clientAgencyId) return false;
+
+                                          const agency = agenciesData.find(a => a.id === clientAgencyId);
+                                          if (!agency || !agency.simCards) return false;
+
+                                          const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
+
+                                          console.log('🔍 DEBUG LinesManagement résultat:', {
+                                            clientId: client?.id,
+                                            agencyId: clientAgencyId,
+                                            totalSims: agency.simCards.length,
+                                            availableSims: availableSims.length,
+                                            result: availableSims.length > 0
+                                          });
+
+                                          return availableSims.length > 0;
+                                        };
+
+                                        const isWaitingForSim = hasReservation && !canBeActivated(client);
                                         const hasIccid = client.activatedWithIccid || client.phoneNumber;
                                         
                                         // Debug détaillé pour comprendre la logique
@@ -783,22 +892,32 @@ const ClientManagement = () => {
                                         />
                                     ))}
                             </Tabs>
-                            <Tooltip title="Créer un nouveau client" placement="left">
+                            <Box sx={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 1 }}>
+                                <Tooltip title="Actualiser les statuts de paiement" placement="left">
                                     <IconButton
-                                        color="primary"
+                                        color="info"
                                         sx={{
-                                                position: 'absolute',
-                                                right: 16,
-                                                top: '50%',
-                                                transform: 'translateY(-50%)',
                                                 backgroundColor: 'rgba(255,255,255,0.8)',
                                                 '&:hover': {backgroundColor: 'rgba(255,255,255,0.9)'}
                                         }}
-                                        onClick={() => setIsNewClientModalOpen(true)}
+                                        onClick={refreshAllPaymentStatus}
                                     >
-                                            <PersonAddIcon/>
+                                            <RefreshIcon/>
                                     </IconButton>
-                            </Tooltip>
+                                </Tooltip>
+                                <Tooltip title="Créer un nouveau client" placement="left">
+                                        <IconButton
+                                            color="primary"
+                                            sx={{
+                                                    backgroundColor: 'rgba(255,255,255,0.8)',
+                                                    '&:hover': {backgroundColor: 'rgba(255,255,255,0.9)'}
+                                            }}
+                                            onClick={() => setIsNewClientModalOpen(true)}
+                                        >
+                                                <PersonAddIcon/>
+                                        </IconButton>
+                                </Tooltip>
+                            </Box>
                     </Box>
                     <Box sx={{display: 'flex', p: 2, gap: 2, maxWidth: '100vw', overflow: 'hidden'}}>
                             <Box sx={{
@@ -853,6 +972,8 @@ const ClientManagement = () => {
                         open={isNewClientModalOpen}
                         onClose={() => setIsNewClientModalOpen(false)}
                         onClientCreated={handleNewClient}
+                        agencyMode={userRole === 'AGENCY'}
+                        useCreateClientRoute={true}
                     />
             </Box>
         );

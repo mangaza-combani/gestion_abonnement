@@ -13,7 +13,8 @@ import {
   Stack,
   Alert,
   Paper,
-  useTheme
+  useTheme,
+  CircularProgress
 } from '@mui/material';
 import {
   Business as BusinessIcon,
@@ -23,25 +24,35 @@ import {
   PhotoCamera as PhotoCameraIcon,
   Receipt as ReceiptIcon
 } from '@mui/icons-material';
+import {
+  useGetCompanySettingsQuery,
+  useUpdateCompanySettingsMutation
+} from '../../store/slices/companySettingsSlice';
 
 const InvoiceSettings = () => {
   const theme = useTheme();
+
+  // RTK Query hooks
+  const { data: apiCompanySettings, isLoading, error, refetch } = useGetCompanySettingsQuery();
+  const [updateCompanySettings, { isLoading: isUpdating }] = useUpdateCompanySettingsMutation();
+
   const [companySettings, setCompanySettings] = useState({
     companyName: 'UWEZO TELECOM',
-    address: '123 Avenue de la République',
-    city: 'Moroni',
-    postalCode: '97600',
-    country: 'Comores',
-    phone: '+269 773 12 34',
-    email: 'contact@uwezo.com',
-    website: 'www.uwezo.com',
-    siret: '12345678901234',
-    tva: 'FR12345678901',
-    logo: null
+    companyAddress: '123 Avenue de la République',
+    companyCity: 'Moroni',
+    companyPostalCode: '97600',
+    companyCountry: 'Comores',
+    companyPhone: '+269 773 12 34',
+    companyEmail: 'contact@uwezo.com',
+    companyWebsite: 'www.uwezo.com',
+    companySiret: '12345678901234',
+    companyTva: 'FR12345678901',
+    companyLogo: null
   });
 
   const [preview, setPreview] = useState(null);
   const [saveMessage, setSaveMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleInputChange = (field) => (event) => {
     setCompanySettings(prev => ({
@@ -59,7 +70,7 @@ const InvoiceSettings = () => {
         setPreview(logoData);
         setCompanySettings(prev => ({
           ...prev,
-          logo: logoData
+          companyLogo: logoData
         }));
       };
       reader.readAsDataURL(file);
@@ -70,28 +81,45 @@ const InvoiceSettings = () => {
     setPreview(null);
     setCompanySettings(prev => ({
       ...prev,
-      logo: null
+      companyLogo: null
     }));
   };
 
-  const handleSave = () => {
-    // Ici on sauvegarderait les paramètres dans le localStorage ou API
-    localStorage.setItem('invoiceSettings', JSON.stringify(companySettings));
-    setSaveMessage('Paramètres de facturation sauvegardés avec succès !');
-    setTimeout(() => setSaveMessage(''), 3000);
+  const handleSave = async () => {
+    try {
+      setErrorMessage('');
+      const result = await updateCompanySettings(companySettings).unwrap();
+      setSaveMessage(result.message || 'Paramètres de facturation sauvegardés avec succès !');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      setErrorMessage(error.data?.message || 'Erreur lors de la sauvegarde des paramètres');
+      setTimeout(() => setErrorMessage(''), 5000);
+    }
   };
 
-  // Charger les paramètres existants au montage du composant
+  // Charger les paramètres depuis l'API
   React.useEffect(() => {
-    const savedSettings = localStorage.getItem('invoiceSettings');
-    if (savedSettings) {
-      const parsed = JSON.parse(savedSettings);
-      setCompanySettings(parsed);
-      if (parsed.logo) {
-        setPreview(parsed.logo);
+    if (apiCompanySettings) {
+      setCompanySettings({
+        companyName: apiCompanySettings.companyName || 'UWEZO TELECOM',
+        companyAddress: apiCompanySettings.companyAddress || '123 Avenue de la République',
+        companyCity: apiCompanySettings.companyCity || 'Moroni',
+        companyPostalCode: apiCompanySettings.companyPostalCode || '97600',
+        companyCountry: apiCompanySettings.companyCountry || 'Comores',
+        companyPhone: apiCompanySettings.companyPhone || '+269 773 12 34',
+        companyEmail: apiCompanySettings.companyEmail || 'contact@uwezo.com',
+        companyWebsite: apiCompanySettings.companyWebsite || 'www.uwezo.com',
+        companySiret: apiCompanySettings.companySiret || '12345678901234',
+        companyTva: apiCompanySettings.companyTva || 'FR12345678901',
+        companyLogo: apiCompanySettings.companyLogo || null
+      });
+
+      if (apiCompanySettings.companyLogo) {
+        setPreview(apiCompanySettings.companyLogo);
       }
     }
-  }, []);
+  }, [apiCompanySettings]);
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
@@ -100,9 +128,28 @@ const InvoiceSettings = () => {
         Paramètres de Facturation
       </Typography>
 
+      {isLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <CircularProgress />
+          <Typography sx={{ ml: 2 }}>Chargement des paramètres...</Typography>
+        </Box>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Erreur lors du chargement des paramètres: {error.data?.message || error.message}
+        </Alert>
+      )}
+
       {saveMessage && (
         <Alert severity="success" sx={{ mb: 3 }}>
           {saveMessage}
+        </Alert>
+      )}
+
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {errorMessage}
         </Alert>
       )}
 
@@ -215,8 +262,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Adresse"
-                    value={companySettings.address}
-                    onChange={handleInputChange('address')}
+                    value={companySettings.companyAddress}
+                    onChange={handleInputChange('companyAddress')}
                     variant="outlined"
                   />
                 </Grid>
@@ -225,8 +272,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Ville"
-                    value={companySettings.city}
-                    onChange={handleInputChange('city')}
+                    value={companySettings.companyCity}
+                    onChange={handleInputChange('companyCity')}
                     variant="outlined"
                   />
                 </Grid>
@@ -235,8 +282,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Code postal"
-                    value={companySettings.postalCode}
-                    onChange={handleInputChange('postalCode')}
+                    value={companySettings.companyPostalCode}
+                    onChange={handleInputChange('companyPostalCode')}
                     variant="outlined"
                   />
                 </Grid>
@@ -245,8 +292,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Pays"
-                    value={companySettings.country}
-                    onChange={handleInputChange('country')}
+                    value={companySettings.companyCountry}
+                    onChange={handleInputChange('companyCountry')}
                     variant="outlined"
                   />
                 </Grid>
@@ -255,8 +302,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Téléphone"
-                    value={companySettings.phone}
-                    onChange={handleInputChange('phone')}
+                    value={companySettings.companyPhone}
+                    onChange={handleInputChange('companyPhone')}
                     variant="outlined"
                   />
                 </Grid>
@@ -266,8 +313,8 @@ const InvoiceSettings = () => {
                     fullWidth
                     label="Email"
                     type="email"
-                    value={companySettings.email}
-                    onChange={handleInputChange('email')}
+                    value={companySettings.companyEmail}
+                    onChange={handleInputChange('companyEmail')}
                     variant="outlined"
                   />
                 </Grid>
@@ -276,8 +323,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Site web"
-                    value={companySettings.website}
-                    onChange={handleInputChange('website')}
+                    value={companySettings.companyWebsite}
+                    onChange={handleInputChange('companyWebsite')}
                     variant="outlined"
                   />
                 </Grid>
@@ -286,8 +333,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="SIRET"
-                    value={companySettings.siret}
-                    onChange={handleInputChange('siret')}
+                    value={companySettings.companySiret}
+                    onChange={handleInputChange('companySiret')}
                     variant="outlined"
                   />
                 </Grid>
@@ -296,8 +343,8 @@ const InvoiceSettings = () => {
                   <TextField
                     fullWidth
                     label="Numéro de TVA"
-                    value={companySettings.tva}
-                    onChange={handleInputChange('tva')}
+                    value={companySettings.companyTva}
+                    onChange={handleInputChange('companyTva')}
                     variant="outlined"
                   />
                 </Grid>
@@ -333,23 +380,23 @@ const InvoiceSettings = () => {
                   {companySettings.companyName}
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
-                  {companySettings.address}
+                  {companySettings.companyAddress}
                 </Typography>
                 <Typography variant="body2">
-                  {companySettings.city} {companySettings.postalCode}
+                  {companySettings.companyCity} {companySettings.companyPostalCode}
                 </Typography>
                 <Typography variant="body2">
-                  {companySettings.country}
+                  {companySettings.companyCountry}
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1 }}>
-                  Tél: {companySettings.phone}
+                  Tél: {companySettings.companyPhone}
                 </Typography>
                 <Typography variant="body2">
-                  Email: {companySettings.email}
+                  Email: {companySettings.companyEmail}
                 </Typography>
-                {companySettings.website && (
+                {companySettings.companyWebsite && (
                   <Typography variant="body2">
-                    Web: {companySettings.website}
+                    Web: {companySettings.companyWebsite}
                   </Typography>
                 )}
               </Box>
@@ -359,10 +406,10 @@ const InvoiceSettings = () => {
                   FACTURE
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 2 }}>
-                  SIRET: {companySettings.siret}
+                  SIRET: {companySettings.companySiret}
                 </Typography>
                 <Typography variant="body2">
-                  TVA: {companySettings.tva}
+                  TVA: {companySettings.companyTva}
                 </Typography>
               </Box>
             </Box>
@@ -375,11 +422,12 @@ const InvoiceSettings = () => {
         <Button
           variant="contained"
           size="large"
-          startIcon={<SaveIcon />}
+          startIcon={isUpdating ? <CircularProgress size={20} /> : <SaveIcon />}
           onClick={handleSave}
+          disabled={isUpdating || isLoading}
           sx={{ minWidth: 200 }}
         >
-          Enregistrer les paramètres
+          {isUpdating ? 'Sauvegarde...' : 'Enregistrer les paramètres'}
         </Button>
       </Box>
     </Box>

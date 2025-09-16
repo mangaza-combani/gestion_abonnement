@@ -31,6 +31,7 @@ import ConfirmSimOrderModal from '../ConfirmSimOrderModal';
 import NewLineDialog from '../../AccountManagement/NewLineDialog';
 import { useGetRedAccountsQuery } from '../../../store/slices/redAccountsSlice';
 import { useGetAvailableLinesQuery } from '../../../store/slices/lineReservationsSlice';
+import { useWhoIAmQuery } from '../../../store/slices/authSlice';
 import { PHONE_STATUS } from '../constant';
 
 // Fonction pour détecter si c'est un remplacement SIM
@@ -47,7 +48,7 @@ const isSimReplacementClient = (client) => {
 };
 
 // Composant Panel pour les remplacements SIM
-const SimReplacementPanel = ({ client, onConfirmSimOrder }) => {
+const SimReplacementPanel = ({ client, onConfirmSimOrder, isSupervisor = false }) => {
   const [showPassword, setShowPassword] = useState(false);
 
   // DEBUG: Voir les données client
@@ -185,17 +186,23 @@ const SimReplacementPanel = ({ client, onConfirmSimOrder }) => {
 
             {/* Bouton de confirmation */}
             <Box sx={{ pt: 2 }}>
-              <Button
-                variant="contained"
-                color="error"
-                size="large"
-                fullWidth
-                startIcon={<CheckCircleIcon />}
-                onClick={() => onConfirmSimOrder(client)}
-                sx={{ py: 1.5 }}
-              >
-                Confirmer Commande SIM de Remplacement
-              </Button>
+              {isSupervisor ? (
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="large"
+                  fullWidth
+                  startIcon={<CheckCircleIcon />}
+                  onClick={() => onConfirmSimOrder(client)}
+                  sx={{ py: 1.5 }}
+                >
+                  Confirmer Commande SIM de Remplacement
+                </Button>
+              ) : (
+                <Alert severity="info" sx={{ fontSize: '0.875rem' }}>
+                  Actions disponibles pour les superviseurs uniquement
+                </Alert>
+              )}
             </Box>
           </Stack>
         </CardContent>
@@ -213,6 +220,10 @@ const OrderTab = ({
   selectedClient,
   onClientSelect
 }) => {
+  // Vérifier le rôle utilisateur
+  const { data: connectedUser } = useWhoIAmQuery();
+  const isSupervisor = connectedUser?.role === 'SUPERVISOR' || connectedUser?.role === 'ADMIN' || connectedUser?.role === 'SUPER_ADMIN';
+
   // State pour le filtre des types
   const [selectedFilter, setSelectedFilter] = useState('all');
 
@@ -536,6 +547,7 @@ const OrderTab = ({
               <SimReplacementPanel
                 client={selectedClient}
                 onConfirmSimOrder={handleConfirmSimOrder}
+                isSupervisor={isSupervisor}
               />
             ) : (
               <RedAccountManagement client={selectedClient} />

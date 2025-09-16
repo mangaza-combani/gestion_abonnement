@@ -178,6 +178,38 @@ export const linePaymentsApi = apiSliceWithPrefix.injectEndpoints({
         body: paymentData,
       }),
     }),
+
+    // 🔍 NOUVEAUX ENDPOINTS POUR ACTIVATION
+
+    // Vérifier les paiements requis avant activation (étape 1)
+    checkPaymentBeforeActivation: builder.mutation({
+      query: (phoneId) => ({
+        url: '/line-reservations/check-payment-before-activation',
+        method: 'POST',
+        body: { phoneId },
+      }),
+      invalidatesTags: (result, error, phoneId) => [
+        { type: 'LinePayment', id: phoneId },
+        { type: 'UnpaidInvoices', id: 'LIST' },
+      ],
+    }),
+
+    // Marquer un paiement comme reçu avec mode de paiement (étape 2)
+    markPaymentReceived: builder.mutation({
+      query: (paymentData) => ({
+        url: '/sim-card-receipts/mark-payment-received',
+        method: 'POST',
+        body: paymentData,
+      }),
+      invalidatesTags: (result, error, { phoneId, clientId }) => [
+        { type: 'LinePayment', id: phoneId },
+        { type: 'ClientOverview', id: clientId },
+        { type: 'UnpaidInvoices', id: clientId },
+        { type: 'LineBalance', id: phoneId },
+        { type: 'Phone', id: phoneId },
+        { type: 'Phone', id: 'LIST' }
+      ],
+    }),
   }),
 });
 
@@ -201,4 +233,7 @@ export const {
   useAddLineBalanceMutation, // NOUVEAU système par ligne
   // Hook pour calculer montant intelligent
   useCalculatePaymentAmountMutation,
+  // 🆕 NOUVEAUX : Hooks pour vérification paiement avant activation
+  useCheckPaymentBeforeActivationMutation,
+  useMarkPaymentReceivedMutation,
 } = linePaymentsApi;

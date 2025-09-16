@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { 
-  Box, 
-  Typography, 
+import {
+  Box,
+  Typography,
   Card,
   CardContent,
   Alert,
@@ -18,41 +18,89 @@ import {
   CircularProgress,
   Chip,
   Paper,
-  Autocomplete
+  Autocomplete,
+  Select,
+  FormControl,
+  InputLabel,
+  Divider
 } from '@mui/material';
 import {
   Info as InfoIcon,
   PhoneAndroid as PhoneIcon,
   CheckCircle as CheckIcon,
-  Business as BusinessIcon
+  Business as BusinessIcon,
+  Payment as PaymentIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
 import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
-import { useAnalyzeIccidForSupervisorQuery, useGetAvailableSimCardsQuery, useGetValidNumbersForAgencyQuery, useActivateWithSimMutation, lineReservationsApiSlice } from '../../store/slices/lineReservationsSlice';
-import { useConfirmReactivationMutation } from '../../store/slices/linesSlice';
+import { useAnalyzeIccidForSupervisorQuery, useGetAvailableSimCardsQuery, useGetValidNumbersForAgencyQuery, useActivateWithSimMutation, useProcessInvoicePaymentMutation, lineReservationsApiSlice } from '../../store/slices/lineReservationsSlice';
+import { useConfirmReactivationMutation, phoneApiSlice } from '../../store/slices/linesSlice';
 import { redAccountsApiSlice } from '../../store/slices/redAccountsSlice';
+import { useCheckPaymentBeforeActivationMutation, useMarkPaymentReceivedMutation, useGetClientUnpaidInvoicesQuery } from '../../store/slices/linePaymentsSlice';
+import { useWhoIAmQuery } from '../../store/slices/authSlice';
 
 const ActivationInfo = ({ client }) => {
   const dispatch = useDispatch();
+  const { data: currentUser } = useWhoIAmQuery();
   const [showActivationDialog, setShowActivationDialog] = useState(false);
+  const [showAttributionDialog, setShowAttributionDialog] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedSimCard, setSelectedSimCard] = useState(null);
   const [iccid, setIccid] = useState('');
   const [selectedLine, setSelectedLine] = useState('');
   const [selectedManualNumber, setSelectedManualNumber] = useState(null);
   const [analysisTriggered, setAnalysisTriggered] = useState(false);
+
+  // 🆕 États pour la vérification de paiement (showPaymentDialog déjà déclaré ligne 48)
+  const [paymentVerificationData, setPaymentVerificationData] = useState(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [activationDataPending, setActivationDataPending] = useState(null);
+  const [currentMonthInvoice, setCurrentMonthInvoice] = useState(null);
   
   // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1)
   const preFilledIccid = client?.preAssignedIccid || client?.activatedWithIccid || client?.user?.activatedWithIccid;
   const isPreFilledMode = client?.isPreAssigned || !!preFilledIccid;
+
+  // Debug: afficher les informations ICCID
+  console.log('🔍 DEBUG ICCID - Client data:', {
+    clientId: client?.id,
+    preAssignedIccid: client?.preAssignedIccid,
+    activatedWithIccid: client?.activatedWithIccid,
+    userActivatedWithIccid: client?.user?.activatedWithIccid,
+    preFilledIccid,
+    isPreFilledMode,
+    fullClient: client // Structure complète pour debugging
+  });
   
   const { data: agenciesData } = useGetAgenciesQuery();
   
   // Récupérer les cartes SIM disponibles
   const { data: simCardsData, isLoading: isLoadingSims } = useGetAvailableSimCardsQuery();
+
+  // 🔍 DEBUG: Voir les données SIM reçues
+  console.log('🃏 DEBUG simCardsData:', simCardsData);
+  console.log('🃏 DEBUG simCardsData?.data:', simCardsData?.data);
+  console.log('🃏 DEBUG simCardsData?.data?.sim_cards:', simCardsData?.data?.sim_cards);
   
   // Mutations pour activer la ligne
   const [activateWithSim, { isLoading: isActivating }] = useActivateWithSimMutation();
   const [confirmReactivation, { isLoading: isConfirming }] = useConfirmReactivationMutation();
+
+  // 🆕 Mutations pour la vérification de paiement
+  const [checkPaymentBeforeActivation, { isLoading: isCheckingPayment }] = useCheckPaymentBeforeActivationMutation();
+  const [markPaymentReceived, { isLoading: isMarkingPayment }] = useMarkPaymentReceivedMutation();
+  const [processInvoicePayment, { isLoading: isProcessingPayment }] = useProcessInvoicePaymentMutation();
+
+  // 🔍 Récupérer les factures impayées du client pour afficher les informations réelles
+  const {
+    data: unpaidInvoices,
+    isLoading: isLoadingInvoices,
+    error: invoicesError
+  } = useGetClientUnpaidInvoicesQuery(client?.user?.id || client?.client?.id, {
+    skip: !client?.user?.id && !client?.client?.id
+  });
   
   // Récupérer l'ID de l'agence du client
   const getClientAgencyId = () => {
@@ -82,17 +130,38 @@ const ActivationInfo = ({ client }) => {
   
   // Filtrer les cartes SIM par l'agence du client
   const getFilteredSimCards = () => {
-    if (!client || !simCardsData?.data?.simCards) return [];
-    
+    console.log('🃏 DEBUG getFilteredSimCards - client:', client);
+    console.log('🃏 DEBUG getFilteredSimCards - simCardsData:', simCardsData);
+    console.log('🃏 DEBUG getFilteredSimCards - simCardsData?.data:', simCardsData?.data);
+    console.log('🃏 DEBUG getFilteredSimCards - simCardsData?.data?.simCards:', simCardsData?.data?.simCards);
+
+    if (!client || !simCardsData?.data?.simCards) {
+      console.log('🃏 DEBUG getFilteredSimCards - Early return: client or simCards missing');
+      return [];
+    }
+
     const clientAgencyId = getClientAgencyId();
-    if (!clientAgencyId) return simCardsData.data.simCards.filter(sim => !sim.isAlreadyInUse);
-    
-    return simCardsData.data.simCards.filter(sim => 
-      sim.agencyId === clientAgencyId && !sim.isAlreadyInUse
+    console.log('🃏 DEBUG getFilteredSimCards - clientAgencyId:', clientAgencyId);
+
+    if (!clientAgencyId) {
+      console.log('🃏 DEBUG getFilteredSimCards - No clientAgencyId, returning all available sims');
+      return simCardsData.data.simCards.filter(sim => !sim.phoneId);
+    }
+
+    const filtered = simCardsData.data.simCards.filter(sim =>
+      sim.agencyId === clientAgencyId && !sim.phoneId
     );
+    console.log('🃏 DEBUG getFilteredSimCards - filtered result:', filtered);
+    return filtered;
   };
 
   const filteredSimCards = getFilteredSimCards();
+
+  // 🔍 DEBUG: Filtrage des cartes SIM
+  console.log('🃏 DEBUG filtrage - clientAgencyId:', getClientAgencyId());
+  console.log('🃏 DEBUG filtrage - client:', client);
+  console.log('🃏 DEBUG filtrage - filteredSimCards:', filteredSimCards);
+  console.log('🃏 DEBUG filtrage - filteredSimCards.length:', filteredSimCards.length);
 
   // Auto-sélectionner la carte SIM si ICCID pré-rempli (CAS 1)
   useEffect(() => {
@@ -107,6 +176,45 @@ const ActivationInfo = ({ client }) => {
       }
     }
   }, [isPreFilledMode, preFilledIccid, filteredSimCards, selectedSimCard]);
+
+  // 🔍 Analyser les factures pour identifier la facture du mois courant
+  useEffect(() => {
+    console.log('🔍 ActivationInfo - unpaidInvoices reçues:', {
+      unpaidInvoices,
+      isArray: Array.isArray(unpaidInvoices),
+      type: typeof unpaidInvoices
+    });
+
+    if (unpaidInvoices && Array.isArray(unpaidInvoices)) {
+      const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+      const currentMonthInvoice = unpaidInvoices.find(invoice => {
+        const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
+        return invoiceMonth === currentMonth;
+      });
+
+      setCurrentMonthInvoice(currentMonthInvoice);
+
+      console.log('🔍 ActivationInfo - Analyse factures client:', {
+        clientId: client?.id,
+        totalUnpaidInvoices: unpaidInvoices.length,
+        currentMonthInvoice: currentMonthInvoice ? 'EXISTE' : 'AUCUNE',
+        currentMonthInvoiceData: currentMonthInvoice,
+        invoices: unpaidInvoices.map(inv => ({
+          id: inv.id,
+          amount: inv.amount,
+          status: inv.status,
+          createdAt: inv.createdAt,
+          month: new Date(inv.createdAt).toISOString().substring(0, 7)
+        }))
+      });
+    } else if (unpaidInvoices) {
+      // Si unpaidInvoices n'est pas un tableau, vérifier sa structure
+      console.log('⚠️ ActivationInfo - unpaidInvoices n\'est pas un tableau:', unpaidInvoices);
+      setCurrentMonthInvoice(null);
+    } else {
+      setCurrentMonthInvoice(null);
+    }
+  }, [unpaidInvoices, client]);
 
   const handleIccidChange = (e) => {
     const newIccid = e.target.value;
@@ -132,42 +240,176 @@ const ActivationInfo = ({ client }) => {
     }
   };
 
-  const handleActivationConfirm = async () => {
-    // Cette fonction ne gère que les nouvelles activations (logique existante préservée)
+  // 💳 Fonction spécifique pour les agences : Facturation seulement (pas d'activation)
+  const handleCheckPaymentForAgency = async () => {
+    try {
+      // ✅ CORRECTION: Utiliser l'ID de la ligne (phoneId) pas l'ID utilisateur
+      const phoneId = client?.id; // ID de la ligne/téléphone
+      const clientUserId = client?.user?.id || client?.client?.id; // ID de l'utilisateur
+
+      console.log('💳 Agence - Vérification paiements:', {
+        phoneId,
+        clientUserId,
+        clientData: client
+      });
+
+      // Vérifier les paiements requis avec l'ID de la ligne (backend récupérera le client automatiquement)
+      const paymentCheck = await checkPaymentBeforeActivation(phoneId).unwrap();
+
+      console.log('💳 Agence - Résultat vérification paiement:', paymentCheck);
+
+      // Ouvrir directement le modal de paiement avec les données
+      setPaymentVerificationData(paymentCheck);
+      // Extraire le montant depuis la structure data de la réponse
+      const amountDue = paymentCheck.data?.totalAmountDue || paymentCheck.data?.currentMonthInvoice?.amount || paymentCheck.totalAmountDue || 0;
+      console.log('💰 Montant extrait pour le modal:', {
+        totalAmountDue: paymentCheck.data?.totalAmountDue,
+        invoiceAmount: paymentCheck.data?.currentMonthInvoice?.amount,
+        fallbackAmount: paymentCheck.totalAmountDue,
+        finalAmount: amountDue
+      });
+      setPaymentAmount(amountDue.toString());
+      setActivationDataPending({
+        phoneId: phoneId,
+        clientId: clientUserId,
+        // Pas d'ICCID pour les agences (facturation seulement)
+      });
+      setShowPaymentDialog(true);
+
+    } catch (error) {
+      console.error('❌ Agence - Erreur lors de la vérification de paiement:', error);
+    }
+  };
+
+  // 🆕 Nouvelle fonction pour vérifier les paiements avant activation
+  const handleCheckPaymentAndActivate = async () => {
     const finalIccid = isPreFilledMode ? preFilledIccid : iccid;
-    
+
     if (!selectedManualNumber && (!finalIccid || !selectedLine)) return;
-    
+
     try {
       // Détermine le phoneId à partir de la sélection
       let phoneIdToActivate;
-      
+
       if (selectedManualNumber) {
-        // Si sélection manuelle, utilise l'ID du numéro sélectionné
         phoneIdToActivate = selectedManualNumber.id;
       } else if (selectedLine) {
-        // Si sélection par analyse ICCID, utilise la ligne sélectionnée
         phoneIdToActivate = selectedLine;
       }
-      
-      if (!phoneIdToActivate || !finalIccid) {
-        console.error('Impossible d\'identifier le phoneId ou l\'ICCID pour l\'activation');
+
+      if (!phoneIdToActivate) {
+        console.error('Impossible d\'identifier le phoneId pour l\'activation');
         return;
       }
-      
-      // Récupérer l'ID du client
-      const clientId = client?.user?.id || client?.id;
-      
+
+      // 🔍 Étape 1: Vérifier les paiements requis
+      console.log('🔍 Vérification paiements avant activation pour phoneId:', phoneIdToActivate);
+      const paymentCheck = await checkPaymentBeforeActivation(phoneIdToActivate).unwrap();
+
+      console.log('💳 Résultat vérification paiement:', paymentCheck);
+
+      if (paymentCheck.requiresPayment) {
+        // Si paiement requis, ouvrir le modal de paiement
+        setPaymentVerificationData(paymentCheck);
+        setPaymentAmount(paymentCheck.totalAmountDue?.toString() || '0');
+        setActivationDataPending({
+          phoneId: phoneIdToActivate,
+          iccid: finalIccid,
+          clientId: client?.user?.id || client?.id
+        });
+        setShowActivationDialog(false);
+        setShowPaymentDialog(true);
+      } else {
+        // Pas de paiement requis, activer directement
+        await performActivation({
+          phoneId: phoneIdToActivate,
+          iccid: finalIccid,
+          clientId: client?.user?.id || client?.id
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la vérification de paiement:', error);
+    }
+  };
+
+  // 💰 Gérer la confirmation de paiement (MODIFIÉ pour séparer Agence/Superviseur)
+  const handlePaymentConfirmation = async () => {
+    if (!activationDataPending || !selectedPaymentMethod || !paymentAmount) return;
+
+    try {
+      // Traiter le paiement de la facture générée
+      const invoiceId = paymentVerificationData?.data?.currentMonthInvoice?.id;
+
+      await processInvoicePayment({
+        phoneId: activationDataPending.phoneId,
+        paymentMethod: selectedPaymentMethod,
+        paymentAmount: parseFloat(paymentAmount),
+        invoiceId: invoiceId,
+        iccid: iccid // Passer l'ICCID sélectionné
+      }).unwrap();
+
+      console.log('✅ Paiement marqué comme reçu');
+
+      // ✅ LOGIQUE SÉPARÉE PAR RÔLE
+      if (isSupervisor) {
+        // SUPERVISEUR : Paiement + Activation directe
+        await performActivation(activationDataPending);
+        console.log('✅ Superviseur: Paiement + Activation effectués');
+      } else if (isAgency) {
+        // AGENCE : Paiement seulement, pas d'activation
+        console.log('✅ Agence: Paiement effectué - Ligne prête pour activation superviseur');
+
+        // Invalider les caches pour rafraîchir l'affichage
+        dispatch(lineReservationsApiSlice.util.invalidateTags([
+          { type: 'LineReservation', id: 'RESERVED' },
+          { type: 'LineReservation', id: 'AVAILABLE' },
+          { type: 'Phone', id: activationDataPending.phoneId },
+          { type: 'Phone', id: 'LIST' },
+          { type: 'Client', id: activationDataPending.clientId },
+          { type: 'Client', id: 'LIST' },
+          'LineReservation',
+          'Phone',
+          'Client'
+        ]));
+
+        // Invalider aussi le cache du phoneApiSlice pour les listes d'onglets
+        dispatch(phoneApiSlice.util.invalidateTags([
+          { type: 'Phone', id: activationDataPending.phoneId },
+          { type: 'Phone', id: 'LIST' },
+          'Phone'
+        ]));
+
+        console.log('🗑️ Caches invalidés après paiement - Les onglets vont se rafraîchir');
+      }
+
+      // Fermer le modal de paiement
+      setShowPaymentDialog(false);
+      setPaymentVerificationData(null);
+      setActivationDataPending(null);
+      setSelectedPaymentMethod('');
+      setPaymentAmount('');
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la confirmation de paiement:', error);
+    }
+  };
+
+  // 🚀 Fonction d'activation réelle (factorisation du code existant)
+  const performActivation = async (activationData) => {
+    try {
+      const { phoneId, iccid, clientId } = activationData;
+
       // Appel de l'API d'activation
       await activateWithSim({
-        phoneId: phoneIdToActivate,
-        iccid: finalIccid,
-        clientId: clientId
+        phoneId,
+        iccid,
+        clientId
       }).unwrap();
-      
-      console.log('Activation réussie pour:', {
-        phoneId: phoneIdToActivate,
-        iccid: finalIccid,
+
+      console.log('✅ Activation réussie pour:', {
+        phoneId,
+        iccid,
         client: client?.user?.firstname + ' ' + client?.user?.lastname
       });
 
@@ -175,35 +417,38 @@ const ActivationInfo = ({ client }) => {
       dispatch(lineReservationsApiSlice.util.invalidateTags([
         { type: 'LineReservation', id: 'RESERVED' },
         { type: 'LineReservation', id: 'AVAILABLE' },
-        { type: 'Phone', id: phoneIdToActivate },
+        { type: 'Phone', id: phoneId },
         { type: 'Phone', id: 'LIST' },
         { type: 'Client', id: clientId },
         { type: 'Client', id: 'LIST' },
         { type: 'SimCard', id: 'LIST' },
-        'LineReservation', // Invalider toutes les réservations
-        'Phone', // Invalider tous les téléphones
-        'Client' // Invalider tous les clients
+        'LineReservation',
+        'Phone',
+        'Client'
       ]));
 
       // Invalider aussi les comptes RED
       dispatch(redAccountsApiSlice.util.invalidateTags([
         { type: 'RedAccount', id: 'LIST' },
-        'RedAccount' // Invalider tous les comptes RED
+        'RedAccount'
       ]));
 
-      console.log('✅ Cache invalidé après activation - les données devraient se mettre à jour automatiquement');
+      console.log('✅ Cache invalidé après activation');
 
       // Fermer le dialog après succès
       handleCloseDialog();
-      
+
     } catch (error) {
-      console.error('Erreur lors de l\'activation:', error);
-      // TODO: Afficher une notification d'erreur à l'utilisateur
+      console.error('❌ Erreur lors de l\'activation:', error);
     }
   };
+
+  // 🔄 Legacy function pour compatibilité (sera supprimée plus tard)
+  const handleActivationConfirm = handleCheckPaymentAndActivate;
   
   const handleCloseDialog = () => {
     setShowActivationDialog(false);
+    setShowAttributionDialog(false);
     setSelectedSimCard(null);
     setIccid('');
     setSelectedLine('');
@@ -218,7 +463,224 @@ const ActivationInfo = ({ client }) => {
     setSelectedLine('');
     setSelectedManualNumber(null);
   };
-  
+
+  // 🔧 Fonctions utilitaires pour affichage des factures
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount || 0);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  // ✅ LOGIQUE DE DÉTERMINATION DU BOUTON D'ACTION (CORRIGÉE COMME DANS ActivateTab.js)
+  const canBeActivated = (client) => {
+    console.log('🔍 ActivationInfo canBeActivated - État:', {
+      hasAgenciesData: !!agenciesData,
+      agenciesDataType: Array.isArray(agenciesData) ? 'array' : typeof agenciesData,
+      agenciesDataStructure: agenciesData ? Object.keys(agenciesData) : 'null'
+    });
+
+    if (!agenciesData) {
+      console.log('❌ ActivationInfo canBeActivated - Pas de données agences');
+      return false;
+    }
+
+    // ✅ GÉRER LES DEUX CAS: Admin (array) et Non-Admin (relation object)
+    let agenciesArray = [];
+
+    if (Array.isArray(agenciesData)) {
+      // Cas Admin: tableau d'agences
+      agenciesArray = agenciesData;
+      console.log('🔍 ActivationInfo - Cas Admin (array):', agenciesArray.length, 'agences');
+    } else if (typeof agenciesData === 'object' && agenciesData && (agenciesData.simCards || agenciesData.parent)) {
+      // Cas Non-Admin: objet relation avec simCards directement OU structure parent
+      if (agenciesData.simCards) {
+        // Cas direct: l'objet agence a directement les simCards
+        agenciesArray = [agenciesData];
+        console.log('🔍 ActivationInfo - Cas Non-Admin (direct):', agenciesData.simCards.length, 'SIM cards');
+      } else if (agenciesData.parent && agenciesData.parent.simCards) {
+        // Cas parent: l'agence est dans parent
+        agenciesArray = [agenciesData.parent];
+        console.log('🔍 ActivationInfo - Cas Non-Admin (parent):', agenciesData.parent.simCards.length, 'SIM cards');
+      }
+    } else {
+      console.log('❌ ActivationInfo canBeActivated - Structure agenciesData non reconnue');
+      return false;
+    }
+
+    const clientAgencyId = client?.user?.agencyId ||
+                          client?.client?.agencyId ||
+                          client?.agencyId;
+
+    console.log('🔍 ActivationInfo canBeActivated - Client Agency ID:', clientAgencyId);
+
+    if (!clientAgencyId) {
+      console.log('❌ ActivationInfo canBeActivated - Pas d\'ID agence client');
+      return false;
+    }
+
+    const agency = agenciesArray.find(a => a.id === clientAgencyId);
+    console.log('🔍 ActivationInfo canBeActivated - Agence trouvée:', {
+      found: !!agency,
+      hasSimCards: agency?.simCards ? true : false,
+      simCardsCount: agency?.simCards?.length || 0
+    });
+
+    if (!agency || !agency.simCards) {
+      console.log('❌ ActivationInfo canBeActivated - Agence non trouvée ou pas de simCards');
+      return false;
+    }
+
+    const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
+    console.log('🔍 ActivationInfo canBeActivated - SIM disponibles:', availableSims.length);
+    return availableSims.length > 0;
+  };
+
+  const hasUnpaidInvoices = client?.paymentStatus === 'EN RETARD' ||
+                           client?.paymentStatus === 'OVERDUE' ||
+                           client?.paymentStatus === 'PENDING_PAYMENT' ||
+                           client?.paymentStatus === 'NEEDS_PAYMENT';
+
+  const hasReservation = client?.user?.hasActiveReservation ||
+                        client?.user?.reservationStatus === 'RESERVED' ||
+                        client?.hasActiveReservation ||
+                        client?.reservationStatus === 'RESERVED';
+
+  const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+  const simAvailable = canBeActivated(client);
+
+  // ✅ LOGIQUE SIMPLIFIÉE : Utiliser directement la réponse de l'API phones
+  // Si une vérification de paiement a été faite, utiliser ce résultat, sinon utiliser la réponse de l'API phones
+  const needsPayment = paymentVerificationData?.paymentRequired !== undefined ?
+    paymentVerificationData.paymentRequired :
+    client?.paymentRequired === true; // Utiliser directement le champ de l'API phones
+
+  const isSupervisor = currentUser?.role === 'SUPERVISOR';
+  const isAgency = currentUser?.role === 'AGENCY';
+
+  // 🔍 DEBUG TEMPORAIRE pour comprendre pourquoi le bouton de paiement n'apparaît pas
+  console.log('🔍 ActivationInfo - État du bouton de paiement:', {
+    hasClient: !!client,
+    clientId: client?.id,
+    isSupervisor,
+    isAgency,
+    needsActivation,
+    hasReservation,
+    simAvailable,
+    needsPayment,
+    hasUnpaidInvoices,
+    paymentStatus: client?.paymentStatus,
+    phoneStatus: client?.phoneStatus,
+    currentMonthInvoice: currentMonthInvoice ? 'EXISTE' : 'AUCUNE',
+    unpaidInvoicesLength: unpaidInvoices && Array.isArray(unpaidInvoices) ? unpaidInvoices.length : 'NOT_ARRAY',
+    // Détail de la logique de needsPayment
+    needsPaymentBreakdown: {
+      hasUnpaidInvoices,
+      noPaymentStatusButHasReservationOrActivation: !client?.paymentStatus && (hasReservation || needsActivation),
+      statusNotPaid: client?.paymentStatus !== 'À JOUR' && client?.paymentStatus !== 'PAID',
+      noCurrentMonthInvoiceButNeedsActivation: !currentMonthInvoice && (hasReservation || needsActivation),
+      finalNeedsPayment: needsPayment
+    },
+    // Condition finale du bouton pour Agence
+    agencyButtonCondition: isAgency && (needsActivation || hasReservation) && simAvailable && needsPayment
+  });
+
+  // Logique du bouton
+  let buttonConfig = {
+    show: true,
+    text: 'Action non définie',
+    color: 'primary',
+    icon: <InfoIcon />,
+    onClick: () => {}
+  };
+
+  if (isSupervisor) {
+    // ✅ SUPERVISEUR : Seul à pouvoir ACTIVER les lignes
+    if ((needsActivation || hasReservation) && simAvailable && !needsPayment) {
+      // CAS 1: Ligne PRÊTE À ACTIVER (paiement fait) → ATTRIBUTION DE LIGNE
+      buttonConfig = {
+        show: true,
+        text: '📞 Attribuer une ligne',
+        color: 'success',
+        icon: <CheckIcon />,
+        onClick: () => setShowActivationDialog(true)
+      };
+    } else {
+      // CAS 2: Autres cas (remplacement, confirmation RED, etc.)
+      // ✅ CORRECTION: Vérifier le type d'activation pour déterminer l'action appropriée
+      if (client?.activationType === 'REACTIVATION_AFTER_PAUSE' || client?.activationType === 'REACTIVATION_AFTER_DEBT') {
+        // Réactivations : ligne déjà assignée, SIM déjà configurée → Confirmation RED
+        buttonConfig = {
+          show: true,
+          text: '✅ Confirmer activation sur RED',
+          color: 'success',
+          icon: <CheckIcon />,
+          onClick: () => setShowConfirmationDialog(true)
+        };
+      } else if (client?.reactivationReason || client?.activationType === 'NEW_ACTIVATION') {
+        // Nouvelles activations ou cas complexes → Modal d'analyse ICCID pour choix superviseur
+        buttonConfig = {
+          show: true,
+          text: '📞 Attribuer une ligne',
+          color: 'primary',
+          icon: <PhoneIcon />,
+          onClick: () => setShowActivationDialog(true)
+        };
+      } else {
+        // Autres cas → Confirmation par défaut
+        buttonConfig = {
+          show: true,
+          text: 'Confirmer activation sur RED',
+          color: "success",
+          icon: <CheckIcon />,
+          onClick: () => setShowConfirmationDialog(true)
+        };
+      }
+    }
+  } else if (isAgency) {
+    // ✅ AGENCE : Peut seulement FACTURER/ENCAISSER (pas activer directement)
+    if ((needsActivation || hasReservation) && simAvailable && needsPayment) {
+      // Agence : SIM disponible mais paiement requis → FACTURER
+      buttonConfig = {
+        show: true,
+        text: '💳 Facturer l\'activation',
+        color: 'warning',
+        icon: <PaymentIcon />,
+        onClick: () => {
+          // Pour les agences, déclencher directement la vérification de paiement
+          handleCheckPaymentForAgency();
+        }
+      };
+    } else if ((needsActivation || hasReservation) && simAvailable && !needsPayment) {
+      // Agence : Déjà payé → Afficher état en attente superviseur
+      buttonConfig = {
+        show: true,
+        text: '✅ Paiement vérifié - En attente activation superviseur',
+        color: 'success',
+        icon: <CheckIcon />,
+        onClick: () => {} // Pas d'action
+      };
+    } else if ((needsActivation || hasReservation) && !simAvailable) {
+      // Agence : En attente de SIM
+      buttonConfig = {
+        show: false
+      };
+    } else {
+      // Autres cas
+      buttonConfig = {
+        show: false
+      };
+    }
+  }
+
   if (!client) {
     return (
       <Card sx={{ minWidth: 350 }}>
@@ -316,25 +778,177 @@ const ActivationInfo = ({ client }) => {
               </Typography>
             </Box>
           )}
-          
-          <Button
-            variant="contained"
-            color={client?.activationType === 'NEW_ACTIVATION' ? "primary" : "success"}
-            startIcon={client?.activationType === 'NEW_ACTIVATION' ? <PhoneIcon /> : <CheckIcon />}
-            onClick={() => {
-              if (client?.activationType === 'NEW_ACTIVATION') {
-                setShowActivationDialog(true);
-              } else {
-                setShowConfirmationDialog(true);
-              }
-            }}
-            fullWidth
-          >
-            {client?.activationType === 'NEW_ACTIVATION' 
-              ? 'Activer la ligne (Superviseur)' 
-              : 'Confirmer activation sur RED'
-            }
-          </Button>
+
+          {/* 🆕 Section Informations de Paiement avec données réelles */}
+          <Divider />
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <PaymentIcon color="primary" fontSize="small" />
+              <Typography variant="body2" color="text.secondary" fontWeight="bold">
+                Informations de Paiement
+              </Typography>
+            </Box>
+
+            <Stack spacing={2}>
+              {/* Statut de paiement */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2">Statut de paiement :</Typography>
+                <Chip
+                  label={client?.paymentStatus || 'Non défini'}
+                  size="small"
+                  color={
+                    client?.paymentStatus === 'À JOUR' || client?.paymentStatus === 'PAID' ? 'success' :
+                    client?.paymentStatus === 'EN RETARD' || client?.paymentStatus === 'OVERDUE' ? 'error' :
+                    client?.paymentStatus === 'PENDING_PAYMENT' ? 'warning' : 'default'
+                  }
+                />
+              </Box>
+
+              {/* 📋 Informations détaillées de facture du mois courant */}
+              {isLoadingInvoices && (
+                <Alert severity="info" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2">Chargement des informations de facture...</Typography>
+                </Alert>
+              )}
+
+              {invoicesError && (
+                <Alert severity="error">
+                  <Typography variant="body2">
+                    ❌ Erreur lors du chargement des factures
+                  </Typography>
+                </Alert>
+              )}
+
+              {/* Affichage de la facture du mois courant SI elle existe */}
+              {currentMonthInvoice && (
+                <Paper sx={{ p: 2, bgcolor: 'warning.lighter', border: '1px solid', borderColor: 'warning.main' }}>
+                  <Typography variant="subtitle2" color="warning.main" fontWeight="bold" gutterBottom>
+                    📅 Facture du mois courant ({new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })})
+                  </Typography>
+
+                  <Stack spacing={1}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2">Montant :</Typography>
+                      <Typography variant="body1" fontWeight="bold" color="warning.main">
+                        {formatCurrency(currentMonthInvoice.amount)}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2">Date de création :</Typography>
+                      <Typography variant="body2">
+                        {formatDate(currentMonthInvoice.createdAt)}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2">Statut :</Typography>
+                      <Chip
+                        label={currentMonthInvoice.status}
+                        size="small"
+                        color={
+                          currentMonthInvoice.status === 'PAID' || currentMonthInvoice.status === 'À JOUR' ? 'success' :
+                          currentMonthInvoice.status === 'PENDING' || currentMonthInvoice.status === 'EN ATTENTE' ? 'warning' :
+                          'error'
+                        }
+                      />
+                    </Box>
+
+                    {currentMonthInvoice.description && (
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          Description : {currentMonthInvoice.description}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </Paper>
+              )}
+
+              {/* Si statut "À JOUR" mais aucune facture du mois courant trouvée */}
+              {(client?.paymentStatus === 'À JOUR' || client?.paymentStatus === 'PAID') && !currentMonthInvoice && !isLoadingInvoices && (
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    ✅ Statut indiqué "À JOUR" mais aucune facture du mois courant trouvée dans le système.
+                    Une facture d'activation sera générée lors du processus de paiement.
+                  </Typography>
+                </Alert>
+              )}
+
+              {/* Informations sur les autres factures impayées */}
+              {unpaidInvoices && Array.isArray(unpaidInvoices) && unpaidInvoices.length > 1 && (
+                <Alert severity="warning">
+                  <Typography variant="body2" fontWeight="bold" gutterBottom>
+                    ⚠️ Autres factures impayées : {unpaidInvoices.length - (currentMonthInvoice ? 1 : 0)} facture(s)
+                  </Typography>
+                  <Typography variant="body2">
+                    Montant total des arriérés : {formatCurrency(
+                      unpaidInvoices
+                        .filter(inv => inv.id !== currentMonthInvoice?.id)
+                        .reduce((sum, inv) => sum + (inv.amount || 0), 0)
+                    )}
+                  </Typography>
+                </Alert>
+              )}
+
+              {/* Messages contextuels */}
+              {!client?.paymentStatus && client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' && (
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    ✨ Nouvelle ligne - Paiement d'activation selon prorata du mois en cours.
+                  </Typography>
+                </Alert>
+              )}
+
+              {!client?.paymentStatus && (client?.user?.hasActiveReservation || client?.hasActiveReservation) && (
+                <Alert severity="warning">
+                  <Typography variant="body2">
+                    💳 Ligne réservée - Paiement d'activation requis avant activation.
+                  </Typography>
+                </Alert>
+              )}
+            </Stack>
+          </Box>
+
+          {/* Bouton d'action conditionnel */}
+          {buttonConfig.show && (
+            <Button
+              variant="contained"
+              color={buttonConfig.color}
+              startIcon={buttonConfig.icon}
+              onClick={buttonConfig.onClick}
+              fullWidth
+            >
+              {buttonConfig.text}
+            </Button>
+          )}
+
+          {/* Message si pas de bouton affiché */}
+          {!buttonConfig.show && (
+            <Alert severity={
+              isAgency && (needsActivation || hasReservation) && simAvailable && !needsPayment ? 'success' : 'info'
+            }>
+              <Typography variant="body2">
+                {isAgency && (needsActivation || hasReservation) && simAvailable && !needsPayment ? (
+                  <>
+                    ✅ Paiement effectué - En attente d'activation par le superviseur
+                    {preFilledIccid && (
+                      <Box sx={{ mt: 1, p: 1, bgcolor: 'success.lighter', borderRadius: 1 }}>
+                        <Typography variant="body2" fontWeight="bold" color="success.main">
+                          📱 SIM assignée: {preFilledIccid}
+                        </Typography>
+                      </Box>
+                    )}
+                  </>
+                ) :
+                  isAgency && (needsActivation || hasReservation) && !simAvailable ?
+                    '⏳ En attente de cartes SIM dans votre agence' :
+                    '⏳ Action non disponible pour le moment'
+                }
+              </Typography>
+            </Alert>
+          )}
         </Stack>
       </CardContent>
       
@@ -352,8 +966,10 @@ const ActivationInfo = ({ client }) => {
             ) : (
               <CheckIcon color="success" />
             )}
-            {client?.activationType === 'NEW_ACTIVATION' 
-              ? `Activation superviseur - ${client?.user?.firstname} ${client?.user?.lastname}`
+            {client?.activationType === 'NEW_ACTIVATION'
+              ? (needsPayment
+                  ? `Activation superviseur - ${client?.user?.firstname} ${client?.user?.lastname}`
+                  : `Attribution SIM - ${client?.user?.firstname} ${client?.user?.lastname}`)
               : `Confirmer activation RED - ${client?.user?.firstname} ${client?.user?.lastname}`
             }
           </Box>
@@ -734,9 +1350,13 @@ const ActivationInfo = ({ client }) => {
             startIcon={isActivating ? <CircularProgress size={20} /> : <CheckIcon />}
             color={client?.activationType === 'NEW_ACTIVATION' ? "primary" : "success"}
           >
-            {isActivating ? 
-              (client?.activationType === 'NEW_ACTIVATION' ? 'Activation en cours...' : 'Confirmation en cours...') : 
-              (client?.activationType === 'NEW_ACTIVATION' ? 'Activer la ligne' : 'Confirmer activation sur RED')
+            {isActivating ?
+              (client?.activationType === 'NEW_ACTIVATION' ?
+                (needsPayment ? 'Activation en cours...' : 'Attribution SIM en cours...') :
+                'Confirmation en cours...') :
+              (client?.activationType === 'NEW_ACTIVATION' ?
+                (needsPayment ? 'Activer la ligne' : 'Attribuer la SIM') :
+                'Confirmer activation sur RED')
             }
           </Button>
         </DialogActions>
@@ -797,6 +1417,352 @@ const ActivationInfo = ({ client }) => {
             startIcon={isConfirming ? <CircularProgress size={20} /> : <CheckIcon />}
           >
             {isConfirming ? 'Confirmation...' : 'Oui, confirmer l\'activation'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 🆕 Modal d'attribution simple pour lignes prêtes à activer */}
+      <Dialog
+        open={showAttributionDialog}
+        onClose={() => setShowAttributionDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PhoneIcon color="primary" />
+            Attribution SIM - {client?.user?.firstname} {client?.user?.lastname}
+          </Box>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <Alert severity="success">
+              <Typography variant="body2">
+                ✅ Ligne payée et prête pour attribution SIM
+              </Typography>
+            </Alert>
+
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                <strong>Client :</strong> {client?.user?.firstname} {client?.user?.lastname}<br />
+                <strong>Email :</strong> {client?.user?.email}<br />
+                <strong>Ligne :</strong> {client?.phoneNumber}<br />
+                <strong>Statut :</strong> Paiement vérifié ✅
+              </Typography>
+            </Box>
+
+            {/* Affichage ICCID assigné si disponible */}
+            {preFilledIccid && (
+              <Alert severity="info">
+                <Typography variant="body2" fontWeight="bold">
+                  📱 SIM déjà assignée: {preFilledIccid}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Cette ligne a déjà été assignée à une carte SIM lors du paiement.
+                </Typography>
+              </Alert>
+            )}
+
+            {/* Sélection SIM si pas encore assignée */}
+            {!preFilledIccid && (
+              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  📱 Sélectionner une carte SIM en stock
+                </Typography>
+
+                {isLoadingSims ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
+                    <CircularProgress size={20} />
+                    <Typography variant="body2">Chargement des cartes SIM...</Typography>
+                  </Box>
+                ) : filteredSimCards.length === 0 ? (
+                  <Alert severity="warning">
+                    Aucune carte SIM disponible pour cette agence.
+                  </Alert>
+                ) : (
+                  <Autocomplete
+                    fullWidth
+                    size="small"
+                    options={filteredSimCards}
+                    getOptionLabel={(option) => option.iccid}
+                    value={selectedSimCard}
+                    onChange={(event, newValue) => {
+                      setSelectedSimCard(newValue);
+                      setIccid(newValue?.iccid || '');
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Sélectionner une carte SIM"
+                        variant="outlined"
+                      />
+                    )}
+                  />
+                )}
+              </Paper>
+            )}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setShowAttributionDialog(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleActivationConfirm}
+            disabled={isActivating || (!preFilledIccid && !selectedSimCard)}
+            startIcon={isActivating ? <CircularProgress size={20} /> : <PhoneIcon />}
+          >
+            {isActivating ? 'Attribution en cours...' : 'Attribuer la SIM'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 🆕 Modal de vérification et paiement */}
+      <Dialog
+        open={showPaymentDialog}
+        onClose={() => setShowPaymentDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PaymentIcon color="primary" />
+            Vérification de paiement avant activation
+          </Box>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+
+            {/* Informations client */}
+            <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
+              <Typography variant="h6" gutterBottom>
+                👤 Client: {client?.user?.firstname} {client?.user?.lastname}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Email: {client?.user?.email}
+              </Typography>
+            </Paper>
+
+            {/* Résultats de la vérification */}
+            {paymentVerificationData && (
+              <>
+                {/* Factures impayées */}
+                {paymentVerificationData.unpaidInvoices?.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    <AlertTitle>⚠️ Factures impayées détectées</AlertTitle>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Ce client a {paymentVerificationData.unpaidInvoices.length} facture(s) impayée(s) :
+                    </Typography>
+                    {paymentVerificationData.unpaidInvoices.map((invoice, index) => (
+                      <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                        • {invoice.month} {invoice.year}: {invoice.amount}€ ({invoice.type})
+                      </Typography>
+                    ))}
+                  </Alert>
+                )}
+
+                {/* Facture du mois en cours */}
+                {paymentVerificationData.currentMonthInvoice && (
+                  <Alert severity="info">
+                    <AlertTitle>📅 Facture du mois en cours</AlertTitle>
+                    <Typography variant="body2">
+                      {paymentVerificationData.currentMonthInvoice.isNew ?
+                        '✨ Nouvelle facture générée' :
+                        'Facture existante trouvée'
+                      } pour {paymentVerificationData.currentMonthInvoice.month} {paymentVerificationData.currentMonthInvoice.year}
+                    </Typography>
+                    <Typography variant="body2">
+                      Montant: <strong>{paymentVerificationData.currentMonthInvoice.amount}€</strong>
+                    </Typography>
+                    {paymentVerificationData.currentMonthInvoice.prorated && (
+                      <Typography variant="body2" color="info.main">
+                        💡 Facture au prorata (activation en cours de mois)
+                      </Typography>
+                    )}
+                  </Alert>
+                )}
+
+                {/* Montant total à payer */}
+                <Paper sx={{ p: 3, bgcolor: 'primary.lighter', border: '2px solid', borderColor: 'primary.main' }}>
+                  <Typography variant="h5" color="primary.main" gutterBottom sx={{ textAlign: 'center' }}>
+                    💰 Montant total à payer
+                  </Typography>
+                  <Typography variant="h4" sx={{ textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
+                    {paymentVerificationData.totalAmountDue || paymentAmount}€
+                  </Typography>
+
+                  {paymentVerificationData.paymentBreakdown && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Détail du paiement :
+                      </Typography>
+                      {paymentVerificationData.paymentBreakdown.unpaidAmount > 0 && (
+                        <Typography variant="body2">
+                          • Arriérés: {paymentVerificationData.paymentBreakdown.unpaidAmount}€
+                        </Typography>
+                      )}
+                      {paymentVerificationData.paymentBreakdown.currentMonthAmount > 0 && (
+                        <Typography variant="body2">
+                          • Mois en cours: {paymentVerificationData.paymentBreakdown.currentMonthAmount}€
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                </Paper>
+
+                <Divider />
+
+                {/* Sélection de la carte SIM (ICCID) */}
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    📱 Carte SIM à utiliser
+                  </Typography>
+
+                  <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Sélectionner une carte SIM en stock</InputLabel>
+                    <Select
+                      value={iccid}
+                      label="Sélectionner une carte SIM en stock"
+                      onChange={(e) => setIccid(e.target.value)}
+                      disabled={isLoadingSims}
+                    >
+                      {isLoadingSims ? (
+                        <MenuItem disabled>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          Chargement des cartes SIM...
+                        </MenuItem>
+                      ) : (console.log('🃏 DEBUG select - About to render filteredSimCards:', filteredSimCards), filteredSimCards && filteredSimCards.length > 0) ? (
+                        filteredSimCards.map((simCard) => (
+                          <MenuItem key={simCard.iccid} value={simCard.iccid}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                              <Box sx={{ flexGrow: 1 }}>
+                                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                  📱 {simCard.iccid}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Agence: {simCard.agencyName} • Créée: {new Date(simCard.createdAt).toLocaleDateString()}
+                                </Typography>
+                              </Box>
+                              {simCard.phoneId && (
+                                <Chip
+                                  label="⚠️ Déjà utilisée"
+                                  color="warning"
+                                  size="small"
+                                  sx={{ ml: 1 }}
+                                />
+                              )}
+                            </Box>
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>
+                          ⚠️ Aucune carte SIM disponible en stock
+                        </MenuItem>
+                      )}
+                    </Select>
+                  </FormControl>
+
+                  {iccid && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <AlertTitle>Carte SIM sélectionnée</AlertTitle>
+                      ICCID: <strong>{iccid}</strong>
+                      <br />
+                      Cette carte SIM sera assignée à la ligne après paiement.
+                    </Alert>
+                  )}
+                </Box>
+
+                <Divider />
+
+                {/* Sélection mode de paiement */}
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    💳 Mode de paiement
+                  </Typography>
+
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Sélectionner le mode de paiement</InputLabel>
+                    <Select
+                      value={selectedPaymentMethod}
+                      label="Sélectionner le mode de paiement"
+                      onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                    >
+                      <MenuItem value="cash">💵 Espèces</MenuItem>
+                      <MenuItem value="card">💳 Carte bancaire</MenuItem>
+                      <MenuItem value="bank_transfer">🏦 Virement bancaire</MenuItem>
+                      <MenuItem value="mobile_money">📱 Mobile Money</MenuItem>
+                      <MenuItem value="check">📄 Chèque</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  <TextField
+                    fullWidth
+                    label="Montant reçu"
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    InputProps={{
+                      endAdornment: <Typography variant="body2">€</Typography>
+                    }}
+                    helperText="Confirmez le montant exact reçu du client"
+                  />
+                </Box>
+
+                {/* Récapitulatif */}
+                {selectedPaymentMethod && paymentAmount && iccid && (
+                  <Alert severity="success">
+                    <AlertTitle>✅ Récapitulatif du paiement</AlertTitle>
+                    <Typography variant="body2">
+                      Carte SIM: <strong>{iccid}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      Mode: <strong>{
+                        selectedPaymentMethod === 'cash' ? 'Espèces' :
+                        selectedPaymentMethod === 'card' ? 'Carte bancaire' :
+                        selectedPaymentMethod === 'bank_transfer' ? 'Virement bancaire' :
+                        selectedPaymentMethod === 'mobile_money' ? 'Mobile Money' :
+                        selectedPaymentMethod === 'check' ? 'Chèque' : selectedPaymentMethod
+                      }</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      Montant: <strong>{paymentAmount}€</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                      En confirmant, ce paiement sera enregistré et l'activation sera effectuée.
+                    </Typography>
+                  </Alert>
+                )}
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setShowPaymentDialog(false);
+              setShowActivationDialog(true); // Retourner au modal d'activation
+            }}
+            disabled={isProcessingPayment}
+          >
+            Retour
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handlePaymentConfirmation}
+            disabled={isProcessingPayment || !selectedPaymentMethod || !paymentAmount || !iccid}
+            startIcon={isProcessingPayment ? <CircularProgress size={20} /> : <PaymentIcon />}
+          >
+            {isProcessingPayment ? 'Confirmation...' :
+              isSupervisor ? 'Confirmer paiement et activer' :
+              'Confirmer paiement (encaissement)'
+            }
           </Button>
         </DialogActions>
       </Dialog>

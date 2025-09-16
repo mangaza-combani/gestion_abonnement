@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { 
+import {
   Stack,
   Alert,
   Box,
@@ -9,16 +9,18 @@ import {
   Button,
   ButtonGroup
 } from '@mui/material';
-import { 
+import {
   CheckCircle as CheckCircleIcon,
   Notifications as NotificationsIcon,
   FilterList as FilterIcon,
   PhoneAndroid as PhoneIcon,
-  HourglassEmpty as WaitingIcon
+  HourglassEmpty as WaitingIcon,
+  Payment as PaymentIcon
 } from '@mui/icons-material';
 import ClientSearch from '../ClientSearch';
 import ClientList from '../ClientList';
 import { useGetAgenciesQuery } from '../../../store/slices/agencySlice';
+import { useWhoIAmQuery } from '../../../store/slices/authSlice';
 
 const ActivateTab = ({
   searchTerm,
@@ -31,25 +33,49 @@ const ActivateTab = ({
   newReceptions = []
 }) => {
 
-  // Utiliser lines si disponible, sinon clients
+  // ✅ CORRECTION : Utiliser lines (API spécialisée) en priorité sur clients (données filtrées)
   const dataToDisplay = lines || clients || []
-  const [activationFilter, setActivationFilter] = useState('all'); // 'all', 'ready', 'waiting'
+  const [activationFilter, setActivationFilter] = useState('all'); // 'all', 'ready', 'waiting', 'to_pay'
   const { data: agenciesData } = useGetAgenciesQuery();
+  const { data: currentUser } = useWhoIAmQuery();
+  const isAgency = currentUser?.role === 'AGENCY';
   
   // Fonction pour vérifier si un client peut être activé (a des SIM disponibles)
   const canBeActivated = (client) => {
-    if (!agenciesData) return false;
-    
-    const clientAgencyId = client?.user?.agencyId || 
-                          client?.client?.agencyId || 
+    if (!agenciesData) {
+      return false;
+    }
+
+    // ✅ GÉRER LES DEUX CAS: Admin (array) et Non-Admin (relation object)
+    let agenciesArray = [];
+
+    if (Array.isArray(agenciesData)) {
+      // Cas Admin: tableau d'agences
+      agenciesArray = agenciesData;
+    } else if (typeof agenciesData === 'object' && agenciesData && (agenciesData.simCards || agenciesData.parent)) {
+      // Cas Non-Admin: objet relation avec simCards directement OU structure parent
+      if (agenciesData.simCards) {
+        // Cas direct: l'objet agence a directement les simCards
+        agenciesArray = [agenciesData];
+      } else if (agenciesData.parent && agenciesData.parent.simCards) {
+        // Cas parent: l'agence est dans parent
+        agenciesArray = [agenciesData.parent];
+      }
+    } else {
+      return false;
+    }
+
+    const clientAgencyId = client?.user?.agencyId ||
+                          client?.client?.agencyId ||
                           client?.agencyId;
-    
+
     if (!clientAgencyId) return false;
-    
-    const agency = agenciesData.find(a => a.id === clientAgencyId);
+
+    const agency = agenciesArray.find(a => a.id === clientAgencyId);
     if (!agency || !agency.simCards) return false;
-    
+
     const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
+
     return availableSims.length > 0;
   };
   
@@ -61,28 +87,117 @@ const ActivateTab = ({
                           client?.reservationStatus === 'RESERVED';
     
     const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+    const needsReactivation = client?.phoneStatus === 'PAUSED' || client?.phoneStatus === 'BLOCKED';
     const readyToActivate = hasReservation && canBeActivated(client);
     
+    // ✅ CORRECTION: Logique stricte de paiement pour activation
+    const hasUnpaidInvoices = client?.paymentStatus === 'EN RETARD' ||
+                             client?.paymentStatus === 'OVERDUE' ||
+                             client?.paymentStatus === 'PENDING_PAYMENT' ||
+                             client?.paymentStatus === 'NEEDS_PAYMENT';
+
+    // ✅ CORRECTION STRICTE: Vérifier qu'il y a VRAIMENT une facture du mois courant payée
+    const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM format
+    const hasCurrentMonthPaidInvoice = client?.invoices?.some(invoice => {
+      const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
+      return invoiceMonth === currentMonth &&
+             (invoice.status === 'PAID' || invoice.status === 'À JOUR');
+    });
+
+    // Un client est "prêt" SEULEMENT si il a une VRAIE facture du mois courant payée
+    const isPaid = hasCurrentMonthPaidInvoice;
+
+
+    // Il faut payer si : dettes existantes OU AUCUNE facture du mois courant payée
+    const needsPayment = hasUnpaidInvoices || !hasCurrentMonthPaidInvoice;
+
+    const simAvailable = canBeActivated(client);
+
     switch (activationFilter) {
       case 'ready':
-        return needsActivation || readyToActivate;
+        // ✅ Prêt à activer : SIM disponible ET aucun paiement requis (utiliser la vraie réponse API)
+        const noPaiementRequiredFromAPI = client.paymentRequired === false;
+        const isPaymentUpToDate = client?.paymentStatus === 'À JOUR';
+        const isPausedWithPaymentUpToDate = needsReactivation && isPaymentUpToDate;
+        return ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
       case 'waiting':
-        return hasReservation && !canBeActivated(client);
+        // ✅ En attente de SIM seulement : pas de SIM disponible
+        return ((needsActivation || hasReservation) && !simAvailable);
+      case 'to_pay':
+        // ✅ À payer : SIM disponible MAIS paiement requis (utiliser la vraie réponse API)
+        const paymentRequiredFromAPI = client.paymentRequired === true;
+        return ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
       default:
         return true;
     }
   }) || [];
   
-  const readyCount = dataToDisplay?.filter(client => 
-    client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' || 
-    (client?.user?.hasActiveReservation || client?.user?.reservationStatus === 'RESERVED' ||
-     client?.hasActiveReservation || client?.reservationStatus === 'RESERVED') && canBeActivated(client)
-  ).length || 0;
+  const readyCount = dataToDisplay?.filter(client => {
+    const hasReservation = client?.user?.hasActiveReservation ||
+                          client?.user?.reservationStatus === 'RESERVED' ||
+                          client?.hasActiveReservation ||
+                          client?.reservationStatus === 'RESERVED';
+    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+    const needsReactivation = client?.phoneStatus === 'PAUSED' || client?.phoneStatus === 'BLOCKED';
+
+    // ✅ CORRECTION: Vérifier qu'il y a VRAIMENT une facture du mois courant payée
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const hasCurrentMonthPaidInvoice = client?.invoices?.some(invoice => {
+      const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
+      return invoiceMonth === currentMonth &&
+             (invoice.status === 'PAID' || invoice.status === 'À JOUR');
+    });
+
+    const simAvailable = canBeActivated(client);
+
+    // ✅ Même logique que le filtre 'ready' - utiliser la vraie réponse API
+    const noPaiementRequiredFromAPI = client.paymentRequired === false;
+    const isPaymentUpToDate = client?.paymentStatus === 'À JOUR';
+    const isPausedWithPaymentUpToDate = needsReactivation && isPaymentUpToDate;
+    return ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
+  }).length || 0;
   
-  const waitingCount = dataToDisplay?.filter(client => 
-    (client?.user?.hasActiveReservation || client?.user?.reservationStatus === 'RESERVED' ||
-     client?.hasActiveReservation || client?.reservationStatus === 'RESERVED') && !canBeActivated(client)
-  ).length || 0;
+  const waitingCount = dataToDisplay?.filter(client => {
+    const hasReservation = client?.user?.hasActiveReservation ||
+                          client?.user?.reservationStatus === 'RESERVED' ||
+                          client?.hasActiveReservation ||
+                          client?.reservationStatus === 'RESERVED';
+    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+
+    // ✅ Même logique que le filtre 'waiting' - seulement si pas de SIM disponible
+    return ((needsActivation || hasReservation) && !canBeActivated(client));
+  }).length || 0;
+
+  // Compter les lignes "À PAYER" (SIM disponible mais paiement en attente)
+  const toPayCount = dataToDisplay?.filter(client => {
+    const hasReservation = client?.user?.hasActiveReservation ||
+                          client?.user?.reservationStatus === 'RESERVED' ||
+                          client?.hasActiveReservation ||
+                          client?.reservationStatus === 'RESERVED';
+    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
+
+    const hasUnpaidInvoices = client?.paymentStatus === 'EN RETARD' ||
+                             client?.paymentStatus === 'OVERDUE' ||
+                             client?.paymentStatus === 'PENDING_PAYMENT' ||
+                             client?.paymentStatus === 'NEEDS_PAYMENT';
+
+    // ✅ CORRECTION: Vérifier qu'il y a VRAIMENT une facture du mois courant payée
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const hasCurrentMonthPaidInvoice = client?.invoices?.some(invoice => {
+      const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
+      return invoiceMonth === currentMonth &&
+             (invoice.status === 'PAID' || invoice.status === 'À JOUR');
+    });
+
+    // ✅ Utiliser la vraie réponse API au lieu de calculer localement
+    const paymentRequiredFromAPI = client.paymentRequired === true;
+    const simAvailable = canBeActivated(client);
+
+    // ✅ Même logique que le filtre 'to_pay'
+    return ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
+  }).length || 0;
+
+
   useEffect(() => {
     if (dataToDisplay && dataToDisplay.length > 0 && !selectedClient) {
       const timer = setTimeout(() => {
@@ -180,13 +295,22 @@ const ActivateTab = ({
           >
             En attente SIM ({waitingCount})
           </Button>
+          <Button
+            variant={activationFilter === 'to_pay' ? 'contained' : 'outlined'}
+            onClick={() => setActivationFilter('to_pay')}
+            startIcon={<PaymentIcon />}
+            color="info"
+          >
+            À PAYER ({toPayCount})
+          </Button>
         </ButtonGroup>
         
         {activationFilter !== 'all' && (
           <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
             <Typography variant="caption" color="text.secondary">
-              {activationFilter === 'ready' && '✅ Clients avec cartes SIM disponibles dans leur agence - Peuvent être activés immédiatement'}
-              {activationFilter === 'waiting' && '⏳ Clients avec réservations actives mais sans cartes SIM disponibles - En attente de livraison'}
+              {activationFilter === 'ready' && '✅ Clients avec SIM disponible ET facture du mois courant payée - Prêts pour activation immédiate'}
+              {activationFilter === 'waiting' && '⏳ Clients avec réservations actives mais sans cartes SIM disponibles - En attente de livraison SIM'}
+              {activationFilter === 'to_pay' && '💳 Clients avec SIM disponible MAIS facture d\'activation non générée ou impayée - Génération facture requise'}
             </Typography>
           </Box>
         )}
@@ -200,6 +324,7 @@ const ActivateTab = ({
         action="activate"
         isLoading={isLoading}
       />
+
     </Stack>
   );
 };

@@ -169,6 +169,50 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
     getValidNumbersForAgency: builder.query({
       query: (agencyId) => `/api/line-reservations/valid-numbers-for-agency?agencyId=${agencyId}`,
       providesTags: [{ type: 'Phone', id: 'AGENCY_NUMBERS' }]
+    }),
+
+    // Attribuer une SIM à une ligne de remplacement (agence)
+    assignSimToReplacement: builder.mutation({
+      query: ({ phoneId, simCardId, notes }) => ({
+        url: '/api/line-reservations/assign-sim-replacement',
+        method: 'POST',
+        body: { phoneId, simCardId, notes }
+      }),
+      invalidatesTags: (result, error, { phoneId, simCardId }) => {
+        console.log('🗑️ Invalidation tags pour assignSimToReplacement:', { result, error, phoneId, simCardId });
+        return [
+          { type: 'Phone', id: phoneId }, // Invalider la ligne spécifique
+          { type: 'Phone', id: 'LIST' },
+          { type: 'SimCard', id: simCardId }, // Invalider la SIM spécifique
+          { type: 'SimCard', id: 'LIST' },
+          { type: 'SimCard', id: 'AVAILABLE' },
+          { type: 'LineReservation', id: 'RESERVED' },
+          'Phone', // Invalider tous les téléphones
+          'SimCard' // Invalider toutes les SIM
+        ];
+      }
+    }),
+
+    // 💰 Traiter le paiement d'une facture générée pour activation
+    processInvoicePayment: builder.mutation({
+      query: ({ phoneId, paymentAmount, paymentMethod, invoiceId, iccid }) => ({
+        url: '/api/line-reservations/process-invoice-payment',
+        method: 'POST',
+        body: { phoneId, paymentAmount, paymentMethod, invoiceId, iccid }
+      }),
+      invalidatesTags: (result, error, { phoneId }) => {
+        console.log('🗑️ Cache invalidation après paiement pour phoneId:', phoneId);
+        return [
+          { type: 'Phone', id: phoneId },
+          { type: 'Phone', id: 'LIST' },
+          { type: 'LinePayment', id: phoneId },
+          { type: 'LineReservation', id: 'AVAILABLE' },
+          { type: 'LineReservation', id: 'RESERVED' },
+          'Phone',
+          'LinePayment',
+          'LineReservation'
+        ];
+      }
     })
   })
 });
@@ -185,5 +229,7 @@ export const {
   useReserveExistingLineRequestMutation,
   useAnalyzeIccidForSupervisorQuery,
   useGetAvailableSimCardsQuery,
-  useGetValidNumbersForAgencyQuery
+  useGetValidNumbersForAgencyQuery,
+  useAssignSimToReplacementMutation,
+  useProcessInvoicePaymentMutation
 } = lineReservationsApiSlice;

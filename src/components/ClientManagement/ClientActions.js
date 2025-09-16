@@ -37,12 +37,18 @@ import {
         useConfirmBlockRequestMutation,
         useRequestActivationMutation
 } from "../../store/slices/linesSlice";
+import { useWhoIAmQuery } from "../../store/slices/authSlice";
 
 import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
 import SimLostModal from './SimLostModal';
-import { PHONE_STATUS } from './constant';
+import { PHONE_STATUS, TAB_TYPES } from './constant';
 
 const ClientActions = ({client, currentTab}) => {
+        // Vérifier le rôle utilisateur
+        const { data: connectedUser } = useWhoIAmQuery();
+        const isAgencyUser = connectedUser?.role === 'AGENCY';
+        const isSupervisor = connectedUser?.role === 'SUPERVISOR' || connectedUser?.role === 'ADMIN' || connectedUser?.role === 'SUPER_ADMIN';
+
         const [blockPhone] = useBlockPhoneMutation();
         const [unblockPhone] = useUnblockPhoneMutation();
         const [requestBlockPhone] = useRequestBlockPhoneMutation();
@@ -375,17 +381,27 @@ const ClientActions = ({client, currentTab}) => {
         const isBlockedForNonPayment = phoneStatus === PHONE_STATUS.BLOCKED && 
                                        ['BLOCKED_NONPAYMENT', 'PAST_DUE'].includes(paymentStatus);
         const isPausedLine = phoneStatus === PHONE_STATUS.PAUSED;
-        const canRequestActivation = (isPausedLine && paymentStatus === 'À JOUR') || 
-                                    (isBlockedForNonPayment && paymentStatus === 'À JOUR') ||
-                                    (phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED);
+        const canRequestActivation = (isPausedLine && paymentStatus === 'À JOUR') ||
+                                    (isBlockedForNonPayment && paymentStatus === 'À JOUR');
         
         // Masquer le bouton si problème de paiement : bloqué pour impayé OU en retard OU en dette
         const hasPaymentIssues = ['EN RETARD', 'DETTE'].includes(paymentStatus);
         const hideActivateButton = (isBlockedForNonPayment && paymentStatus !== 'À JOUR') || hasPaymentIssues;
         
-        const needsActivation = phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || 
-                               phoneStatus === PHONE_STATUS.INACTIVE || 
+        const needsActivation = phoneStatus === PHONE_STATUS.INACTIVE ||
                                (isLineSuspended && !hideActivateButton);
+
+        // Logique pour masquer les actions selon le rôle et l'onglet
+        const shouldShowActions = () => {
+                // Agences peuvent agir seulement dans "Liste des lignes" (currentTab === 'LIST' ou null)
+                if (isAgencyUser) {
+                        return currentTab === TAB_TYPES.LIST || !currentTab;
+                }
+                // Superviseurs peuvent agir partout
+                return isSupervisor;
+        };
+
+        const showActions = shouldShowActions();
 
         return (
             <Paper sx={{width: '100%', maxWidth: '220px', p: 2}}>
@@ -393,9 +409,16 @@ const ClientActions = ({client, currentTab}) => {
                             <Typography variant="h6" sx={{ fontSize: '1rem' }}>
                                 {currentTab === 'TO_BLOCK' ? 'ACTIONS SUPERVISEUR' : 'ACTIONS'}
                             </Typography>
-                            
-                            {/* Actions normales - Masquées pour l'onglet À BLOQUER */}
-                            {currentTab !== 'TO_BLOCK' && (
+
+                            {/* Afficher le message si l'agence n'a pas d'actions disponibles */}
+                            {!showActions && (
+                                <Alert severity="info" sx={{ fontSize: '0.875rem' }}>
+                                    Actions disponibles uniquement dans "Liste des lignes"
+                                </Alert>
+                            )}
+
+                            {/* Actions normales - Masquées pour l'onglet À BLOQUER ET selon le rôle */}
+                            {showActions && currentTab !== 'TO_BLOCK' && (
                                 <>
                                     {/* Bouton Facturer - Toujours visible */}
                                     <Button
@@ -469,8 +492,8 @@ const ClientActions = ({client, currentTab}) => {
                         </Menu>
                     )}
 
-            {/* Actions superviseur pour les demandes en attente */}
-            {currentTab === 'TO_BLOCK' && (
+            {/* Actions superviseur pour les demandes en attente - Seulement pour les superviseurs */}
+            {isSupervisor && currentTab === 'TO_BLOCK' && (
                 <>
                     <Button
                         fullWidth

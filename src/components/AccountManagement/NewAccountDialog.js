@@ -99,7 +99,7 @@ const NewAccountDialog = ({
   });
 
   // Extraction des agences à partir des données récupérées
-  const agencies = agenciesData || [];
+  const agencies = Array.isArray(agenciesData) ? agenciesData : [];
 
   // Réinitialiser le formulaire quand la mutation est réussie
   useEffect(() => {
@@ -416,7 +416,7 @@ const NewAccountDialog = ({
                       fullWidth
                       options={agencies}
                       getOptionLabel={(option) => option.name}
-                      value={agencies.find(a => a.id === parseInt(formData.agencyId)) || null}
+                      value={agencies?.find(a => a.id === parseInt(formData.agencyId)) || null}
                       disabled={!!preselectedAgency}
                       onChange={(event, agency) => {
                         if (!preselectedAgency) {

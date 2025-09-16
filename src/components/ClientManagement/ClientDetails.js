@@ -28,6 +28,7 @@ import {
 import StatusChip from './StatusChip';
 import RedAccountManagement from '../RedAccountManagement';
 import ClientDetailsModal from './ClientDetailsModal';
+import ActivationPaymentSection from './ActivationPaymentSection';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
 import { PHONE_STATUS, PAYMENT_STATUS } from "./constant";
 import dayjs from "dayjs";
@@ -681,7 +682,14 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
 
 const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
+  // 🔍 DEBUG TEMPORAIRE
+  console.log('🔍 ClientDetails rendu:', {
+    hasClient: !!client,
+    currentTab,
+    shouldShowActivationPayment: currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED
+  });
+
   if (!client) return null;
 
   const handleOpenModal = () => {
@@ -698,11 +706,14 @@ const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
         <Box sx={{ p: 3 }}>
           <ClientHeader client={client} onOpenModal={handleOpenModal} />
           {currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED ? (
-            <RedAccountManagement client={client} />
+            <>
+              <RedAccountManagement client={client} />
+              <ActivationPaymentSection client={client} />
+            </>
           ) : (
             <>
               {(currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED || currentTab === PAYMENT_STATUS.UP_TO_DATE || currentTab === PHONE_STATUS.SUSPENDED || currentTab === PAYMENT_STATUS.OVERDUE || currentTab === PAYMENT_STATUS.CANCELLED || currentTab === PAYMENT_STATUS.DISPUTED) && (
-                <AccountDetails 
+                <AccountDetails
                   redAccount={client.redAccount}
                   agency={client.agency}
                 />
