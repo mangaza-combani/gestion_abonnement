@@ -183,12 +183,12 @@ export const linePaymentsApi = apiSliceWithPrefix.injectEndpoints({
 
     // Vérifier les paiements requis avant activation (étape 1)
     checkPaymentBeforeActivation: builder.mutation({
-      query: (phoneId) => ({
+      query: ({ phoneId, clientId }) => ({
         url: '/line-reservations/check-payment-before-activation',
         method: 'POST',
-        body: { phoneId },
+        body: { phoneId, clientId },
       }),
-      invalidatesTags: (result, error, phoneId) => [
+      invalidatesTags: (result, error, { phoneId }) => [
         { type: 'LinePayment', id: phoneId },
         { type: 'UnpaidInvoices', id: 'LIST' },
       ],

@@ -451,7 +451,15 @@ const ClientManagement = () => {
 
                 let createdPhone;
 
-                if (phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED) {
+                // ✅ ANTI-PARASITAIRE : Si ICCID pré-assigné, ne pas créer de ligne fantôme automatique
+                const hasPreAssignedIccid = data?.client?.activatedWithIccid || data?.activatedWithIccid;
+                
+                if (hasPreAssignedIccid) {
+                        console.log('🚫 ANTI-PARASITAIRE: ICCID pré-assigné détecté - pas de création de ligne fantôme');
+                        console.log('ICCID pré-assigné:', hasPreAssignedIccid);
+                        // Pas de création de ligne - l'ICCID sera utilisé lors de l'activation par le superviseur
+                        createdPhone = null;
+                } else if (phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED) {
                         // DEMANDE DE LIGNE : Pas encore de ligne physique, juste une demande
                         const lineRequest = {
                                 // Pas de phoneNumber - sera assigné lors de la commande

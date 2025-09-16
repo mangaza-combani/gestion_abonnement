@@ -115,14 +115,16 @@ const ActivateTab = ({
 
     switch (activationFilter) {
       case 'ready':
-        // ✅ Prêt à activer : SIM disponible ET aucun paiement requis (utiliser la vraie réponse API)
+        // ✅ Prêt à activer : ICCID pré-assigné OU (SIM disponible ET aucun paiement requis)
         const noPaiementRequiredFromAPI = client.paymentRequired === false;
         const isPaymentUpToDate = client?.paymentStatus === 'À JOUR';
         const isPausedWithPaymentUpToDate = needsReactivation && isPaymentUpToDate;
-        return ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
+        const hasPreAssignedIccid = client.isPreAssigned === true; // ⭐ CORRECTION PRINCIPALE
+        return hasPreAssignedIccid || ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
       case 'waiting':
-        // ✅ En attente de SIM seulement : pas de SIM disponible
-        return ((needsActivation || hasReservation) && !simAvailable);
+        // ✅ En attente de SIM seulement : pas de SIM disponible ET pas d'ICCID pré-assigné
+        const hasPreAssignedIccidWaiting = client.isPreAssigned === true;
+        return ((needsActivation || hasReservation) && !simAvailable && !hasPreAssignedIccidWaiting);
       case 'to_pay':
         // ✅ À payer : SIM disponible MAIS paiement requis (utiliser la vraie réponse API)
         const paymentRequiredFromAPI = client.paymentRequired === true;
@@ -150,11 +152,12 @@ const ActivateTab = ({
 
     const simAvailable = canBeActivated(client);
 
-    // ✅ Même logique que le filtre 'ready' - utiliser la vraie réponse API
+    // ✅ Même logique que le filtre 'ready' - inclure les ICCID pré-assignés
     const noPaiementRequiredFromAPI = client.paymentRequired === false;
     const isPaymentUpToDate = client?.paymentStatus === 'À JOUR';
     const isPausedWithPaymentUpToDate = needsReactivation && isPaymentUpToDate;
-    return ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
+    const hasPreAssignedIccid = client.isPreAssigned === true; // ⭐ CORRECTION COMPTEUR
+    return hasPreAssignedIccid || ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
   }).length || 0;
   
   const waitingCount = dataToDisplay?.filter(client => {
@@ -164,8 +167,9 @@ const ActivateTab = ({
                           client?.reservationStatus === 'RESERVED';
     const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
 
-    // ✅ Même logique que le filtre 'waiting' - seulement si pas de SIM disponible
-    return ((needsActivation || hasReservation) && !canBeActivated(client));
+    // ✅ Même logique que le filtre 'waiting' - exclure les ICCID pré-assignés
+    const hasPreAssignedIccid = client.isPreAssigned === true;
+    return ((needsActivation || hasReservation) && !canBeActivated(client) && !hasPreAssignedIccid);
   }).length || 0;
 
   // Compter les lignes "À PAYER" (SIM disponible mais paiement en attente)

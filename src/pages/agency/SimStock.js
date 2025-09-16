@@ -41,10 +41,7 @@ import {
 } from "../../store/slices/agencySlice";
 import {useReceiveSimCardMutation} from "../../store/slices/agencySlice";
 import { useGetPhonesQuery } from "../../store/slices/linesSlice";
-import { 
-  useGetAvailableLinesQuery,
-  useActivateWithSimMutation 
-} from "../../store/slices/lineReservationsSlice";
+// Imports d'activation retirés - réservés au superviseur
 import dayjs from "dayjs";
 import {useCreateSimCardMutation} from "../../store/slices/simCardsSlice";
 import {useCreateSimCardOrderMutation} from "../../store/slices/agencySlice";
@@ -52,9 +49,7 @@ import {useCreateSimCardOrderMutation} from "../../store/slices/agencySlice";
 const SimCardManagement = () => {
   // États
   const [showReceiveModal, setShowReceiveModal] = useState(false);
-  const [showActivateModal, setShowActivateModal] = useState(false);
-  const [selectedSim, setSelectedSim] = useState(null);
-  const [selectedLine, setSelectedLine] = useState(null);
+  // États d'activation retirés - réservés au superviseur
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [newICCID, setNewICCID] = useState('');
@@ -62,7 +57,7 @@ const SimCardManagement = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [createSimCard] = useCreateSimCardMutation();
   const [receiveSimCard] = useReceiveSimCardMutation();
-  const [activateWithSim] = useActivateWithSimMutation();
+  // Hook d'activation retiré - réservé au superviseur
   const [createSimCardOrder] = useCreateSimCardOrderMutation();
 
   // Récupération des données
@@ -82,7 +77,7 @@ const SimCardManagement = () => {
     skip: !agencyId
   });
   const { data: linesData } = useGetPhonesQuery();
-  const { data: availableLines } = useGetAvailableLinesQuery();
+  // Récupération des lignes disponibles retirée - réservée au superviseur
   
   // Filtrer les lignes réservées pour cette agence
   const agencyReservedLines = linesData?.filter(line => {
@@ -286,56 +281,7 @@ const SimCardManagement = () => {
     setDeliveryDate(dayjs().format('YYYY-MM-DD'));
   };
 
-  // Gestionnaire pour l'activation d'une ligne avec une SIM
-  const handleActivateWithSim = async () => {
-    if (!selectedSim || !selectedLine) {
-      console.error("SIM ou ligne non sélectionnée", {
-        selectedSim,
-        selectedLine
-      });
-      setSnackbar({
-        open: true,
-        message: "Veuillez sélectionner une ligne et une carte SIM",
-        severity: 'error'
-      });
-      return;
-    }
-
-    try {
-      const result = await activateWithSim({
-        lineId: selectedLine.id,
-        iccid: selectedSim.iccid
-      });
-
-      console.log("Ligne activée avec succès:", result);
-      
-      if (result?.error) {
-        const errorMessage = result.error?.data?.message || result.error?.message || "Erreur lors de l'activation";
-        setSnackbar({
-          open: true,
-          message: errorMessage,
-          severity: 'error'
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: `Ligne ${selectedLine.phoneNumber} activée avec la carte SIM ${selectedSim.iccid}`,
-          severity: 'success'
-        });
-        
-        setShowActivateModal(false);
-        setSelectedSim(null);
-        setSelectedLine(null);
-      }
-    } catch (error) {
-      console.error("Erreur lors de l'activation:", error);
-      setSnackbar({
-        open: true,
-        message: "Erreur lors de l'activation de la ligne",
-        severity: 'error'
-      });
-    }
-  };
+  // Gestionnaire d'activation retiré - réservé au superviseur
 
   const StatCard = ({ icon, title, value, color }) => (
     <Paper elevation={1} sx={{ p: 3 }}>
@@ -457,7 +403,7 @@ const SimCardManagement = () => {
       {agencyReservedLines.length > 0 && stats.stock > 0 && (
         <Alert severity="info" sx={{ mb: 3 }}>
           Vous avez {agencyReservedLines.length} ligne(s) réservée(s) et {stats.stock} carte(s) SIM en stock. 
-          Vous pouvez activer des lignes en attribuant des cartes SIM.
+          Le superviseur pourra activer ces lignes avec vos cartes SIM disponibles.
         </Alert>
       )}
 
@@ -638,18 +584,7 @@ const SimCardManagement = () => {
                           N° De Reçu #${sim.simCardReceiptId}
                         </Typography>
                       )}
-                      {sim.status === 'IN_STOCK' && agencyReservedLines.length > 0 && (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => {
-                            setSelectedSim(sim);
-                            setShowActivateModal(true);
-                          }}
-                        >
-                          Activer ligne
-                        </Button>
-                      )}
+                      {/* Activation réservée au superviseur - bouton retiré pour les agences */}
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -737,130 +672,7 @@ const SimCardManagement = () => {
       </Dialog>
 
 
-      {/* Modal d'activation de ligne avec SIM */}
-      <Dialog
-        open={showActivateModal}
-        onClose={() => {
-          setShowActivateModal(false);
-          setSelectedSim(null);
-          setSelectedLine(null);
-        }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            Activer une ligne avec une carte SIM
-            <IconButton 
-              edge="end" 
-              color="inherit" 
-              onClick={() => {
-                setShowActivateModal(false);
-                setSelectedSim(null);
-                setSelectedLine(null);
-              }}
-              aria-label="close"
-            >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={3} sx={{ mt: 1 }}>
-            {/* Sélection de ligne */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle2" gutterBottom>
-                Ligne à activer
-              </Typography>
-              <TextField
-                select
-                fullWidth
-                value={selectedLine?.id || ''}
-                onChange={(e) => {
-                  const line = agencyReservedLines.find(l => l.id === Number(e.target.value));
-                  setSelectedLine(line);
-                }}
-                size="small"
-                disabled={!!selectedLine && !!selectedSim} // Si on arrive depuis une ligne spécifique
-              >
-                <MenuItem value="">Sélectionnez une ligne</MenuItem>
-                {agencyReservedLines.map(line => (
-                  <MenuItem key={line.id} value={line.id}>
-                    {line.phoneNumber || 'Numéro à définir'} - {line.client?.firstname} {line.client?.lastname}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            
-            {/* Sélection de SIM */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle2" gutterBottom>
-                Carte SIM disponible
-              </Typography>
-              <TextField
-                select
-                fullWidth
-                value={selectedSim?.id || ''}
-                onChange={(e) => {
-                  const sim = simCards.find(s => s.id === Number(e.target.value));
-                  setSelectedSim(sim);
-                }}
-                size="small"
-                disabled={!!selectedSim && !!selectedLine} // Si on arrive depuis une SIM spécifique
-              >
-                <MenuItem value="">Sélectionnez une carte SIM</MenuItem>
-                {simCards
-                  .filter(sim => sim.status === 'IN_STOCK')
-                  .map(sim => (
-                    <MenuItem key={sim.id} value={sim.id}>
-                      {sim.iccid}
-                    </MenuItem>
-                  ))
-                }
-              </TextField>
-            </Grid>
-          </Grid>
-
-          {/* Récapitulatif */}
-          {selectedLine && selectedSim && (
-            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Récapitulatif de l'activation
-              </Typography>
-              <Stack spacing={1}>
-                <Typography variant="body2">
-                  • Ligne: {selectedLine.phoneNumber || 'Numéro à définir'}
-                </Typography>
-                <Typography variant="body2">
-                  • Client: {selectedLine.client?.firstname} {selectedLine.client?.lastname}
-                </Typography>
-                <Typography variant="body2">
-                  • Carte SIM: {selectedSim.iccid}
-                </Typography>
-                <Typography variant="body2">
-                  • Date d'activation: {dayjs().format('dddd D MMMM YYYY')}
-                </Typography>
-              </Stack>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setShowActivateModal(false);
-            setSelectedSim(null);
-            setSelectedLine(null);
-          }}>
-            Annuler
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleActivateWithSim}
-            disabled={!selectedLine || !selectedSim}
-          >
-            Activer la ligne
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Modal d'activation retirée - réservée au superviseur */}
 
       {/* Snackbar pour les notifications */}
       <Snackbar

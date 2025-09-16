@@ -253,8 +253,11 @@ const ActivationInfo = ({ client }) => {
         clientData: client
       });
 
-      // Vérifier les paiements requis avec l'ID de la ligne (backend récupérera le client automatiquement)
-      const paymentCheck = await checkPaymentBeforeActivation(phoneId).unwrap();
+      // Vérifier les paiements requis avec l'ID de la ligne ET du client
+      const paymentCheck = await checkPaymentBeforeActivation({ 
+        phoneId, 
+        clientId: clientUserId 
+      }).unwrap();
 
       console.log('💳 Agence - Résultat vérification paiement:', paymentCheck);
 
@@ -304,7 +307,10 @@ const ActivationInfo = ({ client }) => {
 
       // 🔍 Étape 1: Vérifier les paiements requis
       console.log('🔍 Vérification paiements avant activation pour phoneId:', phoneIdToActivate);
-      const paymentCheck = await checkPaymentBeforeActivation(phoneIdToActivate).unwrap();
+      const paymentCheck = await checkPaymentBeforeActivation({ 
+        phoneId: phoneIdToActivate,
+        clientId: client?.user?.id || client?.id 
+      }).unwrap();
 
       console.log('💳 Résultat vérification paiement:', paymentCheck);
 
@@ -433,7 +439,17 @@ const ActivationInfo = ({ client }) => {
         'RedAccount'
       ]));
 
-      console.log('✅ Cache invalidé après activation');
+      // ✅ CRUCIAL : Invalider aussi le phoneApiSlice pour les onglets
+      dispatch(phoneApiSlice.util.invalidateTags([
+        { type: 'Phone', id: phoneId },
+        { type: 'Phone', id: 'LIST' },
+        { type: 'Phone', id: 'ACTIVATE' },
+        { type: 'Phone', id: 'RESERVED' },
+        { type: 'Phone', id: 'AVAILABLE' },
+        'Phone'
+      ]));
+
+      console.log('✅ Cache invalidé après activation (tous les slices)');
 
       // Fermer le dialog après succès
       handleCloseDialog();
@@ -942,9 +958,11 @@ const ActivationInfo = ({ client }) => {
                     )}
                   </>
                 ) :
-                  isAgency && (needsActivation || hasReservation) && !simAvailable ?
-                    '⏳ En attente de cartes SIM dans votre agence' :
-                    '⏳ Action non disponible pour le moment'
+                  isAgency && (needsActivation || hasReservation) && !simAvailable && isPreFilledMode ?
+                    '✅ En attente validation supervisor - SIM pré-assignée' :
+                    isAgency && (needsActivation || hasReservation) && !simAvailable ?
+                      '⏳ En attente de cartes SIM dans votre agence' :
+                      '⏳ Action non disponible pour le moment'
                 }
               </Typography>
             </Alert>
