@@ -40,12 +40,16 @@ const ActivateTab = ({
     searchTerm
   });
 
-  // ✅ CORRECTION : Utiliser lines (API spécialisée) en priorité sur clients (données filtrées)
-  const dataToDisplay = lines || clients || []
+  // ✅ CORRECTION : Extraire les lignes de la nouvelle structure API
+  const actualLines = lines?.lines || lines || clients || []
+  const dataToDisplay = Array.isArray(actualLines) ? actualLines : []
+
   console.log('📋 dataToDisplay final:', {
-    source: lines ? 'lines' : 'clients',
+    source: lines?.lines ? 'lines.lines' : lines ? 'lines' : 'clients',
     count: dataToDisplay.length,
-    data: dataToDisplay.slice(0, 2) // Premiers 2 clients pour debug
+    linesStructure: lines ? Object.keys(lines) : null,
+    isArray: Array.isArray(dataToDisplay),
+    data: Array.isArray(dataToDisplay) ? dataToDisplay.slice(0, 2) : dataToDisplay // Premiers 2 clients pour debug
   });
 
   const [activationFilter, setActivationFilter] = useState('all'); // 'all', 'ready', 'waiting', 'to_pay'
@@ -147,272 +151,70 @@ const ActivateTab = ({
     return availableSims.length > 0;
   };
   
-  // Filtrer les clients selon le filtre d'activation
+  // ✅ FILTRAGE SIMPLIFIÉ BASÉ SUR LES NOUVELLES PROPRIÉTÉS API
   const filteredClients = dataToDisplay?.filter(client => {
-    const hasReservation = client?.user?.hasActiveReservation || 
-                          client?.user?.reservationStatus === 'RESERVED' ||
-                          client?.hasActiveReservation || 
-                          client?.reservationStatus === 'RESERVED';
-    
-    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-    const needsReactivation = client?.phoneStatus === 'PAUSED' || client?.phoneStatus === 'BLOCKED';
-    const readyToActivate = hasReservation && canBeActivated(client);
-    
-    // ✅ CORRECTION: Logique stricte de paiement pour activation
-    const hasUnpaidInvoices = client?.paymentStatus === 'EN RETARD' ||
-                             client?.paymentStatus === 'OVERDUE' ||
-                             client?.paymentStatus === 'PENDING_PAYMENT' ||
-                             client?.paymentStatus === 'NEEDS_PAYMENT';
-
-    // ✅ CORRECTION STRICTE: Vérifier qu'il y a VRAIMENT une facture du mois courant payée
-    const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM format
-    const hasCurrentMonthPaidInvoice = client?.invoices?.some(invoice => {
-      const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
-      return invoiceMonth === currentMonth &&
-             (invoice.status === 'PAID' || invoice.status === 'À JOUR');
-    });
-
-    // Un client est "prêt" SEULEMENT si il a une VRAIE facture du mois courant payée
-    const isPaid = hasCurrentMonthPaidInvoice;
-
-
-    // Il faut payer si : dettes existantes OU AUCUNE facture du mois courant payée
-    const needsPayment = hasUnpaidInvoices || !hasCurrentMonthPaidInvoice;
-
-    const simAvailable = canBeActivated(client);
-
     switch (activationFilter) {
       case 'ready':
-        // ✅ Prêt à activer : ICCID pré-assigné OU (SIM disponible ET aucun paiement requis)
-        const noPaiementRequiredFromAPI = client.paymentRequired === false;
-        const isPaymentUpToDate = client?.paymentStatus === 'À JOUR';
-        const isPausedWithPaymentUpToDate = needsReactivation && isPaymentUpToDate;
-        const hasPreAssignedIccid = client.isPreAssigned === true; // ⭐ CORRECTION PRINCIPALE
-        return hasPreAssignedIccid || ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
+        // Prêt à activer maintenant (ICCID pré-assigné OU SIM disponible + facture payée)
+        return client.canActivateNow === true
       case 'waiting':
-        // ✅ En attente de SIM seulement : pas de SIM disponible ET pas d'ICCID pré-assigné
-        const hasPreAssignedIccidWaiting = client.isPreAssigned === true;
-        const shouldBeInWaiting = ((needsActivation || hasReservation) && !simAvailable && !hasPreAssignedIccidWaiting);
-        console.log(`🔍 FILTRE WAITING - Client ${client.id || client.user?.id}:`, {
-          needsActivation,
-          hasReservation,
-          simAvailable,
-          hasPreAssignedIccidWaiting,
-          shouldBeInWaiting,
-          phoneStatus: client?.phoneStatus,
-          reservationStatus: client?.reservationStatus || client?.user?.reservationStatus
-        });
-        return shouldBeInWaiting;
+        // En attente de SIM (pas de SIM disponible)
+        return client.waitingForSim === true
       case 'to_pay':
-        // ✅ À payer : SIM disponible MAIS paiement requis (utiliser la vraie réponse API)
-        const paymentRequiredFromAPI = client.paymentRequired === true;
-        const shouldBeInToPay = ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
-        console.log(`🔍 FILTRE TO_PAY - Client ${client.id || client.user?.id}:`, {
-          needsActivation,
-          hasReservation,
-          simAvailable,
-          paymentRequiredFromAPI,
-          shouldBeInToPay,
-          phoneStatus: client?.phoneStatus,
-          reservationStatus: client?.reservationStatus || client?.user?.reservationStatus,
-          clientName: client?.user?.firstname + ' ' + client?.user?.lastname
-        });
-        return shouldBeInToPay;
+        // SIM disponible mais doit payer d'abord
+        return client.needsPaymentFirst === true
       default:
-        return true;
+        return true
     }
-  }) || [];
+  }) || []
   
-  const readyCount = dataToDisplay?.filter(client => {
-    const hasReservation = client?.user?.hasActiveReservation ||
-                          client?.user?.reservationStatus === 'RESERVED' ||
-                          client?.hasActiveReservation ||
-                          client?.reservationStatus === 'RESERVED';
-    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-    const needsReactivation = client?.phoneStatus === 'PAUSED' || client?.phoneStatus === 'BLOCKED';
-
-    // ✅ CORRECTION: Vérifier qu'il y a VRAIMENT une facture du mois courant payée
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    const hasCurrentMonthPaidInvoice = client?.invoices?.some(invoice => {
-      const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
-      return invoiceMonth === currentMonth &&
-             (invoice.status === 'PAID' || invoice.status === 'À JOUR');
-    });
-
-    const simAvailable = canBeActivated(client);
-
-    // ✅ Même logique que le filtre 'ready' - inclure les ICCID pré-assignés
-    const noPaiementRequiredFromAPI = client.paymentRequired === false;
-    const isPaymentUpToDate = client?.paymentStatus === 'À JOUR';
-    const isPausedWithPaymentUpToDate = needsReactivation && isPaymentUpToDate;
-    const hasPreAssignedIccid = client.isPreAssigned === true; // ⭐ CORRECTION COMPTEUR
-    return hasPreAssignedIccid || ((needsActivation || hasReservation) && simAvailable && noPaiementRequiredFromAPI) || isPausedWithPaymentUpToDate;
-  }).length || 0;
-  
-  const waitingCount = dataToDisplay?.filter(client => {
-    const hasReservation = client?.user?.hasActiveReservation ||
-                          client?.user?.reservationStatus === 'RESERVED' ||
-                          client?.hasActiveReservation ||
-                          client?.reservationStatus === 'RESERVED';
-    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-
-    // ✅ Même logique que le filtre 'waiting' - exclure les ICCID pré-assignés
-    const hasPreAssignedIccid = client.isPreAssigned === true;
-    return ((needsActivation || hasReservation) && !canBeActivated(client) && !hasPreAssignedIccid);
-  }).length || 0;
-
-  // Compter les lignes "À PAYER" (SIM disponible mais paiement en attente)
-  const toPayCount = dataToDisplay?.filter(client => {
-    const hasReservation = client?.user?.hasActiveReservation ||
-                          client?.user?.reservationStatus === 'RESERVED' ||
-                          client?.hasActiveReservation ||
-                          client?.reservationStatus === 'RESERVED';
-    const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-
-    const hasUnpaidInvoices = client?.paymentStatus === 'EN RETARD' ||
-                             client?.paymentStatus === 'OVERDUE' ||
-                             client?.paymentStatus === 'PENDING_PAYMENT' ||
-                             client?.paymentStatus === 'NEEDS_PAYMENT';
-
-    // ✅ CORRECTION: Vérifier qu'il y a VRAIMENT une facture du mois courant payée
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    const hasCurrentMonthPaidInvoice = client?.invoices?.some(invoice => {
-      const invoiceMonth = new Date(invoice.createdAt).toISOString().substring(0, 7);
-      return invoiceMonth === currentMonth &&
-             (invoice.status === 'PAID' || invoice.status === 'À JOUR');
-    });
-
-    // ✅ Utiliser la vraie réponse API au lieu de calculer localement
-    const paymentRequiredFromAPI = client.paymentRequired === true;
-    const simAvailable = canBeActivated(client);
-
-    // ✅ Même logique que le filtre 'to_pay'
-    return ((needsActivation || hasReservation) && simAvailable && paymentRequiredFromAPI);
-  }).length || 0;
+  // ✅ COMPTEURS SIMPLIFIÉS BASÉS SUR LES NOUVELLES PROPRIÉTÉS API
+  const readyCount = dataToDisplay?.filter(client => client.canActivateNow === true).length || 0
+  const waitingCount = dataToDisplay?.filter(client => client.waitingForSim === true).length || 0
+  const toPayCount = dataToDisplay?.filter(client => client.needsPaymentFirst === true).length || 0
 
 
-  // ✅ FONCTION CENTRALISÉE pour l'AUTO-SWITCH (SIMPLIFIÉE comme canBeActivated)
+  // ✅ LOGIQUE AUTO-SWITCH SIMPLIFIÉE BASÉE SUR LA NOUVELLE API
   const performAutoSwitch = (forceLog = false) => {
-    if (!agenciesData || !Array.isArray(agenciesData) || !dataToDisplay) {
-      console.log('❌ AUTO-SWITCH - Données manquantes:', {
-        hasAgencies: !!agenciesData,
-        isArray: Array.isArray(agenciesData),
-        hasData: !!dataToDisplay
-      });
-      return;
-    }
+    if (!dataToDisplay || !lines) return
 
-    // 🏭 LOGIQUE GLOBALE: Vérifier le stock SIM total disponible pour toutes les agences
-    let totalAvailableSims = 0;
+    // Utiliser les nouvelles propriétés de l'API
+    const stockInfo = lines.stockInfo || {}
+    const summary = lines.summary || {}
+    const totalAvailableSims = stockInfo.totalStockAvailable || 0
 
-    // Compter le stock SIM total disponible (version simplifiée)
-    agenciesData.forEach(agency => {
-      if (agency.simCards) {
-        const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
-        totalAvailableSims += availableSims.length;
-      }
-    });
+    const clientsReadyToActivate = dataToDisplay.filter(client => client.canActivateNow)
+    const clientsWaitingForSim = dataToDisplay.filter(client => client.waitingForSim)
+    const clientsNeedingPayment = dataToDisplay.filter(client => client.needsPaymentFirst)
 
-    // Compter les clients en attente
-    const clientsInWaiting = dataToDisplay.filter(client => {
-      const hasReservation = client?.user?.hasActiveReservation ||
-                            client?.user?.reservationStatus === 'RESERVED' ||
-                            client?.hasActiveReservation ||
-                            client?.reservationStatus === 'RESERVED';
-      const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-      const hasPreAssignedIccid = client.isPreAssigned === true;
-      return ((needsActivation || hasReservation) && !hasPreAssignedIccid);
-    });
-
-    if (forceLog || totalAvailableSims > 0 || clientsInWaiting.length > 0) {
-      console.log('📊 STOCK GLOBAL (AUTO-SWITCH):', {
+    if (forceLog) {
+      console.log('📊 AUTO-SWITCH NOUVELLE LOGIQUE:', {
         totalAvailableSims,
-        clientsWaiting: clientsInWaiting.length,
-        currentFilter: activationFilter,
-        trigger: forceLog ? 'PAGE_LOAD' : 'DATA_CHANGE'
-      });
+        readyToActivate: clientsReadyToActivate.length,
+        waitingForSim: clientsWaitingForSim.length,
+        needingPayment: clientsNeedingPayment.length,
+        currentFilter: activationFilter
+      })
     }
 
-    // 🔄 TRANSITIONS GLOBALES:
-    console.log('🔍 DEBUG AUTO-SWITCH - Conditions:', {
-      totalAvailableSims,
-      activationFilter,
-      clientsInWaiting: clientsInWaiting.length,
-      shouldSwitchToPayment: totalAvailableSims > 0 && (activationFilter === 'waiting' || activationFilter === 'all') && clientsInWaiting.length > 0,
-      shouldSwitchToWaiting: totalAvailableSims === 0 && activationFilter === 'to_pay'
-    });
+    // 🔄 TRANSITIONS INTELLIGENTES :
 
-    // 🔄 TRANSITION INTELLIGENTE BASÉE SUR paymentRequired :
-
-    // Analyser les types de clients
-    const clientsWithPaymentRequired = dataToDisplay.filter(client => {
-      const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-      const hasReservation = client?.user?.hasActiveReservation ||
-                            client?.reservationStatus === 'RESERVED';
-      const simAvailable = canBeActivated(client);
-
-      // 🔍 DEBUG: Vérifier la valeur paymentRequired
-      console.log('💰 DEBUG paymentRequired pour client', client?.id, ':', {
-        paymentRequired: client.paymentRequired,
-        type: typeof client.paymentRequired,
-        needsActivation,
-        hasReservation,
-        simAvailable,
-        shouldBeInPaymentRequired: ((needsActivation || hasReservation) && simAvailable && client.paymentRequired === true)
-      });
-
-      return ((needsActivation || hasReservation) && simAvailable && client.paymentRequired === true);
-    });
-
-    const clientsReadyToActivate = dataToDisplay.filter(client => {
-      const needsActivation = client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED';
-      const hasReservation = client?.user?.hasActiveReservation ||
-                            client?.reservationStatus === 'RESERVED';
-      const simAvailable = canBeActivated(client);
-      const hasPreAssigned = client.isPreAssigned === true;
-      const noPaymentRequired = client.paymentRequired === false;
-      return hasPreAssigned || ((needsActivation || hasReservation) && simAvailable && noPaymentRequired);
-    });
-
-    console.log('🔍 DEBUG AUTO-SWITCH - Analyse clients:', {
-      totalAvailableSims,
-      clientsInWaiting: clientsInWaiting.length,
-      clientsWithPaymentRequired: clientsWithPaymentRequired.length,
-      clientsReadyToActivate: clientsReadyToActivate.length,
-      currentFilter: activationFilter
-    });
-
-    // TRANSITIONS BASÉES SUR LE CONTENU RÉEL :
-
-    // Si stock disponible ET clients en attente → "waiting" vers "to_pay" ou "ready"
-    if (totalAvailableSims > 0 && (activationFilter === 'waiting' || activationFilter === 'all') && clientsInWaiting.length > 0) {
-      if (clientsWithPaymentRequired.length > 0) {
-        console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients avec paiement requis → "À payer"');
-        setActivationFilter('to_pay');
+    // Si stock disponible + clients en attente → switch vers paiement ou prêt
+    if (totalAvailableSims > 0 && (activationFilter === 'waiting' || activationFilter === 'all')) {
+      if (clientsNeedingPayment.length > 0) {
+        console.log('🔄 AUTO-SWITCH: Stock SIM disponible → clients doivent payer → "À payer"')
+        setActivationFilter('to_pay')
       } else if (clientsReadyToActivate.length > 0) {
-        console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients prêts → "Prêt à activer"');
-        setActivationFilter('ready');
+        console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients prêts → "Prêt à activer"')
+        setActivationFilter('ready')
       }
     }
-    // Si plus de stock ET on est sur "to_pay" → retour à "waiting"
+    // Si plus de stock → retour en attente
     else if (totalAvailableSims === 0 && activationFilter === 'to_pay') {
-      console.log('⏳ AUTO-SWITCH: Plus de stock SIM → "En attente"');
-      setActivationFilter('waiting');
+      console.log('⏳ AUTO-SWITCH: Plus de stock SIM → "En attente SIM"')
+      setActivationFilter('waiting')
     }
-    // Cas spécial : clients avec paiement requis mais filtre sur "ready"
-    else if (clientsWithPaymentRequired.length > 0 && activationFilter === 'ready') {
-      console.log('💰 AUTO-SWITCH: Clients avec paiement requis détectés → "À payer"');
-      setActivationFilter('to_pay');
-    }
-    // Cas spécial : clients prêts mais filtre sur "to_pay"
-    else if (clientsReadyToActivate.length > 0 && clientsWithPaymentRequired.length === 0 && activationFilter === 'to_pay') {
-      console.log('✅ AUTO-SWITCH: Clients prêts sans paiement → "Prêt à activer"');
-      setActivationFilter('ready');
-    }
-    else {
-      console.log('❌ AUTO-SWITCH: Aucune transition nécessaire');
-    }
-  };
+  }
 
   // 🚀 AUTO-SWITCH au chargement initial de la page
   useEffect(() => {

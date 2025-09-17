@@ -575,13 +575,19 @@ const ActivationInfo = ({ client }) => {
   const simAvailable = canBeActivated(client);
 
   // ✅ LOGIQUE SIMPLIFIÉE : Utiliser directement la réponse de l'API phones
-  // Si une vérification de paiement a été faite, utiliser ce résultat, sinon utiliser la réponse de l'API phones
-  const needsPayment = paymentVerificationData?.paymentRequired !== undefined ?
-    paymentVerificationData.paymentRequired :
-    client?.paymentRequired === true; // Utiliser directement le champ de l'API phones
+  // ✅ NOUVELLE LOGIQUE BASÉE SUR LES PROPRIÉTÉS API SIMPLIFIÉES
+  const canActivateNow = client?.canActivateNow === true;
+  const needsPaymentFirst = client?.needsPaymentFirst === true;
+  const waitingForSim = client?.waitingForSim === true;
+  const lineClassification = client?.lineClassification;
 
   const isSupervisor = currentUser?.role === 'SUPERVISOR';
   const isAgency = currentUser?.role === 'AGENCY';
+
+  // Garder la logique de vérification de paiement pour compatibilité
+  const needsPayment = paymentVerificationData?.paymentRequired !== undefined ?
+    paymentVerificationData.paymentRequired :
+    needsPaymentFirst;
 
   // 🔍 DEBUG TEMPORAIRE pour comprendre pourquoi le bouton de paiement n'apparaît pas
   console.log('🔍 ActivationInfo - État du bouton de paiement:', {
@@ -611,18 +617,19 @@ const ActivationInfo = ({ client }) => {
   });
 
   // Logique du bouton
+  // ✅ NOUVELLE LOGIQUE BASÉE SUR LES PROPRIÉTÉS API ET RÔLES
   let buttonConfig = {
-    show: true,
-    text: 'Action non définie',
+    show: false,
+    text: '',
     color: 'primary',
     icon: <InfoIcon />,
     onClick: () => {}
   };
 
   if (isSupervisor) {
-    // ✅ SUPERVISEUR : Seul à pouvoir ACTIVER les lignes
-    if ((needsActivation || hasReservation) && simAvailable && !needsPayment) {
-      // CAS 1: Ligne PRÊTE À ACTIVER (paiement fait) → ATTRIBUTION DE LIGNE
+    // ✅ SUPERVISEUR : Actions selon l'état de la ligne
+    if (canActivateNow) {
+      // Ligne prête à activer maintenant
       buttonConfig = {
         show: true,
         text: '📞 Attribuer une ligne',
@@ -630,70 +637,51 @@ const ActivationInfo = ({ client }) => {
         icon: <CheckIcon />,
         onClick: () => setShowActivationDialog(true)
       };
-    } else {
-      // CAS 2: Autres cas (remplacement, confirmation RED, etc.)
-      // ✅ CORRECTION: Vérifier le type d'activation pour déterminer l'action appropriée
-      if (client?.activationType === 'REACTIVATION_AFTER_PAUSE' || client?.activationType === 'REACTIVATION_AFTER_DEBT') {
-        // Réactivations : ligne déjà assignée, SIM déjà configurée → Confirmation RED
-        buttonConfig = {
-          show: true,
-          text: '✅ Confirmer activation sur RED',
-          color: 'success',
-          icon: <CheckIcon />,
-          onClick: () => setShowConfirmationDialog(true)
-        };
-      } else if (client?.reactivationReason || client?.activationType === 'NEW_ACTIVATION') {
-        // Nouvelles activations ou cas complexes → Modal d'analyse ICCID pour choix superviseur
-        buttonConfig = {
-          show: true,
-          text: '📞 Attribuer une ligne',
-          color: 'primary',
-          icon: <PhoneIcon />,
-          onClick: () => setShowActivationDialog(true)
-        };
-      } else {
-        // Autres cas → Confirmation par défaut
-        buttonConfig = {
-          show: true,
-          text: 'Confirmer activation sur RED',
-          color: "success",
-          icon: <CheckIcon />,
-          onClick: () => setShowConfirmationDialog(true)
-        };
-      }
-    }
-  } else if (isAgency) {
-    // ✅ AGENCE : Peut seulement FACTURER/ENCAISSER (pas activer directement)
-    if ((needsActivation || hasReservation) && simAvailable && needsPayment) {
-      // Agence : SIM disponible mais paiement requis → FACTURER
+    } else if (needsPaymentFirst) {
+      // Ligne nécessite un paiement d'abord (superviseur peut voir l'état mais pas agir)
       buttonConfig = {
         show: true,
-        text: '💳 Facturer l\'activation',
+        text: '💳 Paiement requis par l\'agence',
+        color: 'warning',
+        icon: <WarningIcon />,
+        onClick: () => {} // Pas d'action, juste informatif
+      };
+    } else if (waitingForSim) {
+      // En attente de SIM
+      buttonConfig = {
+        show: true,
+        text: '📦 En attente de cartes SIM',
+        color: 'info',
+        icon: <WarningIcon />,
+        onClick: () => {} // Pas d'action, juste informatif
+      };
+    }
+  } else if (isAgency) {
+    // ✅ AGENCE : Actions selon l'état de la ligne
+    if (needsPaymentFirst) {
+      // Agence doit encaisser le client d'abord
+      buttonConfig = {
+        show: true,
+        text: '💳 Encaisser le client + Assigner ICCID',
         color: 'warning',
         icon: <PaymentIcon />,
         onClick: () => {
-          // Pour les agences, déclencher directement la vérification de paiement
           handleCheckPaymentForAgency();
         }
       };
-    } else if ((needsActivation || hasReservation) && simAvailable && !needsPayment) {
-      // Agence : Déjà payé → Afficher état en attente superviseur
+    } else if (canActivateNow) {
+      // Ligne prête, agence attend le superviseur
       buttonConfig = {
         show: true,
-        text: '✅ Paiement vérifié - En attente activation superviseur',
+        text: '✅ Paiement effectué - En attente superviseur',
         color: 'success',
         icon: <CheckIcon />,
         onClick: () => {} // Pas d'action
       };
-    } else if ((needsActivation || hasReservation) && !simAvailable) {
-      // Agence : En attente de SIM
+    } else if (waitingForSim) {
+      // Pas de SIM disponible
       buttonConfig = {
-        show: false
-      };
-    } else {
-      // Autres cas
-      buttonConfig = {
-        show: false
+        show: false // Ne rien afficher
       };
     }
   }
@@ -941,13 +929,19 @@ const ActivationInfo = ({ client }) => {
             </Button>
           )}
 
-          {/* Message si pas de bouton affiché */}
+          {/* ✅ NOUVEAUX MESSAGES BASÉS SUR LES PROPRIÉTÉS API */}
           {!buttonConfig.show && (
             <Alert severity={
-              isAgency && (needsActivation || hasReservation) && simAvailable && !needsPayment ? 'success' : 'info'
+              canActivateNow ? 'success' :
+              needsPaymentFirst ? 'warning' :
+              waitingForSim ? 'info' : 'info'
             }>
               <Typography variant="body2">
-                {isAgency && (needsActivation || hasReservation) && simAvailable && !needsPayment ? (
+                {waitingForSim ? (
+                  '⏳ En attente de cartes SIM dans votre agence'
+                ) : needsPaymentFirst && isAgency ? (
+                  '💳 Veuillez encaisser le client pour le mois en cours'
+                ) : canActivateNow && isAgency ? (
                   <>
                     ✅ Paiement effectué - En attente d'activation par le superviseur
                     {preFilledIccid && (
@@ -958,13 +952,9 @@ const ActivationInfo = ({ client }) => {
                       </Box>
                     )}
                   </>
-                ) :
-                  isAgency && (needsActivation || hasReservation) && !simAvailable && isPreFilledMode ?
-                    '✅ En attente validation supervisor - SIM pré-assignée' :
-                    isAgency && (needsActivation || hasReservation) && !simAvailable ?
-                      '⏳ En attente de cartes SIM dans votre agence' :
-                      '⏳ Action non disponible pour le moment'
-                }
+                ) : (
+                  `⏳ État: ${lineClassification || 'En cours d\'analyse'}`
+                )}
               </Typography>
             </Alert>
           )}

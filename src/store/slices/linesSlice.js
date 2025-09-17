@@ -213,6 +213,50 @@ export const phoneApiSlice = apiSliceWithPrefix.injectEndpoints({
                         query: () => `/phones/lines/to-activate`,
                         providesTags: ['Phone', { type: 'Phone', id: 'LIST' }, { type: 'PhoneToActivate', id: 'LIST' }],
                 }),
+                // ✅ NOUVELLE MUTATION: Génération facture prorata + encaissement
+                generateProrataInvoice: builder.mutation({
+                        query: ({ phoneId, iccid, agencyId }) => ({
+                                url: `/phones/${phoneId}/generate-prorata-invoice`,
+                                method: 'POST',
+                                body: { iccid, agencyId }
+                        }),
+                        invalidatesTags: (result, error, { phoneId }) => [
+                                { type: 'Phone', id: phoneId },
+                                { type: 'Phone', id: 'LIST' },
+                                { type: 'PhoneToActivate', id: 'LIST' }, // Actualiser À ACTIVER
+                                'LinePayment' // Actualiser les paiements
+                        ],
+                }),
+                // ✅ NOUVELLE MUTATION: Agence assigne ICCID (À PAYER → Prêt à activer)
+                assignIccidToLine: builder.mutation({
+                        query: ({ phoneId, iccid }) => ({
+                                url: `/phones/${phoneId}/assign-iccid`,
+                                method: 'POST',
+                                body: { iccid }
+                        }),
+                        invalidatesTags: (result, error, { phoneId }) => [
+                                { type: 'Phone', id: phoneId },
+                                { type: 'Phone', id: 'LIST' },
+                                { type: 'PhoneToActivate', id: 'LIST' }, // Actualiser À ACTIVER
+                                'SimCard', // Actualiser le stock SIM
+                                'Agency' // Actualiser les données agence
+                        ],
+                }),
+                // ✅ ANCIENNE MUTATION: Activation directe avec SIM la plus ancienne (compatibilité)
+                activateWithOldestSim: builder.mutation({
+                        query: ({ phoneId, agencyId }) => ({
+                                url: `/phones/${phoneId}/activate-with-oldest-sim`,
+                                method: 'POST',
+                                body: { agencyId }
+                        }),
+                        invalidatesTags: (result, error, { phoneId }) => [
+                                { type: 'Phone', id: phoneId },
+                                { type: 'Phone', id: 'LIST' },
+                                { type: 'PhoneToActivate', id: 'LIST' }, // Retirer de À ACTIVER
+                                'SimCard', // Actualiser le stock SIM
+                                'Agency' // Actualiser les données agence
+                        ],
+                }),
         }),
 });
 
@@ -234,6 +278,9 @@ export const {
         useConfirmBlockRequestMutation, // 🆕
         useRequestActivationMutation, // 🆕
         useConfirmReactivationMutation, // 🆕
+        useGenerateProrataInvoiceMutation, // ✅ NOUVELLE MUTATION
+        useAssignIccidToLineMutation, // ✅ NOUVELLE MUTATION AGENCE
+        useActivateWithOldestSimMutation, // ✅ ANCIENNE MUTATION (compatibilité)
 } = phoneApiSlice;
 
 // Slice Redux pour la gestion d'état locale des phone

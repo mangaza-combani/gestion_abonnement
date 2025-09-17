@@ -99,13 +99,16 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
           { type: 'RedAccount', id: 'LIST' },
           { type: 'Phone', id: phoneId }, // Invalider la ligne spécifique
           { type: 'Phone', id: 'LIST' },
+          { type: 'PhoneToActivate', id: 'LIST' }, // ✅ IMPORTANT: Invalider l'onglet À ACTIVER
           { type: 'SimCard', id: 'LIST' },
           { type: 'Client', id: clientId }, // Invalider le client spécifique
           { type: 'Client', id: 'LIST' },
           'Phone', // Invalider tous les téléphones
+          'PhoneToActivate', // ✅ Invalider toutes les données d'activation
           'ClientToOrder', // Invalider les clients à commander
           'LineReservation', // Invalider toutes les réservations
-          'RedAccount' // Invalider tous les comptes RED
+          'RedAccount', // Invalider tous les comptes RED
+          'Agency' // ✅ Invalider les données d'agence pour mettre à jour le stock SIM
         ];
       }
     }),
