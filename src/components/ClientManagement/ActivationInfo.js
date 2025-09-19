@@ -59,7 +59,11 @@ const ActivationInfo = ({ client }) => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [activationDataPending, setActivationDataPending] = useState(null);
   const [currentMonthInvoice, setCurrentMonthInvoice] = useState(null);
-  
+
+  // 🆕 États pour les messages de succès
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+
   // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1) ou pour remplacement SIM (CAS 2)
   const preFilledIccid = client?.preAssignedIccid || client?.activatedWithIccid || client?.user?.activatedWithIccid;
   const replacementIccid = client?.replacementSimIccid; // ✅ NOUVEAU: ICCID de remplacement
@@ -72,7 +76,9 @@ const ActivationInfo = ({ client }) => {
     preAssignedIccid: client?.preAssignedIccid,
     activatedWithIccid: client?.activatedWithIccid,
     userActivatedWithIccid: client?.user?.activatedWithIccid,
-    replacementSimIccid: client?.replacementSimIccid, // ✅ NOUVEAU
+    replacementSimIccid: client?.replacementSimIccid,
+    activationType: client?.activationType, // 🔑 ACTIVATIONTYPE
+    replacementSimReceived: client?.replacementSimReceived, // 🔑 CLEF
     preFilledIccid,
     finalPreFilledIccid, // ✅ NOUVEAU
     isPreFilledMode,
@@ -237,11 +243,26 @@ const ActivationInfo = ({ client }) => {
     }
   };
 
+  // 🆕 Fonction utilitaire pour afficher les messages de succès
+  const showSuccessMessage = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessAlert(true);
+
+    // Auto-hide après 5 secondes
+    setTimeout(() => {
+      setShowSuccessAlert(false);
+      setSuccessMessage('');
+    }, 5000);
+  };
+
   const handleSimpleConfirmation = async () => {
     try {
       await confirmReactivation({ phoneId: client.id }).unwrap();
       console.log('✅ Réactivation confirmée avec succès');
       setShowConfirmationDialog(false);
+
+      // 🆕 Afficher message de succès
+      showSuccessMessage('✅ Réactivation confirmée avec succès !');
     } catch (error) {
       console.error('❌ Erreur lors de la confirmation de réactivation:', error);
     }
@@ -272,6 +293,9 @@ const ActivationInfo = ({ client }) => {
       ]));
 
       setShowSimReplacementConfirmDialog(false);
+
+      // 🆕 Afficher message de succès
+      showSuccessMessage('✅ Remplacement SIM activé avec succès !');
     } catch (error) {
       console.error('❌ Erreur lors de l\'activation du remplacement SIM:', error);
     }
@@ -399,9 +423,13 @@ const ActivationInfo = ({ client }) => {
         // SUPERVISEUR : Paiement + Activation directe
         await performActivation(activationDataPending);
         console.log('✅ Superviseur: Paiement + Activation effectués');
+        // Le message de succès sera affiché par performActivation()
       } else if (isAgency) {
         // AGENCE : Paiement seulement, pas d'activation
         console.log('✅ Agence: Paiement effectué - Ligne prête pour activation superviseur');
+
+        // 🆕 Afficher message de succès pour l'agence
+        showSuccessMessage('✅ Paiement enregistré avec succès !');
 
         // Invalider les caches pour rafraîchir l'affichage
         dispatch(lineReservationsApiSlice.util.invalidateTags([
@@ -490,6 +518,9 @@ const ActivationInfo = ({ client }) => {
 
       // Fermer le dialog après succès
       handleCloseDialog();
+
+      // 🆕 Afficher message de succès
+      showSuccessMessage('✅ Ligne activée avec succès !');
 
     } catch (error) {
       console.error('❌ Erreur lors de l\'activation:', error);
@@ -817,44 +848,21 @@ const ActivationInfo = ({ client }) => {
             Informations d'activation
           </Typography>
         </Box>
-        
+
+        {/* 🆕 Message de succès */}
+        {showSuccessAlert && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight="bold">
+              {successMessage}
+            </Typography>
+          </Alert>
+        )}
+
         <Stack spacing={2}>
-          {/* Informations de base - MASQUÉES pour les remplacements SIM */}
-          {!client?.replacementSimIccid && (
-            <>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Client
-                </Typography>
-                <Typography variant="body1" fontWeight="bold">
-                  {client?.user?.firstname} {client?.user?.lastname}
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Email
-                </Typography>
-                <Typography variant="body1">
-                  {client?.user?.email}
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Status
-                </Typography>
-                <Chip
-                  label={client?.user?.phoneStatus || client?.phoneStatus}
-                  size="small"
-                  color="warning"
-                />
-              </Box>
-            </>
-          )}
+          {/* Informations de base - MASQUÉES pour simplifier l'affichage */}
           
           {/* 🆕 Informations sur le type d'activation et la raison - MASQUÉ pour les remplacements SIM */}
-          {(client?.activationType || client?.reactivationReason) && !client?.replacementSimIccid && (
+          {(client?.activationType || client?.reactivationReason) && client?.activationType !== 'SIM_REPLACEMENT' && (
             <Box>
               <Typography variant="body2" color="text.secondary">
                 Type d'activation
@@ -866,10 +874,15 @@ const ActivationInfo = ({ client }) => {
                     client?.activationType === 'REACTIVATION_AFTER_PAUSE' ? 'Réactivation (Pause)' :
                     client?.activationType === 'REACTIVATION_AFTER_DEBT' ? 'Réactivation (Impayé)' :
                     client?.activationType === 'REACTIVATION' ? 'Réactivation' :
+                    client?.activationType === 'SIM_REPLACEMENT' ? 'Remplacement SIM' :
                     'Activation'
                   }
                   size="small"
-                  color={client?.activationType === 'NEW_ACTIVATION' ? 'success' : 'info'}
+                  color={
+                    client?.activationType === 'NEW_ACTIVATION' ? 'success' :
+                    client?.activationType === 'SIM_REPLACEMENT' ? 'warning' :
+                    'info'
+                  }
                 />
               </Stack>
               {client?.reactivationReason && (
@@ -881,7 +894,7 @@ const ActivationInfo = ({ client }) => {
           )}
           
           {/* Compte RED rattaché - MASQUÉ pour les remplacements SIM */}
-          {(client?.redAccountId || client?.lineRequest?.redAccountId) && !client?.replacementSimIccid && (
+          {(client?.redAccountId || client?.lineRequest?.redAccountId) && client?.activationType !== 'SIM_REPLACEMENT' && (
             <Box>
               <Typography variant="body2" color="text.secondary">
                 Compte RED rattaché
@@ -894,7 +907,7 @@ const ActivationInfo = ({ client }) => {
           )}
 
           {/* 🆕 Section Informations de Paiement avec données réelles - MASQUÉE pour les remplacements SIM */}
-          {!client?.replacementSimIccid && (
+          {client?.activationType !== 'SIM_REPLACEMENT' && (
             <>
               <Divider />
               <Box>
@@ -982,15 +995,6 @@ const ActivationInfo = ({ client }) => {
                 </Paper>
               )}
 
-              {/* Si statut "À JOUR" mais aucune facture du mois courant trouvée */}
-              {(client?.paymentStatus === 'À JOUR' || client?.paymentStatus === 'PAID') && !currentMonthInvoice && !isLoadingInvoices && (
-                <Alert severity="info">
-                  <Typography variant="body2">
-                    ✅ Statut indiqué "À JOUR" mais aucune facture du mois courant trouvée dans le système.
-                    Une facture d'activation sera générée lors du processus de paiement.
-                  </Typography>
-                </Alert>
-              )}
 
               {/* Informations sur les autres factures impayées */}
               {unpaidInvoices && Array.isArray(unpaidInvoices) && unpaidInvoices.length > 1 && (
@@ -1008,29 +1012,13 @@ const ActivationInfo = ({ client }) => {
                 </Alert>
               )}
 
-              {/* Messages contextuels */}
-              {!client?.paymentStatus && client?.phoneStatus === 'NEEDS_TO_BE_ACTIVATED' && (
-                <Alert severity="info">
-                  <Typography variant="body2">
-                    ✨ Nouvelle ligne - Paiement d'activation selon prorata du mois en cours.
-                  </Typography>
-                </Alert>
-              )}
-
-              {!client?.paymentStatus && (client?.user?.hasActiveReservation || client?.hasActiveReservation) && (
-                <Alert severity="warning">
-                  <Typography variant="body2">
-                    💳 Ligne réservée - Paiement d'activation requis avant activation.
-                  </Typography>
-                </Alert>
-              )}
             </Stack>
               </Box>
             </>
           )}
 
           {/* 🔄 Section spéciale pour les remplacements SIM en attente de réception */}
-          {client?.replacementSimOrdered && !client?.replacementSimReceived && isSupervisor && (
+          {client?.activationType === 'SIM_REPLACEMENT' && client?.replacementSimReceived === false && (
             <Paper sx={{ p: 2, bgcolor: 'warning.lighter', border: '2px solid', borderColor: 'warning.main', mb: 2 }}>
               <Typography variant="subtitle2" color="warning.main" fontWeight="bold" gutterBottom>
                 ⏳ Remplacement SIM - En attente de réception

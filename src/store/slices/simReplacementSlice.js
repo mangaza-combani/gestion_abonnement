@@ -30,7 +30,10 @@ export const simReplacementApiSlice = apiSliceWithPrefix.injectEndpoints({
         { type: 'Phone', id: 'LIST' },
         'PhoneToBlock', // Retirer de À BLOQUER
         'PhoneToActivate', // Ajouter dans À ACTIVER
-        'ClientToOrder' // Ou dans À COMMANDER selon le cas
+        'ClientToOrder', // Ou dans À COMMANDER selon le cas
+        'PhonesList', // Mettre à jour liste générale
+        'Reservation', // Mettre à jour réservations
+        'LineReservation' // Forcer rafraîchissement onglet À ACTIVER
       ]
     }),
 
@@ -44,7 +47,10 @@ export const simReplacementApiSlice = apiSliceWithPrefix.injectEndpoints({
       invalidatesTags: [
         'Phone',
         { type: 'Phone', id: 'LIST' },
-        'PhoneToActivate' // Mettre à jour statut dans À ACTIVER
+        'PhoneToActivate', // Mettre à jour statut dans À ACTIVER
+        'PhonesList', // Mettre à jour liste générale
+        'Reservation', // Mettre à jour réservations
+        'LineReservation' // Forcer rafraîchissement onglet À ACTIVER
       ]
     }),
 
@@ -59,7 +65,10 @@ export const simReplacementApiSlice = apiSliceWithPrefix.injectEndpoints({
         'Phone',
         { type: 'Phone', id: 'LIST' },
         'ClientToOrder', // Ligne va apparaître dans À COMMANDER
-        'PhonesList' // Mettre à jour liste des lignes
+        'PhonesList', // Mettre à jour liste des lignes
+        'Reservation', // Mettre à jour réservations
+        'LineReservation', // Forcer rafraîchissement onglet À ACTIVER
+        'PhoneToActivate' // Au cas où elle va dans À ACTIVER
       ]
     })
   })
