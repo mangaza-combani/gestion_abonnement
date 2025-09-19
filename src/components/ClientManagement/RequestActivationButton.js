@@ -10,20 +10,38 @@ import {
   Alert,
   CircularProgress,
   Box,
-  TextField
+  TextField,
+  Snackbar
 } from '@mui/material';
 import {
   PlayArrow as ActivateIcon,
   Phone as PhoneIcon
 } from '@mui/icons-material';
 import { useProcessSimReplacementRequestMutation } from '../../store/slices/simReplacementSlice';
+import { useCheckPaymentBeforeActivationMutation } from '../../store/slices/lineReservationsSlice';
 
 const RequestActivationButton = ({ client, size = "medium" }) => {
   const [showDialog, setShowDialog] = useState(false);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentCheckResult, setPaymentCheckResult] = useState(null);
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   const [processSimReplacementRequest] = useProcessSimReplacementRequestMutation();
+  const [checkPaymentBeforeActivation] = useCheckPaymentBeforeActivationMutation();
+
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({
+      open: true,
+      message,
+      severity
+    });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
 
   // Vérifier si c'est éligible pour demande d'activation
   const canRequestActivation = client?.canRequestActivation === true;
@@ -34,27 +52,59 @@ const RequestActivationButton = ({ client, size = "medium" }) => {
 
   const handleRequestActivation = async () => {
     setIsSubmitting(true);
+    setAttemptCount(prev => prev + 1);
+
     try {
-      // Utiliser l'action 'order_new_sim' pour déclencher une demande d'activation
-      const result = await processSimReplacementRequest({
+      // 🔄 ÉTAPE 1: Vérifier le paiement avant activation
+      console.log('🔍 Vérification paiement avant activation...');
+      const paymentCheck = await checkPaymentBeforeActivation({
         phoneId: client.id,
-        action: 'order_new_sim', // Même action mais contexte différent
-        reason: isPausedLine ? 'reactivation_after_pause' : 'reactivation_after_termination',
-        notes: notes || `Demande réactivation - ${isPausedLine ? 'Après pause' : 'Après résiliation'}`,
-        billing: null // Pas de facturation pour la demande
+        clientId: client.userId || client.user?.id
       }).unwrap();
 
-      console.log('✅ Demande d\'activation créée:', result);
+      console.log('💰 Résultat vérification paiement:', paymentCheck);
+      setPaymentCheckResult(paymentCheck);
 
-      // Fermer le modal
-      setShowDialog(false);
+      // 🎯 CAS 1: Paiement OK → Procéder à l'activation
+      if (paymentCheck.canActivate) {
+        showSnackbar('✅ Paiement vérifié - Envoi de la demande d\'activation', 'success');
 
-      // Réinitialiser le formulaire
-      setNotes('');
+        const result = await processSimReplacementRequest({
+          phoneId: client.id,
+          action: 'order_new_sim',
+          reason: isPausedLine ? 'reactivation_after_pause' : 'reactivation_after_termination',
+          notes: notes || `Demande réactivation - ${isPausedLine ? 'Après pause' : 'Après résiliation'}`,
+          billing: null
+        }).unwrap();
+
+        console.log('✅ Demande d\'activation créée:', result);
+        setShowDialog(false);
+        setNotes('');
+        showSnackbar('📋 Demande d\'activation envoyée avec succès !', 'success');
+
+      } else {
+        // 🚨 CAS 2 & 3: Problème de paiement → Notifications persistantes
+        if (paymentCheck.currentMonthStatus === 'INVOICE_EXISTS') {
+          // Facture existe mais pas payée - Notification persistante à chaque tentative
+          const message = attemptCount === 1
+            ? `⚠️ Facture impayée de ${paymentCheck.currentMonthInvoice?.amount}€. Prorata ajusté.`
+            : `🚫 Facture ${paymentCheck.currentMonthInvoice?.invoiceNumber} toujours impayée ! Veuillez facturer le client de ${paymentCheck.currentMonthInvoice?.amount}€ (tentative ${attemptCount})`;
+
+          showSnackbar(message, 'error');
+        } else if (paymentCheck.currentMonthStatus === 'INVOICE_GENERATED') {
+          // Facture générée - Notification persistante à chaque tentative
+          const message = attemptCount === 1
+            ? `💰 Facture créée: ${paymentCheck.currentMonthInvoice?.amount}€ (prorata du ${new Date().getDate()}/${new Date().getMonth() + 1})`
+            : `📋 RAPPEL : Facturez le client de ${paymentCheck.currentMonthInvoice?.amount}€ (facture ${paymentCheck.currentMonthInvoice?.invoiceNumber}) avant la prochaine tentative ! (tentative ${attemptCount})`;
+
+          showSnackbar(message, 'warning');
+        }
+        // Le modal reste ouvert pour afficher les détails de paiement
+      }
 
     } catch (error) {
-      console.error('❌ Erreur lors de la demande d\'activation:', error);
-      alert('Erreur lors de la demande. Veuillez réessayer.');
+      console.error('❌ Erreur lors de la vérification:', error);
+      showSnackbar('❌ Erreur lors de la vérification de paiement', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -128,6 +178,43 @@ const RequestActivationButton = ({ client, size = "medium" }) => {
               </Typography>
             </Alert>
 
+            {/* 💰 Informations de paiement (si vérification effectuée) */}
+            {paymentCheckResult && !paymentCheckResult.canActivate && (
+              <Alert severity="warning">
+                <Typography variant="h6" gutterBottom>
+                  💰 Paiement requis avant activation
+                </Typography>
+
+                {paymentCheckResult.currentMonthStatus === 'INVOICE_EXISTS' && (
+                  <>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Facture impayée :</strong> {paymentCheckResult.currentMonthInvoice?.invoiceNumber}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Montant ajusté (prorata) :</strong> {paymentCheckResult.currentMonthInvoice?.amount}€
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Veuillez demander le paiement au client avant de relancer la demande.
+                    </Typography>
+                  </>
+                )}
+
+                {paymentCheckResult.currentMonthStatus === 'INVOICE_GENERATED' && (
+                  <>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Nouvelle facture créée :</strong> {paymentCheckResult.currentMonthInvoice?.invoiceNumber}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Montant (prorata) :</strong> {paymentCheckResult.currentMonthInvoice?.amount}€
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Facturez le client puis relancez la demande d'activation.
+                    </Typography>
+                  </>
+                )}
+              </Alert>
+            )}
+
             {/* Notes */}
             <TextField
               label="Motif de la demande (optionnel)"
@@ -157,7 +244,11 @@ const RequestActivationButton = ({ client, size = "medium" }) => {
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={() => setShowDialog(false)}>
+          <Button onClick={() => {
+            setShowDialog(false);
+            setPaymentCheckResult(null);
+            setAttemptCount(0);
+          }}>
             Annuler
           </Button>
           <Button
@@ -167,10 +258,28 @@ const RequestActivationButton = ({ client, size = "medium" }) => {
             disabled={isSubmitting}
             startIcon={isSubmitting ? <CircularProgress size={20} /> : <PhoneIcon />}
           >
-            {isSubmitting ? 'Envoi en cours...' : 'Envoyer la demande'}
+            {isSubmitting ? 'Vérification...' :
+             paymentCheckResult && !paymentCheckResult.canActivate ? 'Relancer la demande' :
+             'Envoyer la demande'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* MUI Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 };

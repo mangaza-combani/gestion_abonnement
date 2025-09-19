@@ -84,6 +84,15 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
       ]
     }),
 
+    // Vérifier le paiement avant demande d'activation
+    checkPaymentBeforeActivation: builder.mutation({
+      query: ({ phoneId, clientId }) => ({
+        url: '/api/line-reservations/check-payment-before-activation',
+        method: 'POST',
+        body: { phoneId, clientId }
+      })
+    }),
+
     // Activer une ligne avec une carte SIM
     activateWithSim: builder.mutation({
       query: ({ phoneId, iccid, clientId }) => ({
@@ -227,6 +236,7 @@ export const {
   useReserveLineMutation,
   useReserveExistingLineMutation,
   useCancelReservationMutation,
+  useCheckPaymentBeforeActivationMutation, // 🆕 Vérification paiement
   useActivateWithSimMutation,
   useGetPendingLineRequestsQuery,
   useReserveExistingLineRequestMutation,
