@@ -248,48 +248,6 @@ const ActivateTab = ({
 
   return (
     <Stack spacing={3}>
-      {/* Notifications des nouvelles réceptions SIM */}
-      {newReceptions && newReceptions.length > 0 && (
-        <Alert 
-          severity="info" 
-          icon={<NotificationsIcon />}
-          sx={{ 
-            backgroundColor: '#E8F5E8',
-            borderColor: '#4CAF50',
-            '& .MuiAlert-icon': {
-              color: '#4CAF50'
-            }
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-            🎉 Nouvelles cartes SIM reçues !
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            Les agences suivantes ont déclaré de nouvelles réceptions de cartes SIM :
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            {newReceptions.map((reception, index) => (
-              <Chip
-                key={index}
-                icon={<CheckCircleIcon />}
-                label={`${reception.agencyName} (+${reception.count})`}
-                color="success"
-                variant="outlined"
-                size="small"
-                sx={{
-                  fontWeight: 'bold',
-                  '& .MuiChip-icon': {
-                    color: '#4CAF50'
-                  }
-                }}
-              />
-            ))}
-          </Stack>
-          <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
-            Vous pouvez maintenant activer des lignes avec ces nouvelles cartes SIM disponibles.
-          </Typography>
-        </Alert>
-      )}
 
       {/* Interface de recherche pour clients à activer */}
       <ClientSearch

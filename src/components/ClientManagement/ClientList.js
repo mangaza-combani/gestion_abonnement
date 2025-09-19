@@ -154,7 +154,16 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                 onClick={() => onClientSelect(client)}
                 onMouseEnter={() => setHoveredRow(client.id)}
                 onMouseLeave={() => setHoveredRow(null)}
-                sx={{ cursor: 'pointer', position: 'relative' }}
+                sx={{
+                  cursor: 'pointer',
+                  position: 'relative',
+                  '&.Mui-selected': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+                  },
+                  '&.Mui-selected:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+                  }
+                }}
               >
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

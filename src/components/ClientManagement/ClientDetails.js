@@ -190,13 +190,7 @@ const SubscriptionCard = ({ client, simCard }) => {
   };
 
   // Utiliser les vraies données d'abonnement si disponibles
-  const subscriptionFeatures = isWaitingForActivation ? getActivationMessage() : activeSubscription ? [
-    `📱 ${activeSubscription.name}`,
-    `📊 ${activeSubscription.dataSummary || 'Données illimitées'}`,
-    `💰 ${activeSubscription.formattedTotalPrice || totalMonthlyPrice.toFixed(2) + ' EUR'}`,
-    ...(activeSubscription.hasEquipment ? [activeSubscription.equipmentInfo || '📦 Équipement inclus'] : []),
-    `🔄 Type: ${activeSubscription.subscriptionType}`,
-  ] : features || [];
+  const subscriptionFeatures = isWaitingForActivation ? getActivationMessage() : [];
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('fr-FR');

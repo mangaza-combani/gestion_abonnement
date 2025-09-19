@@ -32,7 +32,12 @@ const OrderSimButton = ({ client, size = "medium" }) => {
   const [orderReplacementSim] = useOrderReplacementSimMutation();
 
   // Vérifier si c'est une ligne éligible pour commander SIM
-  const canOrderSim = client?.isPausedForLostSim === true;
+  // 🆕 Logique mise à jour pour détecter SIM perdue sans commande de remplacement
+  const canOrderSim = client?.isPausedForLostSim === true ||
+                     client?.pendingBlockReason === 'lost_sim_no_replacement' ||
+                     (client?.simCard?.status === 'INACTIVE' &&
+                      client?.simCard?.reportReason === 'SUPERVISOR_CONFIRMED_BLOCKING' &&
+                      !client?.replacementSimOrdered);
 
   const handleOrderSim = async () => {
     if (!paymentMethod || !amount) {

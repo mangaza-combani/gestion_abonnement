@@ -41,6 +41,7 @@ import { useWhoIAmQuery } from "../../store/slices/authSlice";
 
 import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
 import SimLostModal from './SimLostModal';
+import OrderSimButton from './OrderSimButton';
 import { PHONE_STATUS, TAB_TYPES } from './constant';
 
 const ClientActions = ({client, currentTab}) => {
@@ -373,23 +374,33 @@ const ClientActions = ({client, currentTab}) => {
         const phoneStatus = client?.phoneStatus;
         const paymentStatus = client?.paymentStatus;
         const isLineActive = phoneStatus === PHONE_STATUS.ACTIVE;
-        const isLineSuspended = phoneStatus === PHONE_STATUS.SUSPENDED || 
-                               phoneStatus === PHONE_STATUS.BLOCKED || 
+        const isLineSuspended = phoneStatus === PHONE_STATUS.SUSPENDED ||
+                               phoneStatus === PHONE_STATUS.BLOCKED ||
                                phoneStatus === PHONE_STATUS.PAUSED;
-        
+
+        // 🆕 Détecter ligne avec SIM inactive due à perte/vol SANS commande de remplacement
+        const isLostSimNoReplacement = client?.pendingBlockReason === 'lost_sim_no_replacement' ||
+                                      (client?.simCard?.status === 'INACTIVE' &&
+                                       client?.simCard?.reportReason === 'SUPERVISOR_CONFIRMED_BLOCKING' &&
+                                       !client?.replacementSimOrdered);
+
         // Nouvelles logiques d'activation
-        const isBlockedForNonPayment = phoneStatus === PHONE_STATUS.BLOCKED && 
+        const isBlockedForNonPayment = phoneStatus === PHONE_STATUS.BLOCKED &&
                                        ['BLOCKED_NONPAYMENT', 'PAST_DUE'].includes(paymentStatus);
         const isPausedLine = phoneStatus === PHONE_STATUS.PAUSED;
         const canRequestActivation = (isPausedLine && paymentStatus === 'À JOUR') ||
                                     (isBlockedForNonPayment && paymentStatus === 'À JOUR');
-        
+
         // Masquer le bouton si problème de paiement : bloqué pour impayé OU en retard OU en dette
         const hasPaymentIssues = ['EN RETARD', 'DETTE'].includes(paymentStatus);
         const hideActivateButton = (isBlockedForNonPayment && paymentStatus !== 'À JOUR') || hasPaymentIssues;
-        
+
         const needsActivation = phoneStatus === PHONE_STATUS.INACTIVE ||
                                (isLineSuspended && !hideActivateButton);
+
+        // 🆕 Priorité au bouton "Commander SIM" si SIM perdue sans remplacement
+        const shouldShowOrderSimButton = isLostSimNoReplacement && !hideActivateButton;
+        const shouldShowActivateButton = needsActivation && !hideActivateButton && !shouldShowOrderSimButton;
 
         // Logique pour masquer les actions selon le rôle et l'onglet
         const shouldShowActions = () => {
@@ -430,8 +441,13 @@ const ClientActions = ({client, currentTab}) => {
                                             Facturer
                                     </Button>
                                     
-                                    {/* Bouton Activer - Seulement si la ligne n'est pas active ET pas bloquée pour impayé */}
-                                    {needsActivation && !hideActivateButton && (
+                                    {/* 🆕 Bouton Commander SIM - Priorité pour lignes avec SIM perdue sans remplacement */}
+                                    {shouldShowOrderSimButton && (
+                                        <OrderSimButton client={client} />
+                                    )}
+
+                                    {/* Bouton Activer - Seulement si pas de SIM perdue sans remplacement */}
+                                    {shouldShowActivateButton && (
                                         <Button
                                             fullWidth
                                             variant="contained"

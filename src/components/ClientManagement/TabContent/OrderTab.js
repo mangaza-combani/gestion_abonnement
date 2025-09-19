@@ -28,6 +28,7 @@ import ClientSearch from '../ClientSearch';
 import ClientList from '../ClientList';
 import RedAccountManagement from '../../RedAccountManagement';
 import ConfirmSimOrderModal from '../ConfirmSimOrderModal';
+import ConfirmReplacementSimModal from '../ConfirmReplacementSimModal';
 import NewLineDialog from '../../AccountManagement/NewLineDialog';
 import { useGetRedAccountsQuery } from '../../../store/slices/redAccountsSlice';
 import { useGetAvailableLinesQuery } from '../../../store/slices/lineReservationsSlice';
@@ -36,7 +37,12 @@ import { PHONE_STATUS } from '../constant';
 
 // Fonction pour détecter si c'est un remplacement SIM
 const isSimReplacementClient = (client) => {
-  // Vérifier les notes de la LineRequest pour détecter REPLACEMENT_SIM
+  // 🆕 CAS 1: Nouvelle structure avec orderType (SIM commandées via "Commander SIM")
+  if (client?.orderType === 'REPLACEMENT_SIM') {
+    return true;
+  }
+
+  // CAS 2: Vérifier les notes de la LineRequest pour détecter REPLACEMENT_SIM (cas existants)
   const hasReplacementNotes = client?.notes && client.notes.includes('REPLACEMENT_SIM');
   const hasSimLostNotes = client?.notes && (
     client.notes.toLowerCase().includes('sim perdue') ||
@@ -238,20 +244,44 @@ const OrderTab = ({
   const filteredClients = React.useMemo(() => {
     if (!clients || !Array.isArray(clients)) return [];
 
+    console.log('🔍 DEBUG Filtering - Type sélectionné:', selectedFilter);
+    console.log('🔍 DEBUG Filtering - Clients avant filtre:', clients.length);
+
+    let filtered = [];
     switch (selectedFilter) {
       case 'new':
-        return clients.filter(client => !isSimReplacementClient(client));
+        // Filtrer pour ne garder que les nouveaux clients (LineRequests)
+        filtered = clients.filter(client => {
+          const isNewClient = client.lineRequestId && !isSimReplacementClient(client);
+          console.log(`Client ${client.id}: lineRequestId=${client.lineRequestId}, isSimReplacement=${isSimReplacementClient(client)}, isNewClient=${isNewClient}`);
+          return isNewClient;
+        });
+        break;
       case 'replacement':
-        return clients.filter(client => isSimReplacementClient(client));
+        // Filtrer pour ne garder que les remplacements SIM
+        filtered = clients.filter(client => {
+          const isReplacement = isSimReplacementClient(client);
+          console.log(`Client ${client.id}: isSimReplacement=${isReplacement}, orderType=${client.orderType}`);
+          return isReplacement;
+        });
+        break;
       case 'all':
       default:
-        return clients;
+        filtered = clients;
+        break;
     }
+
+    console.log('🔍 DEBUG Filtering - Clients après filtre:', filtered.length);
+    return filtered;
   }, [clients, selectedFilter]);
   // States pour la modal de confirmation SIM
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [selectedLineRequest, setSelectedLineRequest] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // States pour la modal de confirmation SIM de remplacement
+  const [confirmReplacementModalOpen, setConfirmReplacementModalOpen] = useState(false);
+  const [selectedReplacementClient, setSelectedReplacementClient] = useState(null);
 
   // States pour la modal de création de ligne
   const [newLineModalOpen, setNewLineModalOpen] = useState(false);
@@ -276,8 +306,18 @@ const OrderTab = ({
 
   // Handlers pour la confirmation de commande SIM
   const handleConfirmSimOrder = (lineRequest) => {
-    setSelectedLineRequest(lineRequest);
-    setConfirmModalOpen(true);
+    console.log('🔍 DEBUG handleConfirmSimOrder - lineRequest:', lineRequest);
+
+    // Vérifier si c'est un remplacement SIM
+    if (isSimReplacementClient(lineRequest)) {
+      console.log('🔄 Ouverture modal remplacement SIM');
+      setSelectedReplacementClient(lineRequest);
+      setConfirmReplacementModalOpen(true);
+    } else {
+      console.log('📱 Ouverture modal nouvelle ligne');
+      setSelectedLineRequest(lineRequest);
+      setConfirmModalOpen(true);
+    }
   };
 
   const handleModalClose = (success) => {
@@ -286,6 +326,16 @@ const OrderTab = ({
 
     if (success) {
       setSuccessMessage('Commande SIM confirmée avec succès! Elle sera traitée par l\'équipe logistique.');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    }
+  };
+
+  const handleReplacementModalClose = (success) => {
+    setConfirmReplacementModalOpen(false);
+    setSelectedReplacementClient(null);
+
+    if (success) {
+      setSuccessMessage('Commande SIM de remplacement confirmée avec succès! La ligne va passer dans "À ACTIVER".');
       setTimeout(() => setSuccessMessage(''), 5000);
     }
   };
@@ -319,11 +369,13 @@ const OrderTab = ({
       console.log('🔍 DEBUG OrderTab - Pas de clients ou clients non array:', clients);
       return {
         needsToBeOrdered: 0,
+        simReplacementCount: 0,
         reservedExisting: 0,
         reservedNew: 0,
         needsNewAccount: 0,
         linesInDelivery: 0,
-        availableAccounts: 0
+        totalPending: 0,
+        loading: false
       };
     }
 
@@ -331,49 +383,44 @@ const OrderTab = ({
     clients.forEach((client, index) => {
       console.log(`Client ${index}:`, {
         id: client.id,
+        lineRequestId: client.lineRequestId,
+        phoneId: client.phoneId,
+        orderType: client.orderType,
         agencyId: client.agencyId,
-        phoneStatus: client.phoneStatus,
         user: client.user
       });
     });
 
-    // Statistiques basées sur les vrais statuts et types de demande
-    const allNeedsToBeOrdered = clients.filter(client =>
-      client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ORDERED
+    // Séparer les types de demandes dans "À COMMANDER"
+    const newClientRequests = clients.filter(client =>
+      client.lineRequestId && !isSimReplacementClient(client)
     );
 
-    // Séparer nouveaux clients et remplacements SIM
-    const newClients = allNeedsToBeOrdered.filter(client => !isSimReplacementClient(client));
-    const simReplacements = allNeedsToBeOrdered.filter(client => isSimReplacementClient(client));
+    const simReplacementRequests = clients.filter(client =>
+      isSimReplacementClient(client)
+    );
 
-    const needsToBeOrdered = newClients.length;
-    const simReplacementCount = simReplacements.length;
-    
-    const reservedExisting = clients.filter(client => 
-      client?.phoneStatus === PHONE_STATUS.RESERVED_EXISTING_LINE
-    ).length;
-    
-    const reservedNew = clients.filter(client => 
-      client?.phoneStatus === PHONE_STATUS.RESERVED_NEW_LINE
-    ).length;
-    
-    const needsNewAccount = clients.filter(client => 
-      client?.phoneStatus === PHONE_STATUS.NEEDS_NEW_ACCOUNT
-    ).length;
+    const needsToBeOrdered = newClientRequests.length;
+    const simReplacementCount = simReplacementRequests.length;
+
+    // Les autres statuts ne sont pas pertinents dans l'onglet "À COMMANDER"
+    // car il ne contient que les demandes en attente de confirmation superviseur
+    const reservedExisting = 0;
+    const reservedNew = 0;
+    const needsNewAccount = 0;
 
     // Identifier l'agence des clients en cours
     const currentAgencyIds = [...new Set(clients.map(client => client?.agencyId).filter(Boolean))];
     console.log('🏢 DEBUG OrderTab - AgencyIds extraits:', clients.map(client => client?.agencyId));
     console.log('🏢 DEBUG OrderTab - AgencyIds après Set:', currentAgencyIds);
-    
+
     // Filtrer les lignes en livraison pour cette/ces agence(s) uniquement
-    // Les lignes avec agencyId null sont des lignes libres (disponibles pour toutes les agences)
-    const filteredLinesInDelivery = (availableLines || []).filter(line => 
+    const filteredLinesInDelivery = (availableLines || []).filter(line =>
       line.agencyId === null || currentAgencyIds.includes(line.agencyId)
     );
-    
+
     const linesInDelivery = !linesLoading ? filteredLinesInDelivery.length : 0;
-    
+
     return {
       needsToBeOrdered,
       simReplacementCount,
@@ -381,12 +428,40 @@ const OrderTab = ({
       reservedNew,
       needsNewAccount,
       linesInDelivery,
-      totalPending: needsToBeOrdered + simReplacementCount + reservedExisting + reservedNew + needsNewAccount,
+      totalPending: needsToBeOrdered + simReplacementCount,
       loading: accountsLoading
     };
   };
 
   const stats = getStatistics();
+
+  // Statistiques filtrées selon le filtre sélectionné
+  const getFilteredStats = () => {
+    const filteredStats = {
+      needsToBeOrdered: 0,
+      simReplacementCount: 0,
+      totalDisplayed: filteredClients.length
+    };
+
+    if (selectedFilter === 'all') {
+      return {
+        ...stats,
+        totalDisplayed: filteredClients.length
+      };
+    } else if (selectedFilter === 'new') {
+      filteredStats.needsToBeOrdered = filteredClients.length;
+    } else if (selectedFilter === 'replacement') {
+      filteredStats.simReplacementCount = filteredClients.length;
+    }
+
+    return {
+      ...stats,
+      ...filteredStats,
+      totalDisplayed: filteredClients.length
+    };
+  };
+
+  const displayStats = getFilteredStats();
 
   return (
     <Stack spacing={3}>
@@ -399,7 +474,10 @@ const OrderTab = ({
               <Stack direction="row" spacing={1} alignItems="center">
                 <PersonAddIcon color="primary" fontSize="small" />
                 <Box>
-                  <Typography variant="h6" fontWeight="bold">{stats.needsToBeOrdered}</Typography>
+                  <Typography variant="h6" fontWeight="bold">
+                    {selectedFilter === 'all' ? stats.needsToBeOrdered :
+                     selectedFilter === 'new' ? displayStats.totalDisplayed : stats.needsToBeOrdered}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
                     Nouveaux clients
                   </Typography>
@@ -416,7 +494,10 @@ const OrderTab = ({
               <Stack direction="row" spacing={1} alignItems="center">
                 <PhoneIcon color="error" fontSize="small" />
                 <Box>
-                  <Typography variant="h6" fontWeight="bold">{stats.simReplacementCount}</Typography>
+                  <Typography variant="h6" fontWeight="bold">
+                    {selectedFilter === 'all' ? stats.simReplacementCount :
+                     selectedFilter === 'replacement' ? displayStats.totalDisplayed : stats.simReplacementCount}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
                     Remplacements SIM
                   </Typography>
@@ -469,9 +550,11 @@ const OrderTab = ({
               <Stack direction="row" spacing={1} alignItems="center">
                 <ScheduleIcon color="primary" fontSize="small" />
                 <Box>
-                  <Typography variant="h6" fontWeight="bold">{stats.totalPending}</Typography>
+                  <Typography variant="h6" fontWeight="bold">
+                    {selectedFilter === 'all' ? stats.totalPending : displayStats.totalDisplayed}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary" fontSize="0.75rem">
-                    Total en attente
+                    {selectedFilter === 'all' ? 'Total en attente' : 'Affichés'}
                   </Typography>
                 </Box>
               </Stack>
@@ -561,6 +644,13 @@ const OrderTab = ({
         open={confirmModalOpen}
         onClose={handleModalClose}
         lineRequest={selectedLineRequest}
+      />
+
+      {/* Modal de confirmation de commande SIM de remplacement */}
+      <ConfirmReplacementSimModal
+        open={confirmReplacementModalOpen}
+        onClose={handleReplacementModalClose}
+        client={selectedReplacementClient}
       />
     </Stack>
   );

@@ -77,6 +77,16 @@ export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
       }),
       invalidatesTags: ['ClientToOrder'],
     }),
+
+    // Confirmer commande SIM de remplacement (sans date)
+    confirmReplacementSimOrder: builder.mutation({
+      query: ({ phoneId }) => ({
+        url: `/phones/${phoneId}/confirm-replacement-sim-order`,
+        method: 'POST',
+        body: {},
+      }),
+      invalidatesTags: ['ClientToOrder'],
+    }),
   }),
 });
 
@@ -93,6 +103,7 @@ export const {
   useCreateClientMutation,
   useGetClientsToOrderQuery,
   useConfirmSimOrderMutation,
+  useConfirmReplacementSimOrderMutation,
 } = clientsApiSliceWithPrefix;
 
 // Slice Redux pour la gestion d'état locale des clients
