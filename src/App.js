@@ -5,6 +5,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { Provider } from 'react-redux';
 import CssBaseline from '@mui/material/CssBaseline';
 import { useSelector } from 'react-redux';
+import { useSocket } from './hooks/useSocket';
+import SocketProvider from './components/layout/SocketProvider';
 
 // Theme and Store
 import { theme } from './theme/theme';
@@ -77,7 +79,9 @@ const App = () => {
               path="/"
               element={
                 <ProtectedRoute>
-                  <MainLayout />
+                  <SocketProvider>
+                    <MainLayout />
+                  </SocketProvider>
                 </ProtectedRoute>
               }
             >

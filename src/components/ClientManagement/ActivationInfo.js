@@ -46,6 +46,7 @@ const ActivationInfo = ({ client }) => {
   const [showAttributionDialog, setShowAttributionDialog] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showSimReplacementConfirmDialog, setShowSimReplacementConfirmDialog] = useState(false); // ✅ NOUVEAU
   const [selectedSimCard, setSelectedSimCard] = useState(null);
   const [iccid, setIccid] = useState('');
   const [selectedLine, setSelectedLine] = useState('');
@@ -59,9 +60,11 @@ const ActivationInfo = ({ client }) => {
   const [activationDataPending, setActivationDataPending] = useState(null);
   const [currentMonthInvoice, setCurrentMonthInvoice] = useState(null);
   
-  // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1)
+  // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1) ou pour remplacement SIM (CAS 2)
   const preFilledIccid = client?.preAssignedIccid || client?.activatedWithIccid || client?.user?.activatedWithIccid;
-  const isPreFilledMode = client?.isPreAssigned || !!preFilledIccid;
+  const replacementIccid = client?.replacementSimIccid; // ✅ NOUVEAU: ICCID de remplacement
+  const finalPreFilledIccid = replacementIccid || preFilledIccid; // Prioriser l'ICCID de remplacement
+  const isPreFilledMode = client?.isPreAssigned || !!finalPreFilledIccid;
 
   // Debug: afficher les informations ICCID
   console.log('🔍 DEBUG ICCID - Client data:', {
@@ -69,8 +72,11 @@ const ActivationInfo = ({ client }) => {
     preAssignedIccid: client?.preAssignedIccid,
     activatedWithIccid: client?.activatedWithIccid,
     userActivatedWithIccid: client?.user?.activatedWithIccid,
+    replacementSimIccid: client?.replacementSimIccid, // ✅ NOUVEAU
     preFilledIccid,
+    finalPreFilledIccid, // ✅ NOUVEAU
     isPreFilledMode,
+    isReplacementCase: !!replacementIccid, // ✅ NOUVEAU
     fullClient: client // Structure complète pour debugging
   });
   
@@ -117,8 +123,8 @@ const ActivationInfo = ({ client }) => {
     { skip: !clientAgencyId }
   );
   
-  // Analyse ICCID - utilise l'ICCID pré-rempli ou saisi manuellement
-  const iccidToAnalyze = isPreFilledMode ? preFilledIccid : iccid;
+  // Analyse ICCID - utilise l'ICCID pré-rempli (remplacement prioritaire) ou saisi manuellement
+  const iccidToAnalyze = isPreFilledMode ? finalPreFilledIccid : iccid;
   const shouldAnalyze = isPreFilledMode || (analysisTriggered && iccid && iccid.trim().length >= 8);
   
   const { data: iccidAnalysis, isLoading: isAnalyzing, error: analysisError } = useAnalyzeIccidForSupervisorQuery(
@@ -163,19 +169,20 @@ const ActivationInfo = ({ client }) => {
   console.log('🃏 DEBUG filtrage - filteredSimCards:', filteredSimCards);
   console.log('🃏 DEBUG filtrage - filteredSimCards.length:', filteredSimCards.length);
 
-  // Auto-sélectionner la carte SIM si ICCID pré-rempli (CAS 1)
+  // Auto-sélectionner la carte SIM si ICCID pré-rempli (CAS 1) ou remplacement (CAS 2)
   useEffect(() => {
-    if (isPreFilledMode && preFilledIccid && filteredSimCards.length > 0) {
-      // Chercher la carte SIM correspondant à l'ICCID pré-rempli
-      const matchingSimCard = filteredSimCards.find(sim => sim.iccid === preFilledIccid);
+    if (isPreFilledMode && finalPreFilledIccid && filteredSimCards.length > 0) {
+      // Chercher la carte SIM correspondant à l'ICCID final (remplacement ou pré-rempli)
+      const matchingSimCard = filteredSimCards.find(sim => sim.iccid === finalPreFilledIccid);
       if (matchingSimCard && !selectedSimCard) {
-        console.log('🎯 Auto-sélection carte SIM pour CAS 1:', matchingSimCard.iccid);
+        const caseType = replacementIccid ? 'REMPLACEMENT SIM' : 'PRÉ-REMPLI AGENCE';
+        console.log(`🎯 Auto-sélection carte SIM pour ${caseType}:`, matchingSimCard.iccid);
         setSelectedSimCard(matchingSimCard);
-        setIccid(preFilledIccid);
+        setIccid(finalPreFilledIccid);
         setAnalysisTriggered(true);
       }
     }
-  }, [isPreFilledMode, preFilledIccid, filteredSimCards, selectedSimCard]);
+  }, [isPreFilledMode, finalPreFilledIccid, replacementIccid, filteredSimCards, selectedSimCard]);
 
   // 🔍 Analyser les factures pour identifier la facture du mois courant
   useEffect(() => {
@@ -237,6 +244,36 @@ const ActivationInfo = ({ client }) => {
       setShowConfirmationDialog(false);
     } catch (error) {
       console.error('❌ Erreur lors de la confirmation de réactivation:', error);
+    }
+  };
+
+  // 🆕 Fonction pour confirmer l'activation du remplacement SIM
+  const handleSimReplacementConfirmation = async () => {
+    try {
+      console.log('🔄 Activation remplacement SIM:', {
+        phoneId: client.id,
+        iccid: client.replacementSimIccid,
+        clientId: client?.user?.id || client?.client?.id
+      });
+
+      await activateWithSim({
+        phoneId: client.id,
+        iccid: client.replacementSimIccid,
+        clientId: client?.user?.id || client?.client?.id
+      }).unwrap();
+
+      console.log('✅ Remplacement SIM activé avec succès');
+
+      // Invalider les caches pour mise à jour
+      dispatch(lineReservationsApiSlice.util.invalidateTags([
+        { type: 'Phone', id: client.id },
+        { type: 'Phone', id: 'LIST' },
+        'Phone'
+      ]));
+
+      setShowSimReplacementConfirmDialog(false);
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'activation du remplacement SIM:', error);
     }
   };
 
@@ -715,51 +752,56 @@ const ActivationInfo = ({ client }) => {
         </Box>
         
         <Stack spacing={2}>
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              Client
-            </Typography>
-            <Typography variant="body1" fontWeight="bold">
-              {client?.user?.firstname} {client?.user?.lastname}
-            </Typography>
-          </Box>
+          {/* Informations de base - MASQUÉES pour les remplacements SIM */}
+          {!client?.replacementSimIccid && (
+            <>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Client
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {client?.user?.firstname} {client?.user?.lastname}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Email
+                </Typography>
+                <Typography variant="body1">
+                  {client?.user?.email}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Status
+                </Typography>
+                <Chip
+                  label={client?.user?.phoneStatus || client?.phoneStatus}
+                  size="small"
+                  color="warning"
+                />
+              </Box>
+            </>
+          )}
           
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              Email
-            </Typography>
-            <Typography variant="body1">
-              {client?.user?.email}
-            </Typography>
-          </Box>
-          
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              Status
-            </Typography>
-            <Chip 
-              label={client?.user?.phoneStatus || client?.phoneStatus} 
-              size="small" 
-              color="warning"
-            />
-          </Box>
-          
-          {/* 🆕 Informations sur le type d'activation et la raison */}
-          {(client?.activationType || client?.reactivationReason) && (
+          {/* 🆕 Informations sur le type d'activation et la raison - MASQUÉ pour les remplacements SIM */}
+          {(client?.activationType || client?.reactivationReason) && !client?.replacementSimIccid && (
             <Box>
               <Typography variant="body2" color="text.secondary">
                 Type d'activation
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center">
-                <Chip 
+                <Chip
                   label={
                     client?.activationType === 'NEW_ACTIVATION' ? 'Nouvelle activation' :
                     client?.activationType === 'REACTIVATION_AFTER_PAUSE' ? 'Réactivation (Pause)' :
                     client?.activationType === 'REACTIVATION_AFTER_DEBT' ? 'Réactivation (Impayé)' :
-                    client?.activationType === 'REACTIVATION' ? 'Réactivation' : 
+                    client?.activationType === 'REACTIVATION' ? 'Réactivation' :
                     'Activation'
                   }
-                  size="small" 
+                  size="small"
                   color={client?.activationType === 'NEW_ACTIVATION' ? 'success' : 'info'}
                 />
               </Stack>
@@ -771,28 +813,30 @@ const ActivationInfo = ({ client }) => {
             </Box>
           )}
           
-          {/* Compte RED rattaché */}
-          {(client?.redAccountId || client?.lineRequest?.redAccountId) && (
+          {/* Compte RED rattaché - MASQUÉ pour les remplacements SIM */}
+          {(client?.redAccountId || client?.lineRequest?.redAccountId) && !client?.replacementSimIccid && (
             <Box>
               <Typography variant="body2" color="text.secondary">
                 Compte RED rattaché
               </Typography>
               <Typography variant="body1" fontWeight="bold" color="primary.main">
-                🏢 {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName || 
+                🏢 {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName ||
                      `Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
               </Typography>
             </Box>
           )}
 
-          {/* 🆕 Section Informations de Paiement avec données réelles */}
-          <Divider />
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <PaymentIcon color="primary" fontSize="small" />
-              <Typography variant="body2" color="text.secondary" fontWeight="bold">
-                Informations de Paiement
-              </Typography>
-            </Box>
+          {/* 🆕 Section Informations de Paiement avec données réelles - MASQUÉE pour les remplacements SIM */}
+          {!client?.replacementSimIccid && (
+            <>
+              <Divider />
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <PaymentIcon color="primary" fontSize="small" />
+                  <Typography variant="body2" color="text.secondary" fontWeight="bold">
+                    Informations de Paiement
+                  </Typography>
+                </Box>
 
             <Stack spacing={2}>
               {/* Statut de paiement */}
@@ -914,10 +958,61 @@ const ActivationInfo = ({ client }) => {
                 </Alert>
               )}
             </Stack>
-          </Box>
+              </Box>
+            </>
+          )}
 
-          {/* Bouton d'action conditionnel */}
-          {buttonConfig.show && (
+          {/* 🆕 Section spéciale pour les remplacements SIM avec ICCID reçu */}
+          {client?.replacementSimIccid && isSupervisor && (
+            <Paper sx={{ p: 2, bgcolor: 'success.lighter', border: '2px solid', borderColor: 'success.main', mb: 2 }}>
+              <Typography variant="subtitle2" color="success.main" fontWeight="bold" gutterBottom>
+                🔄 Remplacement SIM - Prêt à activer
+              </Typography>
+
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    SIM de remplacement reçue :
+                  </Typography>
+                  <Typography variant="body1" fontWeight="bold" color="success.main">
+                    📱 {client.replacementSimIccid}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Numéro à activer :
+                  </Typography>
+                  <Typography variant="body1" fontWeight="bold">
+                    📞 {client?.phoneNumber}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Compte RED rattaché :
+                  </Typography>
+                  <Typography variant="body1" fontWeight="bold" color="primary.main">
+                    🏢 {client?.redAccountName || client?.redAccount?.accountName || `Compte ${client?.redAccountId}`}
+                  </Typography>
+                </Box>
+
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<CheckIcon />}
+                  onClick={() => setShowSimReplacementConfirmDialog(true)}
+                  fullWidth
+                  size="large"
+                >
+                  ✅ Confirmer l'activation SIM de remplacement
+                </Button>
+              </Stack>
+            </Paper>
+          )}
+
+          {/* Bouton d'action conditionnel - MASQUÉ pour les remplacements SIM */}
+          {buttonConfig.show && !client?.replacementSimIccid && (
             <Button
               variant="contained"
               color={buttonConfig.color}
@@ -929,8 +1024,8 @@ const ActivationInfo = ({ client }) => {
             </Button>
           )}
 
-          {/* ✅ NOUVEAUX MESSAGES BASÉS SUR LES PROPRIÉTÉS API */}
-          {!buttonConfig.show && (
+          {/* ✅ NOUVEAUX MESSAGES BASÉS SUR LES PROPRIÉTÉS API - MASQUÉS pour les remplacements SIM */}
+          {!buttonConfig.show && !client?.replacementSimIccid && (
             <Alert severity={
               canActivateNow ? 'success' :
               needsPaymentFirst ? 'warning' :
@@ -944,10 +1039,10 @@ const ActivationInfo = ({ client }) => {
                 ) : canActivateNow && isAgency ? (
                   <>
                     ✅ Paiement effectué - En attente d'activation par le superviseur
-                    {preFilledIccid && (
+                    {finalPreFilledIccid && (
                       <Box sx={{ mt: 1, p: 1, bgcolor: 'success.lighter', borderRadius: 1 }}>
                         <Typography variant="body2" fontWeight="bold" color="success.main">
-                          📱 SIM assignée: {preFilledIccid}
+                          📱 SIM assignée: {finalPreFilledIccid}
                         </Typography>
                       </Box>
                     )}
@@ -1772,6 +1867,68 @@ const ActivationInfo = ({ client }) => {
               isSupervisor ? 'Confirmer paiement et activer' :
               'Confirmer paiement (encaissement)'
             }
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 🆕 Modal de confirmation pour remplacement SIM */}
+      <Dialog
+        open={showSimReplacementConfirmDialog}
+        onClose={() => setShowSimReplacementConfirmDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckIcon color="success" />
+            Confirmer l'activation SIM de remplacement
+          </Box>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <Alert severity="info">
+              <Typography variant="body1" gutterBottom>
+                <strong>Client :</strong> {client?.user?.firstname} {client?.user?.lastname}
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                <strong>Numéro :</strong> {client?.phoneNumber}
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                <strong>SIM de remplacement :</strong> {client?.replacementSimIccid}
+              </Typography>
+              <Typography variant="body1">
+                <strong>Compte RED :</strong> {client?.redAccountName || client?.redAccount?.accountName || `Compte ${client?.redAccountId}`}
+              </Typography>
+            </Alert>
+
+            <Paper sx={{ p: 2, bgcolor: 'warning.lighter', border: '1px solid', borderColor: 'warning.main' }}>
+              <Typography variant="h6" color="warning.main" gutterBottom>
+                ⚠️ Confirmation requise
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Avez-vous bien activé cette SIM de remplacement sur le compte RED ?
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                En confirmant, l'ancienne SIM sera définitivement désactivée et la nouvelle SIM sera activée sur ce numéro.
+              </Typography>
+            </Paper>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setShowSimReplacementConfirmDialog(false)}>
+            Annuler
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleSimReplacementConfirmation}
+            disabled={isActivating}
+            startIcon={isActivating ? <CircularProgress size={20} /> : <CheckIcon />}
+            size="large"
+          >
+            {isActivating ? 'Activation en cours...' : 'Oui, confirmer l\'activation'}
           </Button>
         </DialogActions>
       </Dialog>

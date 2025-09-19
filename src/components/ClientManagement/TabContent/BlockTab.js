@@ -4,6 +4,7 @@ import { ViewList as ListViewIcon, AccountTree as GroupViewIcon } from '@mui/ico
 import ClientSearch from '../ClientSearch';
 import ClientList from '../ClientList';
 import GroupedBlockList from '../GroupedBlockList';
+import SimReplacementConfirmations from '../SimReplacementConfirmations';
 
 
 const BlockTab = ({
@@ -60,6 +61,17 @@ const BlockTab = ({
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
+
+      {/* Composant de confirmations SIM si client sélectionné */}
+      {selectedClient && (
+        <SimReplacementConfirmations
+          client={selectedClient}
+          onConfirmed={(result) => {
+            console.log('Confirmations SIM enregistrées:', result);
+            // Le client va automatiquement disparaître grâce à l'invalidation des tags RTK Query
+          }}
+        />
+      )}
 
       {/* Affichage selon le mode sélectionné */}
       {viewMode === 'grouped' ? (

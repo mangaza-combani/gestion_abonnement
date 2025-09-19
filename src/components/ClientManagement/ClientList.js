@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Card, 
-  TableContainer, 
-  Table, 
-  TableHead, 
-  TableBody, 
-  TableRow, 
+import {
+  Card,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
   TableCell,
   Button,
   Chip,
@@ -14,7 +14,7 @@ import {
   Tooltip,
   Typography
 } from '@mui/material';
-import { 
+import {
   MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -24,6 +24,9 @@ import {
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
+import SimReplacementReceivedButton from './SimReplacementReceivedButton';
+import OrderSimButton from './OrderSimButton'; // 🆕 BOUTON COMMANDER SIM
+import RequestActivationButton from './RequestActivationButton'; // 🆕 BOUTON DEMANDE ACTIVATION
 
 // Fonction pour obtenir la couleur du statut de ligne
 const getPhoneStatusColor = (phoneStatus) => {
@@ -111,22 +114,34 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
   // Déterminer si on doit afficher la colonne de raison de blocage
   const showBlockReason = action === 'block';
 
+  // Déterminer si on doit afficher la colonne action pour l'onglet activate
+  const showActivateActions = action === 'activate';
+
+  // 🆕 Déterminer si on doit afficher les actions pour l'onglet liste des lignes
+  const showListActions = action === 'list' || action === 'ALL_LINES';
+
   return (
     <Card sx={{ flex: 1 }}>
       <TableContainer>
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: isOrderView ? '20%' : (showBlockReason ? '20%' : '20%') }}>NOM</TableCell>
-              <TableCell sx={{ width: isOrderView ? '20%' : (showBlockReason ? '20%' : '20%') }}>PRENOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '20%' : (showBlockReason ? '20%' : (showActivateActions ? '18%' : '20%')) }}>NOM</TableCell>
+              <TableCell sx={{ width: isOrderView ? '20%' : (showBlockReason ? '20%' : (showActivateActions ? '18%' : '20%')) }}>PRENOM</TableCell>
               {isOrderView && (
                 <TableCell sx={{ width: '15%' }}>TELEPHONE</TableCell>
               )}
-              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : '20%') }}>COMPTE RED</TableCell>
+              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : (showActivateActions ? '16%' : '20%')) }}>COMPTE RED</TableCell>
               <TableCell sx={{ width: '15%' }}>STATUT LIGNE</TableCell>
               <TableCell sx={{ width: '15%' }}>STATUT PAIEMENT</TableCell>
               {showBlockReason && (
                 <TableCell sx={{ width: '15%' }}>RAISON DU BLOCAGE</TableCell>
+              )}
+              {showActivateActions && (
+                <TableCell sx={{ width: '18%' }}>ACTION</TableCell>
+              )}
+              {showListActions && (
+                <TableCell sx={{ width: '18%' }}>ACTION</TableCell>
               )}
             </TableRow>
           </TableHead>
@@ -222,6 +237,38 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                       />
                     ) : (
                       <Typography variant="caption" color="text.secondary">N/A</Typography>
+                    )}
+                  </TableCell>
+                )}
+                {showActivateActions && (
+                  <TableCell sx={{ padding: '4px 8px' }}>
+                    <SimReplacementReceivedButton
+                      client={client}
+                      disabled={false}
+                      size="small"
+                    />
+                  </TableCell>
+                )}
+                {showListActions && (
+                  <TableCell sx={{ padding: '4px 8px' }}>
+                    {/* 🆕 Logique pour afficher le bon bouton selon le cas */}
+                    {client?.isPausedForLostSim && (
+                      <OrderSimButton
+                        client={client}
+                        size="small"
+                      />
+                    )}
+                    {client?.canRequestActivation && (
+                      <RequestActivationButton
+                        client={client}
+                        size="small"
+                      />
+                    )}
+                    {/* Si aucun cas spécial, pas de bouton */}
+                    {!client?.isPausedForLostSim && !client?.canRequestActivation && (
+                      <Typography variant="caption" color="text.secondary">
+                        Aucune action disponible
+                      </Typography>
                     )}
                   </TableCell>
                 )}

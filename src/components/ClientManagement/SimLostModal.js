@@ -26,12 +26,13 @@ import {
     PauseCircle as PauseIcon,
     Euro as EuroIcon
 } from '@mui/icons-material';
+import { useProcessSimReplacementRequestMutation } from '../../store/slices/simReplacementSlice';
 
-const SimLostModal = ({ 
-    open, 
-    onClose, 
-    client, 
-    onConfirm 
+const SimLostModal = ({
+    open,
+    onClose,
+    client,
+    onConfirm
 }) => {
     const [selectedOption, setSelectedOption] = useState('');
     const [notes, setNotes] = useState('');
@@ -39,12 +40,15 @@ const SimLostModal = ({
     const [customAmount, setCustomAmount] = useState('10.00');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Utiliser la nouvelle mutation
+    const [processSimReplacement] = useProcessSimReplacementRequestMutation();
+
     // Coût fixe pour une nouvelle SIM
     const SIM_COST = 10.00;
 
     const handleConfirm = async () => {
         if (!selectedOption) return;
-        
+
         // Validation pour la commande de nouvelle SIM
         if (selectedOption === 'order_new_sim' && !paymentMethod) {
             alert('Veuillez sélectionner un moyen de paiement pour la nouvelle SIM');
@@ -54,6 +58,7 @@ const SimLostModal = ({
         setIsSubmitting(true);
         try {
             const payload = {
+                phoneId: client.id,
                 action: selectedOption,
                 notes: notes.trim() || 'SIM perdue/volée/endommagée',
                 reason: 'lost_sim'
@@ -68,10 +73,20 @@ const SimLostModal = ({
                 };
             }
 
-            await onConfirm(payload);
+            // Utiliser la nouvelle mutation RTK Query
+            const result = await processSimReplacement(payload).unwrap();
+
+            console.log('✅ Demande de remplacement SIM envoyée:', result);
+
+            // Appeler onConfirm si fourni (pour compatibilité)
+            if (onConfirm) {
+                await onConfirm(payload);
+            }
+
             handleClose();
         } catch (error) {
             console.error('Erreur lors du traitement SIM perdue:', error);
+            alert('Erreur lors de l\'envoi de la demande. Veuillez réessayer.');
         } finally {
             setIsSubmitting(false);
         }

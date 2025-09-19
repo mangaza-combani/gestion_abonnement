@@ -199,20 +199,26 @@ const ActivateTab = ({
 
     // 🔄 TRANSITIONS INTELLIGENTES :
 
-    // Si stock disponible + clients en attente → switch vers paiement ou prêt
-    if (totalAvailableSims > 0 && (activationFilter === 'waiting' || activationFilter === 'all')) {
-      if (clientsNeedingPayment.length > 0) {
-        console.log('🔄 AUTO-SWITCH: Stock SIM disponible → clients doivent payer → "À payer"')
-        setActivationFilter('to_pay')
-      } else if (clientsReadyToActivate.length > 0) {
-        console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients prêts → "Prêt à activer"')
-        setActivationFilter('ready')
+    // ⚠️ IMPORTANT: Ne pas forcer le switch si l'utilisateur a sélectionné manuellement un filtre
+    // Cela permet de voir les lignes de remplacement SIM qui restent "en attente"
+
+    // Seulement faire l'auto-switch si on est sur "all" (pas de sélection manuelle)
+    if (activationFilter === 'all') {
+      // Si stock disponible + clients en attente → switch vers paiement ou prêt
+      if (totalAvailableSims > 0) {
+        if (clientsNeedingPayment.length > 0) {
+          console.log('🔄 AUTO-SWITCH: Stock SIM disponible → clients doivent payer → "À payer"')
+          setActivationFilter('to_pay')
+        } else if (clientsReadyToActivate.length > 0) {
+          console.log('🔄 AUTO-SWITCH: Stock SIM disponible + clients prêts → "Prêt à activer"')
+          setActivationFilter('ready')
+        }
       }
-    }
-    // Si plus de stock → retour en attente
-    else if (totalAvailableSims === 0 && activationFilter === 'to_pay') {
-      console.log('⏳ AUTO-SWITCH: Plus de stock SIM → "En attente SIM"')
-      setActivationFilter('waiting')
+      // Si plus de stock → retour en attente
+      else if (totalAvailableSims === 0 && clientsWaitingForSim.length > 0) {
+        console.log('⏳ AUTO-SWITCH: Plus de stock SIM → "En attente SIM"')
+        setActivationFilter('waiting')
+      }
     }
   }
 
@@ -224,10 +230,12 @@ const ActivateTab = ({
     }
   }, [agenciesData, dataToDisplay]); // Déclenché uniquement au premier chargement des données
 
-  // 🔄 AUTO-SWITCH lors des changements de données
+  // 🔄 AUTO-SWITCH lors des changements de données (seulement si filtre = 'all')
   useEffect(() => {
-    performAutoSwitch(false);
-  }, [agenciesData, dataToDisplay, activationFilter]);
+    if (activationFilter === 'all') {
+      performAutoSwitch(false);
+    }
+  }, [agenciesData, dataToDisplay]); // Retirer activationFilter des dépendances
 
   useEffect(() => {
     if (dataToDisplay && dataToDisplay.length > 0 && !selectedClient) {
