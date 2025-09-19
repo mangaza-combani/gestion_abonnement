@@ -741,6 +741,73 @@ const ActivationInfo = ({ client }) => {
     );
   }
 
+  // 🔄 Pour les réactivations après pause temporaire, afficher seulement la section spécialisée
+  const isReactivationAfterPause = client?.activationType === 'REACTIVATION_AFTER_PAUSE' && client?.phoneStatus === 'PAUSED';
+
+  if (isReactivationAfterPause && isSupervisor) {
+    return (
+      <Card sx={{ minWidth: 350 }}>
+        <CardContent>
+          {/* 🆕 Section spéciale pour les réactivations après pause temporaire */}
+          <Paper sx={{ p: 2, bgcolor: 'info.lighter', border: '2px solid', borderColor: 'info.main', mb: 2 }}>
+            <Typography variant="subtitle2" color="info.main" fontWeight="bold" gutterBottom>
+              🔄 Réactivation après pause temporaire
+            </Typography>
+
+            <Stack spacing={2}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Type d'opération :
+                </Typography>
+                <Typography variant="body1" fontWeight="bold" color="info.main">
+                  📞 Remise en service de la ligne
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Action requise :
+                </Typography>
+                <Typography variant="body1" fontWeight="medium">
+                  Réactiver la ligne sur le compte RED puis confirmer l'opération
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Compte RED :
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  🏢 {client.redAccount?.accountName || client.redAccountName || 'Compte RED'}
+                </Typography>
+              </Box>
+
+              <Alert severity="warning">
+                <Typography variant="body2">
+                  <strong>Important :</strong> Vérifiez que la ligne est bien réactivée sur le compte RED avant de confirmer.
+                </Typography>
+              </Alert>
+
+              <Box sx={{ pt: 1 }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="large"
+                  fullWidth
+                  startIcon={<CheckIcon />}
+                  onClick={() => handleSimpleConfirmation()}
+                  sx={{ fontWeight: 'bold' }}
+                >
+                  ✅ Confirmer la réactivation
+                </Button>
+              </Box>
+            </Stack>
+          </Paper>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card sx={{ minWidth: 350 }}>
       <CardContent>
@@ -962,8 +1029,49 @@ const ActivationInfo = ({ client }) => {
             </>
           )}
 
+          {/* 🔄 Section spéciale pour les remplacements SIM en attente de réception */}
+          {client?.replacementSimOrdered && !client?.replacementSimReceived && isSupervisor && (
+            <Paper sx={{ p: 2, bgcolor: 'warning.lighter', border: '2px solid', borderColor: 'warning.main', mb: 2 }}>
+              <Typography variant="subtitle2" color="warning.main" fontWeight="bold" gutterBottom>
+                ⏳ Remplacement SIM - En attente de réception
+              </Typography>
+
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Statut de la commande :
+                  </Typography>
+                  <Typography variant="body1" fontWeight="bold" color="warning.main">
+                    📦 SIM commandée - En attente de livraison
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Actions effectuées :
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {client?.supervisorConfirmedRedBlocking && (
+                      <Chip label="✅ Blocage RED confirmé" size="small" color="success" variant="outlined" />
+                    )}
+                    {client?.supervisorConfirmedSimOrder && (
+                      <Chip label="✅ Commande SIM confirmée" size="small" color="success" variant="outlined" />
+                    )}
+                  </Stack>
+                </Box>
+
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    <strong>Étape suivante :</strong> Déclarer la réception de la nouvelle carte SIM une fois qu'elle sera livrée à l'agence.
+                  </Typography>
+                </Alert>
+              </Stack>
+            </Paper>
+          )}
+
+
           {/* 🆕 Section spéciale pour les remplacements SIM avec ICCID reçu */}
-          {client?.replacementSimIccid && isSupervisor && (
+          {client?.replacementSimIccid && client?.replacementSimReceived && isSupervisor && (
             <Paper sx={{ p: 2, bgcolor: 'success.lighter', border: '2px solid', borderColor: 'success.main', mb: 2 }}>
               <Typography variant="subtitle2" color="success.main" fontWeight="bold" gutterBottom>
                 🔄 Remplacement SIM - Prêt à activer
