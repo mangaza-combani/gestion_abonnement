@@ -29,7 +29,6 @@ import {
   MenuItem,
   Slide,
   Fade,
-  Zoom,
   Avatar,
   styled,
   useTheme,
@@ -129,101 +128,66 @@ const SlideTransition = React.forwardRef(function Transition(props, ref) {
 // Composant pour la prévisualisation du client
 const ClientPreview = ({ client }) => {
   const theme = useTheme();
-  
+
   if (!client) return null;
 
   return (
-    <Zoom in={Boolean(client)} timeout={500}>
-      <Paper 
-        elevation={3} 
-        sx={{ 
-          p: 3, 
-          mt: 2, 
-          bgcolor: alpha(theme.palette.primary.light, 0.05),
-          borderRadius: 2,
-          border: `1px dashed ${theme.palette.primary.main}`,
-          position: 'relative',
-          overflow: 'hidden'
-        }}
-      >
-        <Box sx={{ position: 'absolute', top: 0, right: 0, p: 1 }}>
-          <Chip 
-            icon={<VerifiedUserIcon />} 
-            label="Client vérifié" 
-            color="success" 
-            size="small"
-            sx={{ fontWeight: 'bold' }}
-          />
-        </Box>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <Avatar 
-            sx={{ 
-              width: 56, 
-              height: 56, 
-              bgcolor: theme.palette.primary.main,
-              boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.5)}`,
-              fontSize: 24,
-              fontWeight: 'bold'
-            }}
-          >
-            {client.firstname?.[0]}{client.lastname?.[0]}
-          </Avatar>
-          <Box>
-            <Typography variant="h5" color="primary.main" fontWeight="bold">
-              {client.firstname} {client.lastname}
+    <Paper
+      elevation={1}
+      sx={{
+        p: 2,
+        mt: 2,
+        bgcolor: alpha(theme.palette.grey[50], 0.8),
+        borderRadius: 1,
+        border: `1px solid ${alpha(theme.palette.grey[300], 0.5)}`
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Avatar
+          sx={{
+            width: 36,
+            height: 36,
+            bgcolor: theme.palette.primary.main,
+            fontSize: 14
+          }}
+        >
+          {client.firstname?.[0]}{client.lastname?.[0]}
+        </Avatar>
+
+        <Typography variant="subtitle2" fontWeight="medium" sx={{ minWidth: 'fit-content' }}>
+          {client.firstname} {client.lastname}
+        </Typography>
+
+        {client.email && (
+          <>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <EmailIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography variant="caption" color="text.secondary">
+                {client.email}
+              </Typography>
+            </Box>
+          </>
+        )}
+
+        {client.phoneNumber && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              {client.phoneNumber}
             </Typography>
-            {client.email && (
-              <Typography variant="body2" color="text.secondary">
-                Email: {client.email}
-              </Typography>
-            )}
-            {client.role && (
-              <Typography variant="body2" color="text.secondary">
-                Role: {client.role}
-              </Typography>
-            )}
           </Box>
-        </Box>
-        
-        <Divider sx={{ my: 2 }} />
-        
-        <Grid container spacing={2}>
-          {client.role && (
-            <Grid item xs={12} sm={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <LocationCityIcon color="primary" />
-                <Typography variant="body1">
-                  {client.role}
-                </Typography>
-              </Box>
-            </Grid>
-          )}
-          
-          {client.phoneNumber && (
-            <Grid item xs={12} sm={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PhoneIcon color="primary" />
-                <Typography variant="body1">
-                  {client.phoneNumber}
-                </Typography>
-              </Box>
-            </Grid>
-          )}
-          
-          {client.email && (
-            <Grid item xs={12} sm={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <EmailIcon color="primary" />
-                <Typography variant="body1">
-                  {client.email}
-                </Typography>
-              </Box>
-            </Grid>
-          )}
-        </Grid>
-      </Paper>
-    </Zoom>
+        )}
+
+        {client.role && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <LocationCityIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              {client.role}
+            </Typography>
+          </Box>
+        )}
+      </Box>
+    </Paper>
   );
 };
 
@@ -253,6 +217,96 @@ const AnimatedButton = styled(Button)(({ theme }) => ({
     transform: 'translateY(0)',
   },
 }));
+
+// Fonction pour formater le numéro de téléphone
+const formatPhoneNumber = (value) => {
+  // Supprimer tous les caractères non numériques
+  const numbers = value.replace(/\D/g, '');
+
+  // Vérifier que ça commence par 0
+  if (numbers.length > 0 && numbers[0] !== '0') {
+    return ''; // Rejeter si ne commence pas par 0
+  }
+
+  // Limiter à 10 chiffres maximum
+  const limitedNumbers = numbers.slice(0, 10);
+
+  // Grouper par deux chiffres avec des espaces
+  let formatted = '';
+  for (let i = 0; i < limitedNumbers.length; i += 2) {
+    if (i > 0) formatted += ' ';
+    formatted += limitedNumbers.slice(i, i + 2);
+  }
+
+  return formatted;
+};
+
+// Fonction pour formater la date automatiquement avec validation
+const formatBirthdate = (value) => {
+  // Supprimer tous les caractères non numériques
+  const numbers = value.replace(/\D/g, '');
+
+  // Limiter à 8 chiffres maximum
+  const limitedNumbers = numbers.slice(0, 8);
+
+  let formatted = limitedNumbers;
+
+  // Validation du jour (01-31)
+  if (limitedNumbers.length >= 2) {
+    const day = parseInt(limitedNumbers.slice(0, 2));
+    if (day < 1 || day > 31) {
+      // Si le jour est invalide, on ne prend que le premier chiffre valide
+      const firstDigit = limitedNumbers[0];
+      if (parseInt(firstDigit) > 3) {
+        return firstDigit; // Bloquer si premier chiffre > 3
+      }
+      return limitedNumbers.slice(0, 1);
+    }
+    formatted = limitedNumbers.slice(0, 2);
+  }
+
+  // Ajouter "/" après le jour valide
+  if (limitedNumbers.length >= 3) {
+    formatted += '/' + limitedNumbers.slice(2);
+  }
+
+  // Validation du mois (01-12)
+  if (limitedNumbers.length >= 4) {
+    const month = parseInt(limitedNumbers.slice(2, 4));
+    if (month < 1 || month > 12) {
+      // Si le mois est invalide, on s'arrête au jour
+      return formatted.slice(0, 3); // "jj/"
+    }
+    formatted = limitedNumbers.slice(0, 2) + '/' + limitedNumbers.slice(2, 4);
+  }
+
+  // Ajouter "/" après le mois valide
+  if (limitedNumbers.length >= 5) {
+    formatted += '/' + limitedNumbers.slice(4);
+  }
+
+  // Validation de l'année (1900-2030)
+  if (limitedNumbers.length >= 8) {
+    const year = parseInt(limitedNumbers.slice(4, 8));
+    const currentYear = new Date().getFullYear();
+    if (year < 1900 || year > currentYear) {
+      // Si l'année est invalide, on s'arrête au mois
+      return limitedNumbers.slice(0, 2) + '/' + limitedNumbers.slice(2, 4) + '/';
+    }
+
+    // Validation plus fine : vérifier que la date complète est valide
+    const day = parseInt(limitedNumbers.slice(0, 2));
+    const month = parseInt(limitedNumbers.slice(2, 4));
+    const testDate = new Date(year, month - 1, day);
+
+    if (testDate.getDate() !== day || testDate.getMonth() !== month - 1 || testDate.getFullYear() !== year) {
+      // Date invalide (ex: 31/02/2024)
+      return limitedNumbers.slice(0, 2) + '/' + limitedNumbers.slice(2, 4) + '/';
+    }
+  }
+
+  return formatted;
+};
 
 // Composant principal
 const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false, preselectedClient = null, useCreateClientRoute = false }) => {
@@ -420,13 +474,18 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
             isValid = false;
           }
 
-          if (!newClient.phoneNumber?.trim()) {
-            newErrors.phoneNumber = "Le téléphone est requis";
+          // Vérifier que le téléphone contient au moins 10 chiffres (format "0 6 X X X X X X X X")
+          const phoneDigits = newClient.phoneNumber?.replace(/\s/g, '') || '';
+          if (!phoneDigits || phoneDigits.length < 10) {
+            newErrors.phoneNumber = "Le téléphone doit contenir 10 chiffres et commencer par 0";
             isValid = false;
           }
 
-          // Validation email optionnelle
-          if (newClient.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.email)) {
+          // Validation email obligatoire
+          if (!newClient.email?.trim()) {
+            newErrors.email = "L'email est requis";
+            isValid = false;
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.email)) {
             newErrors.email = "Format d'email invalide";
             isValid = false;
           }
@@ -448,11 +507,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
         break;
         
       case 3: // Validation de l'étape 4 - Paiement
-        if (paymentInfo.paymentMethod === 'partiel' && 
-            (paymentInfo.partialPayment <= 0 || paymentInfo.partialPayment > paymentInfo.total)) {
-          newErrors.partialPayment = "Le montant partiel doit être entre 0 et le total";
-          isValid = false;
-        }
+        // Pas de validation nécessaire, paiement toujours complet
         break;
     }
 
@@ -762,10 +817,16 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                           fullWidth
                           label="Date de naissance"
                           value={newClient.birthday}
-                          onChange={(e) => setNewClient({ ...newClient, birthday: e.target.value })}
+                          onChange={(e) => {
+                            const formattedDate = formatBirthdate(e.target.value);
+                            setNewClient({ ...newClient, birthday: formattedDate });
+                          }}
                           error={!!formErrors.birthday}
                           helperText={formErrors.birthday}
                           placeholder="JJ/MM/AAAA"
+                          inputProps={{
+                            maxLength: 10, // 2 + 1 + 2 + 1 + 4 = 10 caractères max
+                          }}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -809,10 +870,16 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                           fullWidth
                           label="Téléphone"
                           value={newClient.phoneNumber}
-                          onChange={(e) => setNewClient({ ...newClient, phoneNumber: e.target.value })}
-                            error={!!formErrors.phoneNumber}
-                            helperText={formErrors.phoneNumber}
-                          placeholder="06XXXXXXXX"
+                          onChange={(e) => {
+                            const formattedPhone = formatPhoneNumber(e.target.value);
+                            setNewClient({ ...newClient, phoneNumber: formattedPhone });
+                          }}
+                          error={!!formErrors.phoneNumber}
+                          helperText={formErrors.phoneNumber}
+                          placeholder="06 39 77 86 00"
+                          inputProps={{
+                            maxLength: 14, // 10 chiffres + 4 espaces = 14 caractères max
+                          }}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -831,12 +898,12 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                       <Grid item xs={12} sm={6}>
                         <TextField
                           fullWidth
-                          label="Email (optionnel)"
+                          label="Email *"
                           type="email"
                           value={newClient.email}
                           onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                            error={!!formErrors.email}
-                            helperText={formErrors.email || "Email optionnel - client sans accès plateforme"}
+                          error={!!formErrors.email}
+                          helperText={formErrors.email}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -1053,14 +1120,6 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                 )}
               </Grid>
 
-              {selectedSubscription && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  <AlertTitle>Abonnement sélectionné</AlertTitle>
-                  {selectedSubscription.name} - {selectedSubscription.formattedTotalPrice}
-                  <br />
-                  {selectedSubscription.dataSummary}
-                </Alert>
-              )}
               
               {formErrors.subscription && (
                 <Alert severity="error" sx={{ mt: 2 }}>
@@ -1392,151 +1451,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
               </Box>
             </Paper>
             
-            <Typography 
-              variant="h6" 
-              gutterBottom 
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1,
-                fontWeight: 'bold',
-                color: theme.palette.primary.main,
-                mb: 3
-              }}
-            >
-              <PaymentIcon />
-              Mode de paiement
-            </Typography>
-          
-            <Paper 
-              elevation={1} 
-              sx={{ 
-                p: 3, 
-                mb: 3, 
-                borderRadius: 2, 
-                backgroundColor: alpha(theme.palette.background.paper, 0.7),
-                transition: 'all 0.3s ease'
-              }}
-            >
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>Méthode de paiement</InputLabel>
-                <Select
-                  value={paymentInfo.paymentMethod}
-                  onChange={(e) => setPaymentInfo({ ...paymentInfo, paymentMethod: e.target.value })}
-                  label="Méthode de paiement"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': { 
-                      borderRadius: 2
-                    },
-                    '& .MuiSelect-select': {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }
-                  }}
-                >
-                  <MenuItem value="complet" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <EuroIcon color="success" />
-                    <Typography variant="body1">Paiement complet</Typography>
-                  </MenuItem>
-                  <MenuItem value="partiel" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <PaymentIcon color="warning" />
-                    <Typography variant="body1">Paiement partiel</Typography>
-                  </MenuItem>
-                </Select>
-              </FormControl>
-              
-              <Fade in={paymentInfo.paymentMethod === 'partiel'} timeout={500}>
-                <Box sx={{ mb: 2 }}>
-                  {paymentInfo.paymentMethod === 'partiel' && (
-                    <TextField
-                      fullWidth
-                      label="Montant payé"
-                      type="number"
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EuroIcon color="primary" />
-                          </InputAdornment>
-                        ),
-                      }}
-                      value={paymentInfo.partialPayment}
-                      onChange={(e) => setPaymentInfo({ ...paymentInfo, partialPayment: parseFloat(e.target.value) || 0 })}
-                      error={!!formErrors.partialPayment}
-                      helperText={formErrors.partialPayment || (
-                        <Typography variant="body2" color="text.secondary">
-                          Le reste ({(paymentInfo.total - paymentInfo.partialPayment).toFixed(2)}€) sera à régler ultérieurement.
-                        </Typography>
-                      )}
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': { 
-                          borderRadius: 2
-                        }
-                      }}
-                    />
-                  )}
-                </Box>
-              </Fade>
-              
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                p: 2,
-                borderRadius: 2,
-                border: `1px dashed ${alpha(theme.palette.warning.main, 0.5)}`,
-                bgcolor: alpha(theme.palette.warning.light, 0.1),
-                transition: 'all 0.3s ease',
-                boxShadow: paymentInfo.isCredit ? `inset 0 0 0 1px ${alpha(theme.palette.warning.main, 0.5)}` : 'none'
-              }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={paymentInfo.isCredit}
-                      onChange={(e) => setPaymentInfo({ ...paymentInfo, isCredit: e.target.checked })}
-                      color="warning"
-                    />
-                  }
-                  label={
-                    <Typography variant="body1" fontWeight="medium" color={paymentInfo.isCredit ? 'warning.main' : 'text.primary'}>
-                      Paiement à crédit
-                    </Typography>
-                  }
-                />
-                <Chip 
-                  icon={<InfoIcon />} 
-                  label="Option" 
-                  color="warning" 
-                  variant="outlined" 
-                  size="small"
-                />
-              </Box>
             </Paper>
-          
-            {paymentInfo.isCredit && (
-              <Fade in={paymentInfo.isCredit} timeout={500}>
-                <Alert 
-                  severity="warning" 
-                  icon={<PaymentIcon />} 
-                  variant="outlined"
-                  sx={{ 
-                    mt: 2,
-                    borderRadius: 2,
-                    p: 2,
-                    '& .MuiAlert-icon': {
-                      alignItems: 'center'
-                    }
-                  }}
-                >
-                  <AlertTitle>Paiement à crédit</AlertTitle>
-                  <Typography variant="body2">
-                    Le paiement sera enregistré comme un crédit à régler ultérieurement. 
-                    Assurez-vous d'obtenir les coordonnées complètes du client pour le suivi.
-                  </Typography>
-                </Alert>
-              </Fade>
-            )}
-          </Paper>
         </Box>
       );
       

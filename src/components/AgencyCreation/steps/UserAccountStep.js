@@ -173,20 +173,6 @@ const UserAccountStep = ({ formData, errors, onChange }) => {
           />
         </Grid>
 
-        {/* Info rôle */}
-        <Grid item xs={12}>
-          <Alert severity="success" sx={{ mt: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2">
-                <strong>Rôle attribué :</strong> AGENCY
-              </Typography>
-              <Chip label="AGENCY" size="small" color="primary" />
-            </Box>
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-              Ce rôle permet de gérer les clients, encaissements et visualiser les lignes de l'agence.
-            </Typography>
-          </Alert>
-        </Grid>
       </Grid>
     </Box>
   );

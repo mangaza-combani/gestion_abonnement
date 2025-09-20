@@ -55,109 +55,62 @@ const SummaryStep = ({ formData }) => {
         </Typography>
       </Box>
       
-      <Alert severity="info" sx={{ mb: 3 }}>
-        <Typography variant="body2">
-          Vérifiez les informations ci-dessous avant de créer l'agence. Une fois créée, 
-          l'agence recevra un email de bienvenue avec les informations de connexion.
-        </Typography>
-      </Alert>
 
-      <Grid container spacing={3}>
-        {summaryItems.map((section, sectionIndex) => (
-          <Grid item xs={12} key={sectionIndex}>
-            <Card variant="outlined" sx={{ mb: 2 }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  {section.icon}
-                  <Typography variant="h6" sx={{ ml: 1, fontWeight: 'bold' }}>
-                    {section.category}
-                  </Typography>
-                </Box>
-                
-                <Divider sx={{ mb: 2 }} />
-                
-                <List dense>
-                  {section.items.map((item, itemIndex) => (
-                    <ListItem key={itemIndex} sx={{ px: 0 }}>
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        {React.cloneElement(item.icon, { 
-                          fontSize: 'small', 
-                          color: 'action' 
-                        })}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ minWidth: '120px' }}>
-                              {item.label}:
-                            </Typography>
-                            {item.isChip ? (
-                              <Chip 
-                                label={item.value} 
-                                size="small" 
-                                color="primary" 
-                                variant="outlined"
-                              />
-                            ) : (
-                              <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                {item.value}
-                              </Typography>
-                            )}
-                          </Box>
-                        }
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Actions à effectuer */}
-      <Card variant="outlined" sx={{ mt: 3, bgcolor: 'success.50' }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <CheckCircleIcon color="success" sx={{ mr: 1 }} />
-            <Typography variant="h6" sx={{ color: 'success.main' }}>
-              Actions qui seront effectuées
+      <Card variant="outlined" sx={{ p: 3 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Agence
             </Typography>
-          </Box>
-          
-          <List dense>
-            <ListItem sx={{ px: 0 }}>
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <CheckCircleIcon fontSize="small" color="success" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Création de l'agence dans la base de données"
-                secondary="L'agence sera enregistrée avec toutes les informations fournies"
-              />
-            </ListItem>
-            
-            <ListItem sx={{ px: 0 }}>
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <CheckCircleIcon fontSize="small" color="success" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Création du compte utilisateur AGENCY"
-                secondary="Un compte avec le rôle AGENCY sera créé pour le responsable"
-              />
-            </ListItem>
-            
-            <ListItem sx={{ px: 0 }}>
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <CheckCircleIcon fontSize="small" color="success" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Association du compte à l'agence"
-                secondary="Le compte utilisateur sera automatiquement lié à cette agence"
-              />
-            </ListItem>
-          </List>
-        </CardContent>
+            <Typography variant="body1" sx={{ fontWeight: 'medium', mb: 2 }}>
+              {formData.agencyName}
+            </Typography>
+
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Responsable
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 'medium', mb: 2 }}>
+              {formData.contactFirstName} {formData.contactLastName}
+            </Typography>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Email
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 'medium', mb: 2 }}>
+              {formData.email}
+            </Typography>
+
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Téléphone
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+              {(() => {
+                const value = formData.phoneNumber || '';
+                let formatted = '';
+                for (let i = 0; i < value.length; i++) {
+                  if (i > 0 && i % 2 === 0) {
+                    formatted += ' ';
+                  }
+                  formatted += value[i];
+                }
+                return formatted;
+              })()}
+            </Typography>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Adresse
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+              {formData.address}
+            </Typography>
+          </Grid>
+        </Grid>
       </Card>
+
     </Box>
   );
 };

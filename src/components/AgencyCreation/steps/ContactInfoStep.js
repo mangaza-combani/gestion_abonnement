@@ -25,8 +25,8 @@ const ContactInfoStep = ({ formData, errors, onChange }) => {
       </Box>
       
       <Grid container spacing={3}>
-        {/* Nom de l'agence */}
-        <Grid item xs={12}>
+        {/* Nom de l'agence et Numéro de téléphone */}
+        <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
             label="Nom de l'agence"
@@ -43,6 +43,51 @@ const ContactInfoStep = ({ formData, errors, onChange }) => {
               ),
             }}
             placeholder="Ex: Agence UWEZO Mamoudzou"
+          />
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Numéro de téléphone"
+            value={(() => {
+              // Formater la valeur affichée
+              const value = formData.phoneNumber || '';
+              let formatted = '';
+              for (let i = 0; i < value.length; i++) {
+                if (i > 0 && i % 2 === 0) {
+                  formatted += ' ';
+                }
+                formatted += value[i];
+              }
+              return formatted;
+            })()}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Supprimer tous les caractères non numériques
+              const numbersOnly = value.replace(/\D/g, '');
+              // Limiter à 10 chiffres
+              const limited = numbersOnly.slice(0, 10);
+
+              // Créer un événement modifié pour passer la valeur non formatée
+              const event = {
+                target: {
+                  value: limited // Stocker la valeur non formatée
+                }
+              };
+              onChange('phoneNumber')(event);
+            }}
+            error={!!errors.phoneNumber}
+            helperText={errors.phoneNumber}
+            required
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <PhoneIcon color="primary" />
+                </InputAdornment>
+              ),
+            }}
+            placeholder="06 39 12 34 56"
           />
         </Grid>
 
@@ -88,27 +133,6 @@ const ContactInfoStep = ({ formData, errors, onChange }) => {
           />
         </Grid>
 
-        {/* Numéro de téléphone */}
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            label="Numéro de téléphone"
-            value={formData.phoneNumber}
-            onChange={onChange('phoneNumber')}
-            error={!!errors.phoneNumber}
-            helperText={errors.phoneNumber}
-            required
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <PhoneIcon color="primary" />
-                </InputAdornment>
-              ),
-            }}
-            placeholder="Ex: 0639123456"
-          />
-        </Grid>
-
         {/* Adresse */}
         <Grid item xs={12}>
           <TextField
@@ -119,11 +143,9 @@ const ContactInfoStep = ({ formData, errors, onChange }) => {
             error={!!errors.address}
             helperText={errors.address}
             required
-            multiline
-            rows={3}
             InputProps={{
               startAdornment: (
-                <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1 }}>
+                <InputAdornment position="start">
                   <LocationIcon color="primary" />
                 </InputAdornment>
               ),

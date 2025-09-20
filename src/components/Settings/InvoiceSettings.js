@@ -123,10 +123,6 @@ const InvoiceSettings = () => {
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-        <ReceiptIcon color="primary" sx={{ fontSize: 40 }} />
-        Paramètres de Facturation
-      </Typography>
 
       {isLoading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>

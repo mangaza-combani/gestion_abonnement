@@ -1,6 +1,15 @@
 import React from 'react';
 import { Chip } from '@mui/material';
-import { Circle as CircleIcon } from '@mui/icons-material';
+import {
+  Circle as CircleIcon,
+  AccountBalanceWallet as PaymentIcon,
+  Phone as PhoneIcon,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
+  Error as ErrorIcon,
+  Pause as PauseIcon,
+  Block as BlockIcon
+} from '@mui/icons-material';
 import { CLIENT_STATUSES } from './constant'; // Assurez-vous que le chemin est correct
 
 const StatusChip = ({ status }) => {
@@ -47,12 +56,39 @@ const StatusChip = ({ status }) => {
     }
   };
 
+  const getStatusIcon = (status) => {
+    // Icônes pour les statuts de paiement
+    if (status === 'À JOUR' || status === 'A JOUR') {
+      return <PaymentIcon fontSize="small" />;
+    }
+    if (status === 'EN RETARD' || status === 'DETTE') {
+      return <PaymentIcon fontSize="small" />;
+    }
+
+    // Icônes pour les statuts de ligne/téléphone
+    if (status === 'ACTIF') {
+      return <PhoneIcon fontSize="small" />;
+    }
+    if (status === 'INACTIF') {
+      return <PhoneIcon fontSize="small" />;
+    }
+    if (status === 'RÉSILIÉ') {
+      return <BlockIcon fontSize="small" />;
+    }
+    if (status === 'PAUSE' || status === 'PAUSÉ') {
+      return <PauseIcon fontSize="small" />;
+    }
+
+    // Icône par défaut
+    return <CircleIcon fontSize="small" />;
+  };
+
   return (
       <Chip
           size="small"
           label={status}
           color={getStatusColor(status)}
-          icon={<CircleIcon fontSize="small" />}
+          icon={getStatusIcon(status)}
       />
   );
 };

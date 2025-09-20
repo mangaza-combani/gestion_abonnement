@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { logOut, useLogoutMutation } from '../../store/slices/authSlice';
+import { useGetCurrentAgencyQuery } from '../../store/slices/agencySlice';
 import NotificationCenter from '../notifications/NotificationCenter';
 
 const drawerWidth = 280;
@@ -36,14 +37,15 @@ const MainLayout = () => {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { role } = useSelector((state) => {
+  const location = useLocation();
+  const { role, agencyId } = useSelector((state) => {
         const localStorageUser = localStorage.getItem('user');
         if (!localStorageUser) {
           localStorage.removeItem('user');
           localStorage.removeItem('token');
-          return { role: null };
+          return { role: null, agencyId: null };
         }
-        
+
         let parsedUser = null;
         try {
           parsedUser = JSON.parse(localStorageUser);
@@ -51,13 +53,19 @@ const MainLayout = () => {
           console.error('Invalid user data in localStorage:', error);
           localStorage.removeItem('user');
           localStorage.removeItem('token');
-          return { role: null };
+          return { role: null, agencyId: null };
         }
-        
-        const user = parsedUser || user;
+
+        const userData = parsedUser || state.auth.user;
     return {
-      role: user ? user.role : null,
+      role: userData ? userData.role : null,
+      agencyId: userData ? userData.agencyId : null,
     };
+  });
+
+  // Récupérer les informations de l'agence courante si l'utilisateur est une agence
+  const { data: currentAgency } = useGetCurrentAgencyQuery(undefined, {
+    skip: role !== 'AGENCY'
   });
 
   // Utiliser le hook de déconnexion de RTK Query
@@ -128,28 +136,61 @@ const MainLayout = () => {
           </Typography>
         </Box>
       </Box>
-      <List>
-        {menuItems?.map((item) => (
-          <ListItem
-            component="button"
-            key={item.text}
-            onClick={() => handleNavigate(item.path)}
-            sx={{
-              my: 0.5,
-              mx: 1,
-              borderRadius: 2,
-              '&:hover': {
-                bgcolor: 'primary.light',
-                '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
-                  color: 'white',
+      <List sx={{ padding: 0, overflow: 'visible' }}>
+        {menuItems?.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <ListItem
+              component="button"
+              key={item.text}
+              onClick={() => handleNavigate(item.path)}
+              sx={{
+                my: 0.5,
+                mx: 1,
+                borderRadius: 2,
+                border: 'none',
+                outline: 'none',
+                backgroundColor: isActive ? 'primary.main' : 'transparent',
+                color: isActive ? 'white' : 'inherit',
+                width: 'calc(100% - 16px)',
+                minHeight: 48,
+                display: 'flex',
+                alignItems: 'center',
+                textAlign: 'left',
+                whiteSpace: 'nowrap',
+                '&:hover': {
+                  bgcolor: isActive ? 'primary.dark' : 'primary.light',
+                  '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
+                    color: 'white',
+                  },
                 },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItem>
-        ))}
+                '& .MuiListItemIcon-root': {
+                  color: isActive ? 'white' : 'inherit',
+                },
+                '& .MuiListItemText-primary': {
+                  color: isActive ? 'white' : 'inherit',
+                  fontWeight: isActive ? 600 : 400,
+                  overflow: 'visible',
+                  textOverflow: 'clip',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                sx={{
+                  overflow: 'visible',
+                  '& .MuiTypography-root': {
+                    overflow: 'visible',
+                    textOverflow: 'clip',
+                    whiteSpace: 'nowrap'
+                  }
+                }}
+              />
+            </ListItem>
+          );
+        })}
       </List>
     </Box>
   );
@@ -160,8 +201,8 @@ const MainLayout = () => {
         position="fixed"
         sx={{
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          bgcolor: 'background.paper',
-          color: 'text.primary',
+          bgcolor: 'primary.main',
+          color: 'white',
           boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
         }}
       >
@@ -175,7 +216,9 @@ const MainLayout = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN" ? 'Superviseur' : "Agence"}
+            {role === 'SUPERVISOR' || role === "ADMIN" || role === "SUPER_ADMIN"
+              ? 'Superviseur'
+              : `Agence ${currentAgency?.name || ''}`}
           </Typography>
           <NotificationCenter />
           <IconButton
@@ -216,6 +259,8 @@ const MainLayout = () => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
+              borderRight: '1px solid rgba(0, 0, 0, 0.08)',
+              overflow: 'visible',
             },
           }}
         >
@@ -228,8 +273,9 @@ const MainLayout = () => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              borderRight: '1px solid rgba(0, 0, 0, 0.12)',
-              boxShadow: '2px 0 10px rgba(0,0,0,0.1)',
+              borderRight: '1px solid rgba(0, 0, 0, 0.08)',
+              boxShadow: '2px 0 8px rgba(0,0,0,0.06)',
+              overflow: 'visible',
             },
           }}
           open
@@ -242,6 +288,7 @@ const MainLayout = () => {
         sx={{
           flexGrow: 1,
           p: 3,
+          pt: 0,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
           bgcolor: 'background.default',

@@ -121,7 +121,7 @@ const StatusFilters = ({ selectedStatus, onStatusChange }) => {
               key={status}
               label={status}
               icon={status === CLIENT_STATUSES.ALL ? null : getStatusIcon(status)}
-              onClick={() => onStatusChange(status === CLIENT_STATUSES.ALL ? CLIENT_STATUSES.ALL : getKeyFromValue(CLIENT_STATUSES, status))}
+              onClick={() => onStatusChange(status)}
               variant={selectedStatus === status ? 'filled' : 'outlined'}
               color={status === CLIENT_STATUSES.ALL && selectedStatus === CLIENT_STATUSES.ALL ? 'primary' : getStatusColor(status)}
               sx={{

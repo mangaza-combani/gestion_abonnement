@@ -46,8 +46,7 @@ const Settings = () => {
     <Box sx={{ bgcolor: 'grey.50', minHeight: '100vh' }}>
       <Box sx={{ bgcolor: 'white', boxShadow: 1, mb: 3 }}>
         <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3, py: 2 }}>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <SettingsIcon color="primary" sx={{ fontSize: 40 }} />
+          <Typography variant="h4" gutterBottom>
             Paramètres du Système
           </Typography>
           <Typography variant="body1" color="text.secondary">
@@ -63,15 +62,9 @@ const Settings = () => {
             variant="scrollable"
             scrollButtons="auto"
           >
-            <Tab 
-              label="Facturation" 
-              icon={<ReceiptIcon />} 
-              iconPosition="start"
-              sx={{ textTransform: 'none', minHeight: 64 }}
-            />
-            <Tab 
-              label="Entreprise" 
-              icon={<BusinessIcon />} 
+            <Tab
+              label="Entreprise"
+              icon={<BusinessIcon />}
               iconPosition="start"
               sx={{ textTransform: 'none', minHeight: 64 }}
             />
@@ -101,20 +94,8 @@ const Settings = () => {
         <TabPanel value={currentTab} index={0}>
           <InvoiceSettings />
         </TabPanel>
-        
+
         <TabPanel value={currentTab} index={1}>
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <BusinessIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Paramètres Entreprise
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Cette section sera développée prochainement
-            </Typography>
-          </Paper>
-        </TabPanel>
-        
-        <TabPanel value={currentTab} index={2}>
           <Paper sx={{ p: 4, textAlign: 'center' }}>
             <SecurityIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
             <Typography variant="h6" gutterBottom>
@@ -125,8 +106,8 @@ const Settings = () => {
             </Typography>
           </Paper>
         </TabPanel>
-        
-        <TabPanel value={currentTab} index={3}>
+
+        <TabPanel value={currentTab} index={2}>
           <Paper sx={{ p: 4, textAlign: 'center' }}>
             <NotificationsIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
             <Typography variant="h6" gutterBottom>
@@ -137,8 +118,8 @@ const Settings = () => {
             </Typography>
           </Paper>
         </TabPanel>
-        
-        <TabPanel value={currentTab} index={4}>
+
+        <TabPanel value={currentTab} index={3}>
           <InvoiceAutomationSettings />
         </TabPanel>
       </Box>

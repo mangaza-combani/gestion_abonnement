@@ -78,6 +78,7 @@ const NewAccountDialog = ({
     cardLastFour: '',
     cardExpiry: '',
     bankName: '',
+    cardHolderName: '',
     
     // Étape 3: Ligne(s) initiale(s)
     lines: []
@@ -292,7 +293,8 @@ const NewAccountDialog = ({
       paymentInfo: {
         bankName: formData.bankName,
         cardLastFour: formData.cardLastFour,
-        cardExpiry: formData.cardExpiry
+        cardExpiry: formData.cardExpiry,
+        cardHolderName: formData.cardHolderName
       }
     };
 
@@ -307,7 +309,8 @@ const NewAccountDialog = ({
         paymentInfo: {
           bankName: redAccountData.paymentInfo.bankName,
           cardLastFour: redAccountData.paymentInfo.cardLastFour,
-          cardExpiry: redAccountData.paymentInfo.cardExpiry
+          cardExpiry: redAccountData.paymentInfo.cardExpiry,
+          cardHolderName: redAccountData.paymentInfo.cardHolderName
         }
       }).unwrap();
 
@@ -341,6 +344,7 @@ const NewAccountDialog = ({
       cardLastFour: '',
       cardExpiry: '',
       bankName: '',
+      cardHolderName: '',
       lines: []
     });
     setActiveStep(0);
@@ -372,7 +376,8 @@ const NewAccountDialog = ({
         return (
           formData.cardLastFour.length === 4 &&
           formData.cardExpiry.length === 5 &&
-          formData.bankName
+          formData.bankName &&
+          formData.cardHolderName
         );
       case 2: // Étape 3: Ligne(s) initiale(s)
         return true; // Optionnel d'ajouter des lignes
@@ -500,7 +505,7 @@ const NewAccountDialog = ({
       
       case 1:
         return (
-          <Fade in={activeStep === 1} timeout={500}>
+          <div>
             <Box>
               <Typography variant="subtitle1" gutterBottom>
                 Informations de paiement
@@ -508,7 +513,28 @@ const NewAccountDialog = ({
               <Divider sx={{ mb: 3 }} />
 
               <Grid container spacing={3}>
-                <Grid item xs={12}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="Nom sur la carte"
+                    name="cardHolderName"
+                    value={formData.cardHolderName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cardHolderName: e.target.value.toUpperCase() }))}
+                    placeholder="ex: JOHN DOE"
+                    error={activeStep > 1 && !formData.cardHolderName}
+                    helperText={activeStep > 1 && !formData.cardHolderName ? "Ce champ est obligatoire" : "Nom tel qu'inscrit sur la carte"}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AccountCircleIcon color="primary" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
                     required
@@ -576,47 +602,11 @@ const NewAccountDialog = ({
                     }}
                   />
                 </Grid>
-                
-                {/* Visuel de la carte (simplifié) */}
-                <Grid item xs={12}>
-                  <Zoom in={formData.cardLastFour && formData.cardExpiry} timeout={500}>
-                    <Paper 
-                      elevation={3} 
-                      sx={{ 
-                        p: 2, 
-                        mt: 2, 
-                        bgcolor: 'primary.dark', 
-                        color: 'white',
-                        borderRadius: 2,
-                        height: 180,
-                        position: 'relative',
-                        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%)'
-                      }}
-                    >
-                      <Box sx={{ position: 'absolute', top: 20, left: 20 }}>
-                        <BankIcon sx={{ fontSize: 40, opacity: 0.8 }} />
-                      </Box>
-                      <Box sx={{ position: 'absolute', bottom: 20, left: 20, right: 20 }}>
-                        <Typography variant="h6" sx={{ mb: 2, opacity: 0.9 }}>
-                          **** **** **** {formData.cardLastFour || '****'}
-                        </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                            {formData.bankName || 'BANQUE'}
-                          </Typography>
-                          <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                            {formData.cardExpiry || 'MM/YY'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Paper>
-                  </Zoom>
-                </Grid>
               </Grid>
             </Box>
-          </Fade>
+          </div>
         );
-      
+
       case 2:
         return (
           <Fade in={activeStep === 2} timeout={500}>

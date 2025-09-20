@@ -82,31 +82,37 @@ const NotesCard = ({simCard, agency}) => (
 
 
 const ClientHeader = ({ client, simCard, onOpenModal }) => (
-  <Card sx={{ mb: 3, p: 2, bgcolor: 'primary.light' }}>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-      <Avatar sx={{ width: 60, height: 60, bgcolor: 'primary.main' }}>
-        {client.user?.firstname?.[0]?.toUpperCase()}{client.user?.lastname?.[0]?.toUpperCase()}
-      </Avatar>
-      <Box sx={{ flex: 1 }}>
-        <Typography variant="h5" color="white" gutterBottom>
-          {client.user?.firstname} {client.user?.lastname}
-        </Typography>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.paymentStatus)} />
-          <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.phoneStatus)} />
-          <Typography variant="body4" color="text.secondary">
+  <Card sx={{ mb: 3, bgcolor: 'primary.light' }}>
+    <Box sx={{ p: 2 }}>
+      {/* Première ligne : Avatar + Nom + Bouton */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontSize: '1.25rem' }}>
+          {client.user?.firstname?.[0]?.toUpperCase()}{client.user?.lastname?.[0]?.toUpperCase()}
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="h5" color="white" sx={{ mb: 0.5, fontWeight: 'medium' }}>
+            {client.user?.firstname} {client.user?.lastname}
+          </Typography>
+          <Typography variant="body2" color="rgba(255,255,255,0.8)" sx={{ fontWeight: 'medium' }}>
             {client.phoneNumber || 'N/C'}
           </Typography>
-        </Stack>
+        </Box>
+        <Button
+          startIcon={<VisibilityIcon />}
+          variant="contained"
+          size="small"
+          onClick={onOpenModal}
+          sx={{ flexShrink: 0 }}
+        >
+          Détails
+        </Button>
       </Box>
-      <Button
-        startIcon={<VisibilityIcon />}
-        variant="contained"
-        size="small"
-        onClick={onOpenModal}
-      >
-        Détails
-      </Button>
+
+      {/* Deuxième ligne : Statuts */}
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.paymentStatus)} />
+        <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.phoneStatus)} />
+      </Box>
     </Box>
   </Card>
 );
@@ -280,7 +286,7 @@ const SubscriptionCard = ({ client, simCard }) => {
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h6">
-              {isWaitingForActivation ? 'STATUT ACTIVATION' : 'FORFAIT/ABONNEMENT'}
+              {isWaitingForActivation ? 'STATUT ACTIVATION' : 'ABONNEMENT'}
             </Typography>
             <Chip
               icon={isWaitingForActivation ? <TimerIcon /> : statusInfo.icon}
@@ -488,28 +494,28 @@ const SubscriptionCard = ({ client, simCard }) => {
           ))}
         </Stack>
 
-        {/* Affichage ID compte RED rattaché (pour superviseur) */}
+        {/* Affichage compte RED rattaché (version compacte) */}
         {(client?.redAccountId || client?.lineRequest?.redAccountId) && (
-          <Box sx={{ 
-            mt: 2, 
-            p: 2, 
-            bgcolor: 'info.lighter', 
-            border: '1px solid', 
-            borderColor: 'info.main', 
-            borderRadius: 1 
+          <Box sx={{
+            mt: 2,
+            p: 1.5,
+            bgcolor: 'info.lighter',
+            borderRadius: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccountCircleIcon color="info" fontSize="small" />
-              <Typography variant="body2" fontWeight="bold" color="info.main">
-                Compte RED rattaché:
-              </Typography>
-              <Typography variant="body2" fontWeight="bold" color="primary.main">
-                {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName || 
-                 `Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-              Compte utilisé pour la facturation et la gestion de cette ligne
+            <AccountCircleIcon color="info" fontSize="small" />
+            <Typography variant="body2" color="info.main">
+              Compte RED:
+            </Typography>
+            <Typography variant="body2" fontWeight="bold" color="primary.main">
+              {client?.redAccountName ||
+               client?.redAccount?.redAccountId ||
+               client?.redAccount?.accountName ||
+               client?.lineRequest?.redAccount?.redAccountId ||
+               client?.lineRequest?.redAccount?.accountName ||
+               `Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
             </Typography>
           </Box>
         )}
@@ -629,14 +635,13 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
                   >
                     {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
                   </IconButton>
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => {
                       navigator.clipboard.writeText(redAccount?.password || '')
                       // TODO: Add toast notification
                     }}
                     title="Copier le mot de passe"
-                    disabled={!showPassword}
                   >
                     <CopyIcon fontSize="small" />
                   </IconButton>

@@ -361,53 +361,6 @@ const AgenciesManagement = () => {
             }}
           />
 
-          <Box>
-            <IconButton 
-              onClick={() => handleSortChange('name')} 
-              color={filters.sortBy === 'name' ? 'primary' : 'default'}
-              size="small"
-              title="Trier par nom"
-            >
-              <SortIcon />
-            </IconButton>
-            
-            <IconButton
-              onClick={() => handleStatusFilterChange('active')}
-              color={filters.status === 'ACTIVE' ? 'success' : 'default'}
-              size="small"
-              title="Agences actives"
-            >
-              <PlayArrowIcon />
-            </IconButton>
-            
-            <IconButton
-              onClick={() => handleStatusFilterChange('inactive')}
-              color={filters.status === 'INACTIVE' ? 'warning' : 'default'}
-              size="small"
-              title="Agences inactives"
-            >
-              <BlockIcon />
-            </IconButton>
-
-            <IconButton
-                onClick={() => handleStatusFilterChange('inactive')}
-                color={filters.status === 'SUSPENDED' ? 'error' : 'default'}
-                size="small"
-                title="Suspendre l'agence"
-            >
-              <BlockIcon />
-            </IconButton>
-            
-            {(filters.status !== 'all' || filters.search) && (
-              <Button 
-                size="small" 
-                onClick={handleResetFilters}
-                startIcon={<FilterListIcon />}
-              >
-                Réinitialiser
-              </Button>
-            )}
-          </Box>
         </Box>
         
         <Button

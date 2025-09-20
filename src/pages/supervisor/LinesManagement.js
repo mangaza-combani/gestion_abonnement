@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import {Box, Tabs, Tab, Tooltip, IconButton, Badge} from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
-import {PersonAdd as PersonAddIcon, Notifications as NotificationsIcon, Refresh as RefreshIcon} from '@mui/icons-material';
+import {AddIcCall as PhoneAddIcon, Notifications as NotificationsIcon, Refresh as RefreshIcon} from '@mui/icons-material';
 import {TAB_TYPES, CLIENT_STATUSES, ORDER_FILTERS} from '../../components/ClientManagement/constant';
 import ListTab from '../../components/ClientManagement/TabContent/ListTab';
 import BlockTab from '../../components/ClientManagement/TabContent//BlockTab';
@@ -536,10 +536,49 @@ const ClientManagement = () => {
                         return clientsToOrderData.data || [];
                 }
 
-                // Pour l'onglet LISTE DES LIGNES, utiliser les données avec statut de paiement (filtrées par agence)
+                // Pour l'onglet LISTE DES LIGNES, utiliser les données avec statut de paiement ET appliquer les filtres
                 if (currentTab === TAB_TYPES.LIST) {
                         if (!allLinesWithPaymentStatus || allLinesLoading) return [];
-                        return allLinesWithPaymentStatus || [];
+
+                        // Appliquer les filtres de recherche et de statut sur les données
+                        return allLinesWithPaymentStatus.filter(client => {
+                                // Filtre de recherche
+                                const matchesSearch = !searchTerm ? true :
+                                        client?.user?.firstname?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                                        client?.user?.lastname?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                                        client?.user?.email?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                                        client?.user?.phoneNumber?.includes(searchTerm);
+
+                                // Filtre de statut
+                                let matchesStatus = true;
+                                if (selectedStatus !== CLIENT_STATUSES.ALL) {
+                                        switch (selectedStatus) {
+                                                case CLIENT_STATUSES.TERMINATED: // "RÉSILIÉ"
+                                                        matchesStatus = client?.phoneStatus === 'TERMINATED';
+                                                        break;
+                                                case CLIENT_STATUSES.OVERDUE: // "EN RETARD"
+                                                        matchesStatus = client?.paymentStatus === 'OVERDUE';
+                                                        break;
+                                                case CLIENT_STATUSES.SUSPENDED: // "DETTE"
+                                                        matchesStatus = client?.paymentStatus === 'TO_BLOCK' ||
+                                                                      client?.paymentStatus === 'BLOCKED_NONPAYMENT' ||
+                                                                      client?.phoneStatus === 'SUSPENDED';
+                                                        break;
+                                                case CLIENT_STATUSES.ACTIVE: // "ACTIF"
+                                                        matchesStatus = client?.phoneStatus === 'ACTIVE';
+                                                        break;
+                                                case CLIENT_STATUSES.NEEDS_TO_BE_DEACTIVATED: // "A DÉSACTIVER"
+                                                        matchesStatus = client?.phoneStatus === 'NEEDS_TO_BE_DEACTIVATED';
+                                                        break;
+                                                default:
+                                                        // Fallback vers comparaison directe
+                                                        matchesStatus = client?.phoneStatus === selectedStatus ||
+                                                                      client?.paymentStatus === selectedStatus;
+                                        }
+                                }
+
+                                return matchesSearch && matchesStatus;
+                        });
                 }
 
                 if (!linesData) return [];
@@ -575,19 +614,6 @@ const ClientManagement = () => {
                             client?.user?.email.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
                             client?.user?.phoneNumber?.includes(searchTerm);
 
-                        if (currentTab === TAB_TYPES.LIST) {
-                                // Vue liste - TOUTES les lignes attribuées avec abonnement (même bloquées, en pause, résiliées)
-                                const matchesStatus = selectedStatus === CLIENT_STATUSES.ALL ||
-                                    client?.phoneStatus === selectedStatus || client?.paymentStatus === selectedStatus;
-                                // Vérifier si la ligne a un abonnement (peu importe le statut de la ligne)
-                                const hasSubscription = client?.phoneSubscriptions?.length > 0 || client?.activeSubscription;
-                                
-                                // 🧪 TEMPORAIRE: Afficher toutes les lignes pour debug, même sans abonnement
-                                // console.log('🔍 DEBUG FILTRE LIST:') - Log supprimé pour éviter les rerenders
-                                
-                                // Inclure même les lignes BLOCKED, PAUSED, TERMINATED car elles restent visibles dans la liste
-                                return matchesSearch && matchesStatus; // Temporairement ignorer hasSubscription
-                        }
 
                         // Filtres basés sur la logique métier
                         switch (currentTab) {
@@ -772,7 +798,7 @@ const ClientManagement = () => {
                                         onSearchChange={setSearchTerm}
                                         selectedStatus={selectedStatus}
                                         onStatusChange={setSelectedStatus}
-                                        lines={allLinesWithPaymentStatus || []}
+                                        lines={filteredClients} // Utiliser les données filtrées
                                         isLoading={allLinesLoading}
                                         clients={filteredClients}
                                         selectedClient={selectedClient}
@@ -913,7 +939,7 @@ const ClientManagement = () => {
                                             <RefreshIcon/>
                                     </IconButton>
                                 </Tooltip>
-                                <Tooltip title="Créer un nouveau client" placement="left">
+                                <Tooltip title="Souscrire une nouvelle ligne" placement="left">
                                         <IconButton
                                             color="primary"
                                             sx={{
@@ -922,7 +948,7 @@ const ClientManagement = () => {
                                             }}
                                             onClick={() => setIsNewClientModalOpen(true)}
                                         >
-                                                <PersonAddIcon/>
+                                                <PhoneAddIcon/>
                                         </IconButton>
                                 </Tooltip>
                             </Box>

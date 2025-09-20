@@ -596,9 +596,19 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                   
                   <Divider sx={{ my: 2 }} />
                   
-                  {account?.bankName || account?.cardLastFour || account?.cardExpiry ? (
+                  {account?.bankName || account?.cardLastFour || account?.cardExpiry || account?.cardHolderName ? (
                     <Grid container spacing={2}>
-                      <Grid item xs={12} sm={4}>
+                      <Grid item xs={12} sm={3}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Nom de la carte
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {account?.cardHolderName || 'Non renseigné'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={3}>
                         <Box>
                           <Typography variant="caption" color="text.secondary" display="block">
                             Banque
@@ -608,7 +618,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                           </Typography>
                         </Box>
                       </Grid>
-                      <Grid item xs={12} sm={4}>
+                      <Grid item xs={12} sm={3}>
                         <Box>
                           <Typography variant="caption" color="text.secondary" display="block">
                             Carte
@@ -618,13 +628,13 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                           </Typography>
                         </Box>
                       </Grid>
-                      <Grid item xs={12} sm={4}>
+                      <Grid item xs={12} sm={3}>
                         <Box>
                           <Typography variant="caption" color="text.secondary" display="block">
                             Expiration
                           </Typography>
-                          <Typography 
-                            variant="body2" 
+                          <Typography
+                            variant="body2"
                             fontWeight="medium"
                             color={(() => {
                               if (!account?.cardExpiry) return 'text.primary';

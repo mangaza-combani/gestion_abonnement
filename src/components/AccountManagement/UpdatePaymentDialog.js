@@ -16,14 +16,16 @@ import {
 import {
   CreditCard as CreditCardIcon,
   AccountBalance as AccountBalanceIcon,
-  DateRange as DateRangeIcon
+  DateRange as DateRangeIcon,
+  AccountCircle as AccountCircleIcon
 } from '@mui/icons-material';
 
 const UpdatePaymentDialog = ({ open, onClose, onSubmit, account }) => {
   const [formData, setFormData] = useState({
     bankName: '',
     cardLastFour: '',
-    cardExpiry: ''
+    cardExpiry: '',
+    cardHolderName: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -33,7 +35,8 @@ const UpdatePaymentDialog = ({ open, onClose, onSubmit, account }) => {
       setFormData({
         bankName: account.bankName || '',
         cardLastFour: account.cardLastFour || '',
-        cardExpiry: account.cardExpiry || ''
+        cardExpiry: account.cardExpiry || '',
+        cardHolderName: account.cardHolderName || ''
       });
       setErrors({});
     }
@@ -44,6 +47,10 @@ const UpdatePaymentDialog = ({ open, onClose, onSubmit, account }) => {
 
     if (!formData.bankName.trim()) {
       newErrors.bankName = 'Le nom de la banque est requis';
+    }
+
+    if (!formData.cardHolderName.trim()) {
+      newErrors.cardHolderName = 'Le nom du porteur de la carte est requis';
     }
 
     if (!formData.cardLastFour.trim()) {
@@ -133,7 +140,28 @@ const UpdatePaymentDialog = ({ open, onClose, onSubmit, account }) => {
             </Alert>
 
             <Grid container spacing={3}>
-              <Grid item xs={12}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Nom de la carte"
+                  name="cardHolderName"
+                  value={formData.cardHolderName}
+                  onChange={(e) => handleInputChange('cardHolderName', e.target.value.toUpperCase())}
+                  error={!!errors.cardHolderName}
+                  helperText={errors.cardHolderName}
+                  placeholder="ex: JOHN DOE"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <AccountCircleIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
                   required

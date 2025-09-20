@@ -66,6 +66,12 @@ export const agencyApiSlice = apiSliceWithPrefix.injectEndpoints({
       query: (id) => `/agencies/${id}`,
       providesTags: (result, error, id) => [{ type: 'Agencies', id }]
     }),
+
+    // Récupérer l'agence courante (pour les utilisateurs agence)
+    getCurrentAgency: builder.query({
+      query: () => '/agencies/current',
+      providesTags: ['CurrentAgency']
+    }),
     
     // Créer une nouvelle agence
     createAgency: builder.mutation({
@@ -232,6 +238,7 @@ export const agencyApiSlice = apiSliceWithPrefix.injectEndpoints({
 export const {
   useGetAgenciesQuery,
   useGetAgencyByIdQuery,
+  useGetCurrentAgencyQuery,
   useCreateAgencyMutation,
   useUpdateAgencyMutation,
     useCreateSimCardMutation,

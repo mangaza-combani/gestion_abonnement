@@ -126,14 +126,11 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: isOrderView ? '20%' : (showBlockReason ? '20%' : (showActivateActions ? '18%' : '20%')) }}>NOM</TableCell>
-              <TableCell sx={{ width: isOrderView ? '20%' : (showBlockReason ? '20%' : (showActivateActions ? '18%' : '20%')) }}>PRENOM</TableCell>
-              {isOrderView && (
-                <TableCell sx={{ width: '15%' }}>TELEPHONE</TableCell>
-              )}
-              <TableCell sx={{ width: isOrderView ? '15%' : (showBlockReason ? '15%' : (showActivateActions ? '16%' : '20%')) }}>COMPTE RED</TableCell>
-              <TableCell sx={{ width: '15%' }}>STATUT LIGNE</TableCell>
-              <TableCell sx={{ width: '15%' }}>STATUT PAIEMENT</TableCell>
+              <TableCell sx={{ width: showBlockReason ? '25%' : (showActivateActions ? '23%' : '25%') }}>NOM</TableCell>
+              <TableCell sx={{ width: '18%' }}>TELEPHONE</TableCell>
+              <TableCell sx={{ width: showBlockReason ? '12%' : (showActivateActions ? '13%' : '14%') }}>COMPTE RED</TableCell>
+              <TableCell sx={{ width: '13%' }}>STATUT LIGNE</TableCell>
+              <TableCell sx={{ width: '13%' }}>STATUT PAIEMENT</TableCell>
               {showBlockReason && (
                 <TableCell sx={{ width: '15%' }}>RAISON DU BLOCAGE</TableCell>
               )}
@@ -150,24 +147,64 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
               <TableRow
                 key={client.id}
                 hover
-                selected={selectedClient?.id === client?.user?.id}
-                onClick={() => onClientSelect(client)}
+                selected={(() => {
+                  // Logique de sélection plus robuste pour gérer différentes structures
+                  const selectedId = selectedClient?.id || selectedClient?.user?.id;
+                  const clientId = client?.id || client?.user?.id;
+                  const isSelected = selectedId === clientId;
+
+                  // Debug pour comprendre les structures
+                  if (client.id && client.id.toString().includes('1')) {
+                    console.log('🔍 Selection debug:', {
+                      selectedClient,
+                      client,
+                      selectedId,
+                      clientId,
+                      isSelected
+                    });
+                  }
+
+                  return isSelected;
+                })()}
+                onClick={() => {
+                  console.log('🔄 Client clicked:', client);
+                  onClientSelect(client);
+                }}
                 onMouseEnter={() => setHoveredRow(client.id)}
                 onMouseLeave={() => setHoveredRow(null)}
                 sx={{
                   cursor: 'pointer',
                   position: 'relative',
                   '&.Mui-selected': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+                    backgroundColor: '#2196f3 !important',
+                    color: 'white !important',
+                    border: '2px solid #1976d2 !important',
+                    '& .MuiTableCell-root': {
+                      color: 'white !important',
+                      backgroundColor: 'transparent !important',
+                    },
+                    '& .MuiChip-root': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.2) !important',
+                      color: 'white !important',
+                      borderColor: 'rgba(255, 255, 255, 0.4) !important',
+                    },
+                    '& .MuiTypography-root': {
+                      color: 'white !important',
+                    }
                   },
                   '&.Mui-selected:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+                    backgroundColor: 'primary.dark',
+                  },
+                  '&:hover:not(.Mui-selected)': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
                   }
                 }}
               >
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {client?.user?.lastname}
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                      {client?.user?.lastname} {client?.user?.firstname}
+                    </Typography>
                     {/* Marqueur pour remplacement SIM vol/perte */}
                     {(client?.replacementReason === 'SIM_LOST_THEFT' || client?.trackingNotes?.includes('REMPLACEMENT SIM')) && (
                       <Tooltip title="Remplacement SIM - Vol/Perte">
@@ -176,30 +213,24 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                     )}
                   </Box>
                 </TableCell>
-                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client?.user?.firstname}</TableCell>
-                {isOrderView &&(
-                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.phoneNumber || 'N/C'}</TableCell>
-                )}
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName ? (
-                    <Chip 
-                      label={client?.redAccountName || client?.redAccount?.accountName || client?.lineRequest?.redAccount?.accountName}
-                      size="small"
-                      color="info"
-                      variant="outlined"
-                      sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}
-                    />
-                  ) : (client?.redAccountId || client?.lineRequest?.redAccountId) ? (
-                    <Chip 
-                      label={`Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
-                      size="small"
-                      color="info"
-                      variant="outlined"
-                      sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}
-                    />
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">N/A</Typography>
-                  )}
+                  {client.phoneNumber || client?.user?.phoneNumber || 'N/C'}
+                </TableCell>
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {(() => {
+                    // Le nom du compte RED est dans redAccountId, pas dans accountName
+                    const accountName = client?.redAccountName ||
+                                      client?.redAccount?.redAccountId ||
+                                      client?.redAccount?.accountName ||
+                                      client?.lineRequest?.redAccount?.redAccountId ||
+                                      client?.lineRequest?.redAccount?.accountName;
+
+                    return (
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'primary.main' }}>
+                        {accountName || 'N/A'}
+                      </Typography>
+                    );
+                  })()}
                 </TableCell>
                 {/* Statut de ligne */}
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -211,7 +242,19 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                     sx={{
                       fontSize: '0.65rem',
                       fontWeight: 'bold',
-                      minWidth: 'fit-content'
+                      minWidth: 'fit-content',
+                      ...((() => {
+                        const selectedId = selectedClient?.id || selectedClient?.user?.id;
+                        const clientId = client?.id || client?.user?.id;
+                        const isSelected = selectedId === clientId;
+                        return isSelected ? {
+                          backgroundColor: 'rgba(255, 255, 255, 0.9) !important',
+                          color: '#2196f3 !important',
+                          borderColor: 'rgba(255, 255, 255, 0.8) !important',
+                          fontWeight: 'bold',
+                          boxShadow: '0 2px 8px rgba(255, 255, 255, 0.3)'
+                        } : {};
+                      })())
                     }}
                   />
                 </TableCell>
@@ -225,7 +268,18 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                     sx={{
                       fontSize: '0.65rem',
                       fontWeight: 'bold',
-                      minWidth: 'fit-content'
+                      minWidth: 'fit-content',
+                      ...((() => {
+                        const selectedId = selectedClient?.id || selectedClient?.user?.id;
+                        const clientId = client?.id || client?.user?.id;
+                        const isSelected = selectedId === clientId;
+                        return isSelected ? {
+                          backgroundColor: 'rgba(255, 255, 255, 0.9) !important',
+                          color: '#2196f3 !important',
+                          fontWeight: 'bold',
+                          boxShadow: '0 2px 8px rgba(255, 255, 255, 0.3)'
+                        } : {};
+                      })())
                     }}
                   />
                 </TableCell>

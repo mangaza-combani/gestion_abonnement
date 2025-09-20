@@ -52,8 +52,7 @@ const Settings = () => {
   return (
     <Container maxWidth="xl">
       <Box>
-        <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <SettingsIcon color="primary" />
+        <Typography variant="h4" gutterBottom>
           Paramètres Système
         </Typography>
 
@@ -63,9 +62,8 @@ const Settings = () => {
             onChange={handleTabChange}
             sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
-            <Tab 
-              icon={<SettingsIcon />} 
-              label="Paramètres Généraux" 
+            <Tab
+              label="Paramètres Généraux"
               id="settings-tab-0"
               aria-controls="settings-tabpanel-0"
             />

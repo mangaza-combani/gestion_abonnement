@@ -196,9 +196,12 @@ const AgencyCreationStepperModal = ({
       open={open}
       onClose={handleClose}
       maxWidth="md"
-      fullWidth
       PaperProps={{
-        sx: { minHeight: '500px' }
+        sx: {
+          minHeight: '500px',
+          width: '80%',
+          maxWidth: '700px'
+        }
       }}
     >
       <DialogTitle>

@@ -225,6 +225,37 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
           'LineReservation'
         ];
       }
+    }),
+
+    // 📱 Récupérer toutes les lignes d'un client spécifique
+    getClientLines: builder.query({
+      query: (clientId) => `/api/phones/client/${clientId}/lines`,
+      providesTags: (result, error, clientId) => [
+        { type: 'Phone', id: 'CLIENT_LINES' },
+        { type: 'Client', id: clientId }
+      ]
+    }),
+
+    // 💰 Récupérer tous les paiements d'un client spécifique
+    getClientPayments: builder.query({
+      query: (clientId) => `/api/phones/client/${clientId}/payments`,
+      providesTags: (result, error, clientId) => [
+        { type: 'LinePayment', id: 'CLIENT_PAYMENTS' },
+        { type: 'Client', id: clientId }
+      ]
+    }),
+
+    // ✏️ Mettre à jour les informations d'un client
+    updateClient: builder.mutation({
+      query: ({ clientId, updateData }) => ({
+        url: `/api/clients/${clientId}`,
+        method: 'PUT',
+        body: updateData
+      }),
+      invalidatesTags: (result, error, { clientId }) => [
+        { type: 'Client', id: clientId },
+        { type: 'Client', id: 'LIST' }
+      ]
     })
   })
 });
@@ -244,5 +275,8 @@ export const {
   useGetAvailableSimCardsQuery,
   useGetValidNumbersForAgencyQuery,
   useAssignSimToReplacementMutation,
-  useProcessInvoicePaymentMutation
+  useProcessInvoicePaymentMutation,
+  useGetClientLinesQuery, // 🆕 Récupérer les lignes d'un client
+  useGetClientPaymentsQuery, // 🆕 Récupérer les paiements d'un client
+  useUpdateClientMutation // 🆕 Mettre à jour les informations d'un client
 } = lineReservationsApiSlice;

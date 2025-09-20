@@ -316,29 +316,6 @@ const SimCardManagement = () => {
       {/* En-tête */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">Gestion des Cartes SIM</Typography>
-        {(() => {
-          const ordersInProgress = simOrders?.filter(order => (order.quantityReceived || 0) < order.quantity) || [];
-          const hasOrdersInProgress = ordersInProgress.length > 0;
-          
-          const tooltipTitle = !hasOrdersInProgress 
-            ? "Impossible de déclarer une réception : aucune commande en cours. Toutes les commandes ont été entièrement reçues ou il n'y a aucune commande active."
-            : "Déclarer la réception d'une livraison de cartes SIM";
-          
-          return (
-            <Tooltip title={tooltipTitle} arrow placement="bottom">
-              <span>
-                <Button
-                  variant="contained"
-                  startIcon={<LocalShippingIcon />}
-                  onClick={() => setShowReceiveModal(true)}
-                  disabled={!hasOrdersInProgress}
-                >
-                  Déclarer Réception
-                </Button>
-              </span>
-            </Tooltip>
-          );
-        })()}
       </Box>
 
       {/* Cartes statistiques */}
@@ -513,13 +490,6 @@ const SimCardManagement = () => {
                   <Typography variant="body2" color="text.secondary">
                     Reçues: {order.quantityReceived || 0}/{order.quantity}
                   </Typography>
-                  <Button
-                    size="small"
-                    color="primary"
-                    onClick={() => setShowReceiveModal(true)}
-                  >
-                    Déclarer une réception
-                  </Button>
                 </Box>
               </Box>
             ));
