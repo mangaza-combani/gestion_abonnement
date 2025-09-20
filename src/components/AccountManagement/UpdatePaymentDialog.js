@@ -50,7 +50,7 @@ const UpdatePaymentDialog = ({ open, onClose, onSubmit, account }) => {
     }
 
     if (!formData.cardHolderName.trim()) {
-      newErrors.cardHolderName = 'Le nom du porteur de la carte est requis';
+      newErrors.cardHolderName = 'Le nom de la carte est requis';
     }
 
     if (!formData.cardLastFour.trim()) {
