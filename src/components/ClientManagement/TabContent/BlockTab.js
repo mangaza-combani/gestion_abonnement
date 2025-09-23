@@ -21,27 +21,42 @@ const BlockTab = ({
   // Le superviseur doit manuellement sélectionner la ligne à traiter
 
   return (
-    <Stack spacing={2}>
-      <ClientSearch 
-        searchTerm={searchTerm}
-        onSearchChange={onSearchChange}
-        resultCount={dataToDisplay.length}
-        hideFilters
-      />
-      
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      width: '100%',
+      overflow: 'hidden'
+    }}>
+      <Box sx={{ flexShrink: 0, mb: 2 }}>
+        <ClientSearch
+          searchTerm={searchTerm}
+          onSearchChange={onSearchChange}
+          resultCount={dataToDisplay.length}
+          hideFilters
+        />
+      </Box>
+
       {/* Compteur des lignes */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+      <Box sx={{
+        flexShrink: 0,
+        display: 'flex',
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        mb: 2
+      }}>
         <Typography variant="body2" color="text.secondary">
           {dataToDisplay.length} ligne(s) à bloquer
         </Typography>
       </Box>
 
-
       {/* Tableaux séparés par compte RED */}
-      <SeparatedTablesBlockList
-        clients={dataToDisplay}
-      />
-    </Stack>
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
+        <SeparatedTablesBlockList
+          clients={dataToDisplay}
+        />
+      </Box>
+    </Box>
   );
 };
 

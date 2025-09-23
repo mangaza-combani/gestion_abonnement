@@ -809,9 +809,9 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
             iconPosition="start"
             sx={{ textTransform: 'none' }}
           />
-          <Tab 
-            label="Paiements" 
-            icon={<PaymentIcon />} 
+          <Tab
+            label="Factures"
+            icon={<PaymentIcon />}
             iconPosition="start"
             sx={{ textTransform: 'none' }}
           />

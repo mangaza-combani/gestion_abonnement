@@ -247,7 +247,7 @@ const ClientManagement = () => {
         // Calcul des notifications pour les cartes SIM disponibles
         const notificationData = React.useMemo(() => {
                 if (!agenciesData || !linesData) return { count: 0, newReceptions: [] };
-                
+
                 // Compter les lignes réservées
                 const reservedLines = linesData.filter(line => {
                         const hasActiveReservation = line?.user?.hasActiveReservation === true ||
@@ -256,7 +256,7 @@ const ClientManagement = () => {
                                                    line?.reservationStatus === 'RESERVED';
                         return hasActiveReservation;
                 });
-                
+
                 // Compter les cartes SIM disponibles et identifier les nouvelles réceptions
                 let totalAvailableSimCards = 0;
                 const newReceptions = [];
@@ -271,14 +271,14 @@ const ClientManagement = () => {
                         if (agency.simCards) {
                                 const availableSims = agency.simCards.filter(sim => sim.status === 'IN_STOCK');
                                 totalAvailableSimCards += availableSims.length;
-                                
+
                                 // Identifier les nouvelles réceptions (dernières 24h)
                                 const recentSims = agency.simCards.filter(sim => {
                                         if (!sim.createdAt) return false;
                                         const simDate = new Date(sim.createdAt);
                                         return simDate >= yesterday && sim.status === 'IN_STOCK';
                                 });
-                                
+
                                 if (recentSims.length > 0) {
                                         newReceptions.push({
                                                 agencyName: agency.name,
@@ -289,10 +289,10 @@ const ClientManagement = () => {
                                 }
                         }
                 });
-                
+
                 // Retourner le minimum entre lignes réservées et cartes SIM disponibles
                 const activatableLines = Math.min(reservedLines.length, totalAvailableSimCards);
-                
+
                 console.log('🔔 Calcul notification:', {
                         reservedLinesCount: reservedLines.length,
                         totalAvailableSimCards,
@@ -300,13 +300,125 @@ const ClientManagement = () => {
                         newReceptionsCount: newReceptions.length,
                         newReceptions
                 });
-                
-                return { 
+
+                return {
                         count: activatableLines,
                         newReceptions,
                         hasNewReceptions: newReceptions.length > 0
                 };
         }, [agenciesData, linesData]);
+
+        // 🆕 Calcul du nombre d'éléments pour chaque onglet (sauf LISTE DES LIGNES)
+        const tabCounts = React.useMemo(() => {
+                const counts = {};
+
+                // Calculer pour chaque onglet sauf LISTE DES LIGNES
+                tabs.forEach(tab => {
+                        if (tab.id === TAB_TYPES.LIST) {
+                                // Pas de compteur pour l'onglet principal
+                                return;
+                        }
+
+                        // Simuler temporairement le changement d'onglet pour obtenir les données filtrées
+                        const tempTab = currentTab;
+                        let filteredData = [];
+
+                        // Calcul basé sur les mêmes critères que getFilteredClients()
+                        switch (tab.id) {
+                                case TAB_TYPES.TO_BLOCK:
+                                        filteredData = phonesToBlockData || [];
+                                        break;
+                                case TAB_TYPES.OVERDUE:
+                                        filteredData = phonesOverdueData || [];
+                                        break;
+                                case TAB_TYPES.TO_ORDER:
+                                        filteredData = clientsToOrderData?.data || [];
+                                        break;
+                                case TAB_TYPES.TO_ACTIVATE:
+                                        // Calculer manuellement avec la même logique que getFilteredClients()
+                                        if (linesData) {
+                                                filteredData = linesData.filter(client => {
+                                                        // Même logique que dans getFilteredClients() pour TO_ACTIVATE
+                                                        const needsActivation = client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
+                                                        const hasReservation = client?.user?.hasActiveReservation === true ||
+                                                                              client?.user?.reservationStatus === 'RESERVED' ||
+                                                                              client?.hasActiveReservation === true ||
+                                                                              client?.reservationStatus === 'RESERVED';
+
+                                                        const needsReactivation = client?.phoneStatus === PHONE_STATUS.PAUSED &&
+                                                                                 client?.paymentStatus === 'À JOUR' &&
+                                                                                 client?.blockedReason === 'nonpayment';
+
+                                                        const isAlreadyActive = client?.phoneStatus === PHONE_STATUS.ACTIVE;
+
+                                                        return (needsActivation || hasReservation || needsReactivation) && !isAlreadyActive;
+                                                });
+                                        }
+                                        break;
+                                case TAB_TYPES.TO_UNBLOCK:
+                                        // Calculer manuellement pour TO_UNBLOCK
+                                        if (linesData) {
+                                                const now = new Date();
+                                                const currentDay = now.getDate();
+                                                filteredData = linesData.filter(client => {
+                                                        const hasUnpaidFor2Months = client?.unpaidMonthsCount >= 2;
+                                                        const isAfter30th = currentDay > 30 || (currentDay === 30 && now.getHours() >= 23);
+                                                        return hasUnpaidFor2Months && isAfter30th &&
+                                                               client?.phoneStatus === PHONE_STATUS.SUSPENDED;
+                                                });
+                                        }
+                                        break;
+                                default:
+                                        break;
+                        }
+
+                        counts[tab.id] = filteredData.length;
+                });
+
+                return counts;
+        }, [tabs, phonesToBlockData, phonesOverdueData, clientsToOrderData, phonesToActivateData, linesData, PHONE_STATUS]);
+
+        // 🆕 Fonction pour obtenir le badge d'un onglet
+        const getTabBadge = (tabId, tabLabel) => {
+                const count = tabCounts[tabId];
+
+                // Debug temporaire pour vérifier les compteurs
+                if (tabId === TAB_TYPES.TO_ACTIVATE) {
+                        console.log('🔍 Debug badge À ACTIVER:', {
+                                tabId,
+                                count,
+                                tabCounts: tabCounts,
+                                phonesToActivateData: phonesToActivateData?.length,
+                                linesData: linesData?.length
+                        });
+                }
+
+                // Système unifié pour tous les onglets (sauf LISTE DES LIGNES)
+                if (count > 0 && tabId !== TAB_TYPES.LIST) {
+                        return (
+                                <Badge
+                                        badgeContent={count}
+                                        color="error"
+                                        sx={{
+                                                '& .MuiBadge-badge': {
+                                                        backgroundColor: '#d32f2f',
+                                                        color: 'white',
+                                                        fontWeight: 'bold',
+                                                        fontSize: '0.75rem',
+                                                        minWidth: '18px',
+                                                        height: '18px',
+                                                        borderRadius: '9px'
+                                                }
+                                        }}
+                                >
+                                        {tabLabel}
+                                </Badge>
+                        );
+                }
+
+                // Pas de badge
+                return tabLabel;
+        };
 
         // 🆕 Fonction pour rafraîchir tous les statuts de paiement
         const refreshAllPaymentStatus = async () => {
@@ -874,8 +986,8 @@ const ClientManagement = () => {
         };
 
         return (
-            <Box sx={{bgcolor: 'grey.50', minHeight: '100vh'}}>
-                    <Box sx={{bgcolor: 'white', boxShadow: 1, position: 'relative'}}>
+            <Box sx={{bgcolor: 'grey.50', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+                    <Box sx={{bgcolor: 'white', boxShadow: 1, position: 'relative', flexShrink: 0}}>
                             <Tabs
                                 value={currentTab}
                                 onChange={(e, newValue) => handleChangeTabs(e, newValue)}
@@ -889,40 +1001,10 @@ const ClientManagement = () => {
                                 }}
                             >
                                     {tabs?.map((tab) => (
-                                        <Tab 
-                                            key={tab.id} 
-                                            value={tab.id} 
-                                            label={
-                                                tab.id === TAB_TYPES.TO_ACTIVATE && (notificationData.count > 0 || notificationData.hasNewReceptions) ? (
-                                                    <Badge 
-                                                        badgeContent={notificationData.count > 0 ? notificationData.count : '!'} 
-                                                        color="secondary"
-                                                        sx={{
-                                                            '& .MuiBadge-badge': {
-                                                                backgroundColor: notificationData.hasNewReceptions ? '#FF5722' : '#4CAF50',
-                                                                color: 'white',
-                                                                fontWeight: 'bold',
-                                                                fontSize: '0.75rem',
-                                                                minWidth: '20px',
-                                                                height: '20px',
-                                                                borderRadius: '10px',
-                                                                animation: notificationData.hasNewReceptions ? 'pulse 2s infinite' : 'none'
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                            <NotificationsIcon sx={{ 
-                                                                fontSize: '1.1rem', 
-                                                                color: notificationData.hasNewReceptions ? '#FF5722' : '#4CAF50',
-                                                                animation: notificationData.hasNewReceptions ? 'bell-ring 1s ease-in-out infinite' : 'none'
-                                                            }} />
-                                                            {tab.label}
-                                                        </Box>
-                                                    </Badge>
-                                                ) : (
-                                                    tab.label
-                                                )
-                                            }
+                                        <Tab
+                                            key={tab.id}
+                                            value={tab.id}
+                                            label={getTabBadge(tab.id, tab.label)}
                                         />
                                     ))}
                             </Tabs>
@@ -953,33 +1035,50 @@ const ClientManagement = () => {
                                 </Tooltip>
                             </Box>
                     </Box>
-                    <Box sx={{display: 'flex', p: 2, gap: 2, maxWidth: '100vw', overflow: 'hidden'}}>
+                    <Box sx={{
+                        display: 'flex',
+                        p: 2,
+                        gap: 2,
+                        flex: 1,
+                        overflow: 'hidden',
+                        minHeight: 0
+                    }}>
                             <Box sx={{
-                                flex: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '0 0 45%' : 
-                                      selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '0 0 75%' : '1 1 auto', 
-                                minWidth: 0, 
+                                flex: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '0 0 45%' :
+                                      selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '0 0 75%' : '1 1 auto',
+                                minWidth: 0,
                                 overflow: 'hidden',
-                                maxWidth: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '45%' : 
+                                maxWidth: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '45%' :
                                          selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '75%' : '100%'
                             }}>
                                     {renderTabContent()}
                             </Box>
-                            <Box sx={{ 
+                            <Box sx={{
                                 display: selectedClient && currentTab !== TAB_TYPES.TO_ORDER ? 'flex' : 'none',
                                 flex: selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '0 0 25%' : '0 0 55%',
                                 width: selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '25%' : '55%',
-                                overflow: 'auto',
-                                minWidth: selectedClient && currentTab === TAB_TYPES.TO_BLOCK ? '200px' : '500px',
-                                gap: 2,
+                                overflow: 'hidden',
+                                minWidth: 0,
+                                gap: 1,
                                 alignItems: 'flex-start'
                             }}>
                                 {selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_ACTIVATE && currentTab !== TAB_TYPES.TO_BLOCK && (
                                         <>
-                                                <ClientDetails
-                                                    client={selectedClient}
-                                                    currentTab={currentTab}
-                                                />
-                                                <Box sx={{ flex: '0 0 auto', alignSelf: 'flex-start' }}>
+                                                <Box sx={{
+                                                    flex: '1 1 auto',
+                                                    minWidth: '300px',
+                                                    overflow: 'auto'
+                                                }}>
+                                                    <ClientDetails
+                                                        client={selectedClient}
+                                                        currentTab={currentTab}
+                                                    />
+                                                </Box>
+                                                <Box sx={{
+                                                    flex: '0 0 auto',
+                                                    width: '200px',
+                                                    minWidth: '200px'
+                                                }}>
                                                     <ClientActions
                                                         client={selectedClient}
                                                         currentTab={currentTab}
@@ -991,12 +1090,10 @@ const ClientManagement = () => {
                                     <ActivationInfo client={selectedClient} />
                                 )}
                                 {currentTab === TAB_TYPES.TO_BLOCK && (
-                                    <Box sx={{ flex: '0 0 auto', alignSelf: 'flex-start' }}>
-                                        <ClientActions
-                                            client={selectedClient}
-                                            currentTab={currentTab}
-                                        />
-                                    </Box>
+                                    <ClientActions
+                                        client={selectedClient}
+                                        currentTab={currentTab}
+                                    />
                                 )}
                             </Box>
                     </Box>

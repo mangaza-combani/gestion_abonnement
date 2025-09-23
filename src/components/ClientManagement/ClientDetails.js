@@ -149,54 +149,9 @@ const SubscriptionCard = ({ client, simCard }) => {
   // 🚦 LOGIQUE SPÉCIALE: Si ligne en attente d'activation, différencier les cas
   const isWaitingForActivation = phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
 
-  // Déterminer le message selon le contexte de réactivation
-  const getActivationMessage = () => {
-    if (!isWaitingForActivation) return null;
-    
-    const reason = client.reactivationReason;
-    
-    if (reason && reason.includes('Dette réglée')) {
-      return [
-        '💳 Dette réglée - Ligne prête pour réactivation',
-        '✅ Paiements à jour - En attente du superviseur',
-        '🔧 Réactivation superviseur requise'
-      ];
-    }
-    
-    if (reason && reason.includes('pause')) {
-      return [
-        '▶️ Demande de réactivation après pause',
-        '✅ Paiements à jour - Ligne prête',
-        '🔧 Activation superviseur requise'
-      ];
-    }
-    
-    if (reason && reason.includes('résiliation')) {
-      return [
-        '🔄 Réactivation après résiliation',
-        '✅ Paiements à jour - Ligne disponible',
-        '🔧 Activation superviseur requise'
-      ];
-    }
-    
-    if (reason && reason.includes('Nouvelle activation')) {
-      return [
-        '⏳ En attente de carte SIM pour activation',
-        '📱 Ligne réservée - Activation en cours',
-        '🔧 Superviseur doit activer avec carte SIM'
-      ];
-    }
-    
-    // Cas par défaut pour nouvelles lignes
-    return [
-      '⏳ En attente de carte SIM pour activation',
-      '📱 Ligne réservée - Activation en cours',
-      '🔧 Superviseur doit activer avec carte SIM'
-    ];
-  };
 
   // Utiliser les vraies données d'abonnement si disponibles
-  const subscriptionFeatures = isWaitingForActivation ? getActivationMessage() : [];
+  const subscriptionFeatures = [];
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('fr-FR');
@@ -701,7 +656,7 @@ const ClientDetails = ({ client, selectedYear, onYearChange, currentTab }) => {
 
   return (
     <>
-      <Card sx={{ width: '100%', maxWidth: '500px' }}>
+      <Card sx={{ width: '100%' }}>
         <Box sx={{ p: 3 }}>
           <ClientHeader client={client} onOpenModal={handleOpenModal} />
           {currentTab === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED ? (

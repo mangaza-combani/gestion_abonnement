@@ -121,8 +121,8 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
   const showListActions = action === 'list' || action === 'ALL_LINES';
 
   return (
-    <Card sx={{ flex: 1 }}>
-      <TableContainer>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow>

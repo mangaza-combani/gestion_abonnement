@@ -22,10 +22,23 @@ const ListTab = ({
   // Utiliser lines si disponible, sinon clients
   const dataToDisplay = lines || clients || []
   return (
-    <Stack spacing={2} sx={{ width: '100%', maxWidth: '1200px' }}>
-      <Stack spacing={2} direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      width: '100%',
+      overflow: 'hidden'
+    }}>
+      <Box sx={{
+        flexShrink: 0,
+        display: 'flex',
+        gap: 2,
+        mb: 2,
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }}>
         <Box sx={{ flex: '1 1 300px', minWidth: '300px', maxWidth: '400px' }}>
-          <ClientSearch 
+          <ClientSearch
             searchTerm={searchTerm}
             onSearchChange={onSearchChange}
             resultCount={dataToDisplay?.length}
@@ -37,14 +50,16 @@ const ListTab = ({
             onStatusChange={onStatusChange}
           />
         </Box>
-      </Stack>
-      <ClientList
-        clients={dataToDisplay}
-        selectedClient={selectedClient}
-        onClientSelect={onClientSelect}
-        isLoading={isLoading}
-      />
-    </Stack>
+      </Box>
+      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+        <ClientList
+          clients={dataToDisplay}
+          selectedClient={selectedClient}
+          onClientSelect={onClientSelect}
+          isLoading={isLoading}
+        />
+      </Box>
+    </Box>
   );
 };
 

@@ -56,6 +56,7 @@ const ActivateTab = ({
   const { data: agenciesData } = useGetAgenciesQuery();
   const { data: currentUser } = useWhoIAmQuery();
   const isAgency = currentUser?.role === 'AGENCY';
+  const isSupervisor = currentUser?.role === 'SUPERVISOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
 
   console.log('🏢 AgenciesData reçue:', {
     hasData: !!agenciesData,
@@ -257,65 +258,77 @@ const ActivateTab = ({
         hideFilters
       />
 
-      {/* Filtres d'activation */}
-      <Paper sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterIcon color="primary" />
-            <Typography variant="subtitle2">
-              Filtrer par statut d'activation :
-            </Typography>
+      {/* Filtres d'activation - Masqués pour les superviseurs */}
+      {!isSupervisor && (
+        <Paper sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FilterIcon color="primary" />
+              <Typography variant="subtitle2">
+                Filtrer par statut d'activation :
+              </Typography>
+            </Box>
           </Box>
+
+          <ButtonGroup variant="outlined" size="small">
+            <Button
+              variant={activationFilter === 'all' ? 'contained' : 'outlined'}
+              onClick={() => setActivationFilter('all')}
+              startIcon={<PhoneIcon />}
+            >
+              Tous ({dataToDisplay?.length || 0})
+            </Button>
+            <Button
+              variant={activationFilter === 'ready' ? 'contained' : 'outlined'}
+              onClick={() => setActivationFilter('ready')}
+              startIcon={<CheckCircleIcon />}
+              color="success"
+            >
+              Prêts à activer ({readyCount})
+            </Button>
+            <Button
+              variant={activationFilter === 'waiting' ? 'contained' : 'outlined'}
+              onClick={() => setActivationFilter('waiting')}
+              startIcon={<WaitingIcon />}
+              color="warning"
+            >
+              En attente SIM ({waitingCount})
+            </Button>
+            <Button
+              variant={activationFilter === 'to_pay' ? 'contained' : 'outlined'}
+              onClick={() => setActivationFilter('to_pay')}
+              startIcon={<PaymentIcon />}
+              color="info"
+            >
+              À PAYER ({toPayCount})
+            </Button>
+          </ButtonGroup>
+
+          {activationFilter !== 'all' && (
+            <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                {activationFilter === 'ready' && '✅ Clients avec SIM disponible ET facture du mois courant payée - Prêts pour activation immédiate'}
+                {activationFilter === 'waiting' && '⏳ Clients avec réservations actives mais sans cartes SIM disponibles - En attente de livraison SIM'}
+                {activationFilter === 'to_pay' && '💳 Clients avec SIM disponible MAIS facture d\'activation non générée ou impayée - Génération facture requise'}
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      )}
+
+      {/* Compteur simple pour les superviseurs */}
+      {isSupervisor && (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'success.lighter', borderRadius: 1, border: 1, borderColor: 'success.main' }}>
+          <Typography variant="body2" color="success.dark" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckCircleIcon fontSize="small" />
+            <strong>{dataToDisplay?.length || 0} ligne(s) prête(s) à activer</strong>
+          </Typography>
         </Box>
-        
-        <ButtonGroup variant="outlined" size="small">
-          <Button
-            variant={activationFilter === 'all' ? 'contained' : 'outlined'}
-            onClick={() => setActivationFilter('all')}
-            startIcon={<PhoneIcon />}
-          >
-            Tous ({dataToDisplay?.length || 0})
-          </Button>
-          <Button
-            variant={activationFilter === 'ready' ? 'contained' : 'outlined'}
-            onClick={() => setActivationFilter('ready')}
-            startIcon={<CheckCircleIcon />}
-            color="success"
-          >
-            Prêts à activer ({readyCount})
-          </Button>
-          <Button
-            variant={activationFilter === 'waiting' ? 'contained' : 'outlined'}
-            onClick={() => setActivationFilter('waiting')}
-            startIcon={<WaitingIcon />}
-            color="warning"
-          >
-            En attente SIM ({waitingCount})
-          </Button>
-          <Button
-            variant={activationFilter === 'to_pay' ? 'contained' : 'outlined'}
-            onClick={() => setActivationFilter('to_pay')}
-            startIcon={<PaymentIcon />}
-            color="info"
-          >
-            À PAYER ({toPayCount})
-          </Button>
-        </ButtonGroup>
-        
-        {activationFilter !== 'all' && (
-          <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              {activationFilter === 'ready' && '✅ Clients avec SIM disponible ET facture du mois courant payée - Prêts pour activation immédiate'}
-              {activationFilter === 'waiting' && '⏳ Clients avec réservations actives mais sans cartes SIM disponibles - En attente de livraison SIM'}
-              {activationFilter === 'to_pay' && '💳 Clients avec SIM disponible MAIS facture d\'activation non générée ou impayée - Génération facture requise'}
-            </Typography>
-          </Box>
-        )}
-      </Paper>
+      )}
 
       {/* Liste des clients à activer */}
       <ClientList
-        clients={filteredClients || []}
+        clients={isSupervisor ? dataToDisplay || [] : filteredClients || []}
         selectedClient={selectedClient}
         onClientSelect={onClientSelect}
         action="activate"

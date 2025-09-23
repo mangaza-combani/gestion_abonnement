@@ -290,12 +290,17 @@ const MainLayout = () => {
           p: 3,
           pt: 0,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
-          minHeight: '100vh',
+          height: 'calc(100vh - 64px)',
           bgcolor: 'background.default',
           mt: 8,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
-        <Outlet />
+        <Box sx={{ flex: 1, overflow: 'hidden' }}>
+          <Outlet />
+        </Box>
       </Box>
     </Box>
   );
