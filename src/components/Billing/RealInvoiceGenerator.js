@@ -485,14 +485,19 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
 
             const result = await processGroupPayment(paymentData).unwrap();
 
+            // Extraire les invoiceIds de paidInvoices
+            const invoiceIds = result.paidInvoices ? result.paidInvoices.map(inv => inv.invoiceId) :
+                              result.invoiceIds || [];
+
             results.push({
               lineId,
               phoneNumber: line?.phoneNumber,
               amount: lineUnpaidAmount,
               success: true,
-              invoiceIds: result.invoiceIds || [],
+              invoiceIds: invoiceIds,
               paymentId: result.paymentId,
-              result
+              result,
+              paidInvoices: result.paidInvoices // Garder les données complètes
             });
 
             console.log(`✅ Paiement réussi pour ligne ${line?.phoneNumber}:`, result);
@@ -527,34 +532,193 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
     }
   };
 
-  // 🖨️ NOUVELLE FONCTION : Gestion de l'impression des factures
-  const handlePrintInvoice = (result) => {
+  // 🔍 NOUVELLE FONCTION : Afficher l'aperçu de facture HTML
+  const showInvoicePDF = async (invoiceId, title = 'Facture') => {
+    try {
+      // Vérifier l'authentification
+      const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+      if (!authToken) {
+        setSnackbar({
+          open: true,
+          message: 'Token d\'authentification manquant',
+          severity: 'error'
+        });
+        return;
+      }
+
+      // Utiliser la route PDF publique avec authentification par token
+      const serverUrl = API_CONFIG.SERVER_URL || 'http://localhost:3333';
+      const previewUrl = `${serverUrl}/api/invoices/public/${invoiceId}/pdf-with-token?token=${encodeURIComponent(authToken)}`;
+
+      console.log(`📄 Ouverture aperçu facture ${invoiceId}:`, previewUrl);
+
+      // Ouvrir directement l'aperçu HTML existant dans un nouvel onglet
+      const pdfWindow = window.open(previewUrl, `invoice-${invoiceId}`, 'width=1000,height=800');
+
+      if (pdfWindow) {
+        // Attendre que la page se charge et ajouter des fonctionnalités d'impression
+        pdfWindow.onload = () => {
+          console.log('📄 Aperçu de facture chargé avec succès');
+        };
+      } else {
+        // Fallback si les popups sont bloquées
+        alert('Veuillez autoriser les popups pour voir la facture');
+        window.open(previewUrl, '_blank');
+      }
+
+    } catch (error) {
+      console.error(`❌ Erreur récupération PDF facture ${invoiceId}:`, error);
+      setSnackbar({
+        open: true,
+        message: `❌ Erreur lors de l'ouverture de la facture: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  };
+
+  // 🖨️ NOUVELLE FONCTION : Affichage PDF consolidé de toutes les factures
+  const handlePrintConsolidatedInvoices = async (result) => {
     if (!result.success || !result.invoiceIds || result.invoiceIds.length === 0) {
       console.warn('Aucune facture à imprimer pour cette ligne');
       return;
     }
 
-    // Générer les URLs d'impression pour chaque facture
-    result.invoiceIds.forEach((invoiceId, index) => {
-      const printUrl = `${API_CONFIG.baseURL}/line-payments/invoice/${invoiceId}/print`;
-
-      console.log(`🖨️ Ouverture impression facture ${invoiceId}:`, printUrl);
-
-      // Ouvrir dans un nouvel onglet pour l'impression
-      const printWindow = window.open(printUrl, `invoice-${invoiceId}`, 'width=800,height=600');
-
-      if (printWindow) {
-        // Optionnel: déclencher l'impression automatiquement après chargement
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.print();
-          }, 500); // Délai pour s'assurer que la page est entièrement chargée
-        };
-      } else {
-        // Fallback si les popups sont bloquées
-        alert('Veuillez autoriser les popups pour imprimer les factures');
-        window.open(printUrl, '_blank');
+    try {
+      // Vérifier l'authentification
+      const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+      if (!authToken) {
+        setSnackbar({
+          open: true,
+          message: 'Token d\'authentification manquant',
+          severity: 'error'
+        });
+        return;
       }
+
+      // Utiliser la route POST pour le PDF consolidé
+      const serverUrl = API_CONFIG.SERVER_URL || 'http://localhost:3333';
+      const consolidatedUrl = `${serverUrl}/api/invoices/public/consolidated-pdf-with-token`;
+
+      // Créer le formulaire pour envoyer les données en POST
+      const formData = new FormData();
+      formData.append('token', authToken);
+      result.invoiceIds.forEach((id, index) => {
+        formData.append(`invoiceIds[${index}]`, id.toString());
+      });
+
+      console.log(`📄 Ouverture PDF consolidé pour ${result.invoiceIds.length} factures:`, result.invoiceIds);
+
+      // Créer un lien temporaire pour télécharger le PDF consolidé
+      const response = await fetch(consolidatedUrl, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, `consolidated-invoices-${result.phoneNumber}`, 'width=1000,height=800');
+
+        // Nettoyer l'URL après un délai
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      } else {
+        console.error('Erreur lors de la génération du PDF consolidé');
+        setSnackbar({
+          open: true,
+          message: 'Erreur lors de la génération du PDF consolidé',
+          severity: 'error'
+        });
+      }
+
+    } catch (error) {
+      console.error('Erreur PDF consolidé:', error);
+      setSnackbar({
+        open: true,
+        message: 'Erreur lors de la génération du PDF consolidé',
+        severity: 'error'
+      });
+    }
+  };
+
+  // 🖨️ NOUVELLE FONCTION : Affichage des factures PDF (aperçu) - version individuelle
+  const handlePrintInvoice = async (result) => {
+    if (!result.success || !result.invoiceIds || result.invoiceIds.length === 0) {
+      console.warn('Aucune facture à imprimer pour cette ligne');
+      return;
+    }
+
+    // Afficher chaque facture dans un nouvel onglet
+    for (const invoiceId of result.invoiceIds) {
+      await showInvoicePDF(invoiceId, `Facture ligne ${result.phoneNumber}`);
+    }
+  };
+
+  // 🖨️ NOUVELLE FONCTION : Affichage d'aperçu de reçu/facture de paiement
+  const handlePrintPaymentReceipt = async (result) => {
+    if (!result.success) {
+      console.warn('Impossible d\'afficher le reçu pour un paiement échoué');
+      return;
+    }
+
+    console.log('📄 handlePrintPaymentReceipt appelée avec:', result);
+
+    // Essayer de trouver un invoiceId pour afficher la facture PDF
+    let invoiceId = null;
+
+    // Priorité 1: invoiceIds direct
+    if (result.invoiceIds && result.invoiceIds.length > 0) {
+      invoiceId = result.invoiceIds[0];
+      console.log('📄 Utilisation direct invoiceId:', invoiceId);
+    }
+    // Priorité 2: paidInvoices direct du result
+    else if (result.paidInvoices && result.paidInvoices.length > 0) {
+      invoiceId = result.paidInvoices[0].invoiceId;
+      console.log('📄 Utilisation paidInvoices direct:', invoiceId);
+    }
+    // Priorité 3: invoiceIds du résultat API imbriqué (paidInvoices)
+    else if (result.result?.paidInvoices && result.result.paidInvoices.length > 0) {
+      invoiceId = result.result.paidInvoices[0].invoiceId;
+      console.log('📄 Utilisation paidInvoices invoiceId:', invoiceId);
+    }
+
+    // Si on a trouvé un invoiceId, afficher la facture PDF
+    if (invoiceId) {
+      await showInvoicePDF(invoiceId, `Facture - Paiement ligne ${result.phoneNumber}`);
+
+      setSnackbar({
+        open: true,
+        message: `📄 Aperçu facture ouverte pour ligne ${result.phoneNumber}`,
+        severity: 'success'
+      });
+    } else {
+      // Fallback: afficher un message de confirmation simple
+      setSnackbar({
+        open: true,
+        message: `✅ Paiement de ${result.amount.toFixed(2)}€ pour ligne ${result.phoneNumber} traité avec succès`,
+        severity: 'success'
+      });
+
+      console.log('⚠️ Aucun invoiceId trouvé pour afficher la facture PDF. Structure result:', result);
+    }
+  };
+
+  // 🖨️ NOUVELLE FONCTION : Affichage d'une facture individuelle
+  const handlePrintSingleInvoice = async (invoiceId, phoneNumber) => {
+    if (!invoiceId) {
+      console.warn('ID de facture manquant pour l\'impression');
+      return;
+    }
+
+    console.log(`📄 Affichage facture individuelle ${invoiceId} pour ligne ${phoneNumber}`);
+
+    // Utiliser la fonction showInvoicePDF pour afficher l'aperçu
+    await showInvoicePDF(invoiceId, `Facture - Ligne ${phoneNumber}`);
+
+    // Message de confirmation
+    setSnackbar({
+      open: true,
+      message: `📄 Ouverture aperçu facture pour ligne ${phoneNumber}`,
+      severity: 'info'
     });
   };
 
@@ -598,12 +762,42 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
   // Handler pour paiement groupé
   const handleGroupPayment = async () => {
     if (!clientId) return;
-    
+
     try {
+      // Vérifier qu'il y a des lignes sélectionnées
+      if (selectedLines.length === 0) {
+        setSnackbar({
+          open: true,
+          message: '⚠️ Aucune ligne sélectionnée pour le paiement',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      // Filtrer les lignes sélectionnées qui ont des factures impayées
+      const selectedLinesWithUnpaid = selectedLines.filter(lineId => {
+        const line = clientOverview?.lines?.find(l => l.id === lineId);
+        const unpaidAmount = getLineUnpaidAmount(line);
+        return unpaidAmount > 0;
+      });
+
+      if (selectedLinesWithUnpaid.length === 0) {
+        setSnackbar({
+          open: true,
+          message: '⚠️ Aucune facture impayée dans les lignes sélectionnées',
+          severity: 'warning'
+        });
+        return;
+      }
+
+      const totalAmount = getSelectedLinesUnpaidInvoicesAmount();
+
       await processGroupPayment({
         clientId,
+        phoneIds: selectedLinesWithUnpaid,
         paymentMethod: 'manual',
-        notes: 'Paiement groupé via interface'
+        amount: totalAmount,
+        notes: `Paiement groupé - ${selectedLinesWithUnpaid.length} ligne(s) - Total: ${totalAmount}€`
       }).unwrap();
       
       setSnackbar({
@@ -2173,26 +2367,53 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                         size="large"
                         fullWidth
                         startIcon={<span>💵</span>}
-                        onClick={() => {
+                        onClick={async () => {
                           const amount = calculateAdvanceTotal();
 
-                          setAdvanceAmount(amount);
-                          setTotalPaymentAmount(amount);
+                          console.log(`💵 PAIEMENT AVANCE ESPECES DIRECT - Montant: ${amount}€, Lignes: ${selectedLines.length}, Périodes: ${selectedPeriods.length}`);
 
-                          // Paiement espèces uniquement
-                          setPaymentSplit({
-                            balance: 0,
-                            cash: amount,
-                            card: 0
-                          });
+                          try {
+                            // Créer le motif pour le paiement
+                            const reason = `Paiement d'avance espèces ${amount}€ pour ${selectedLines.length} ligne(s) × ${selectedPeriods.length} mois`;
 
-                          setPaymentMethodModal(true);
+                            // Appel direct à addLineBalance
+                            const balanceData = {
+                              phoneId: selectedLineId,
+                              clientId: clientId,
+                              amount: amount,
+                              reason: reason,
+                              paymentMethod: 'cash'
+                            };
+
+                            console.log('📤 ENVOI addLineBalance ESPECES:', balanceData);
+                            const result = await addLineBalance(balanceData).unwrap();
+
+                            console.log('✅ SUCCES addLineBalance ESPECES:', result);
+
+                            setSnackbar({
+                              open: true,
+                              message: `✅ Paiement d'avance espèces de ${amount}€ ajouté au solde de la ligne ${selectedLine?.phoneNumber} ! Nouveau solde: ${result.newBalance}€`,
+                              severity: 'success'
+                            });
+
+                            // Rafraîchir les données
+                            if (refetchOverview) refetchOverview();
+                            if (phoneId && refetchLineData) refetchLineData();
+
+                          } catch (error) {
+                            console.error('❌ ERREUR paiement avance espèces:', error);
+                            setSnackbar({
+                              open: true,
+                              message: `❌ Erreur lors du paiement d'avance: ${error.message || error}`,
+                              severity: 'error'
+                            });
+                          }
                         }}
                         disabled={selectedLines.length === 0 || selectedPeriods.length === 0 || isAddingBalance}
                         sx={{ py: 2 }}
                       >
                         <Typography variant="h6">
-                          Paiement Espèces
+                          {isAddingBalance ? 'Traitement...' : 'Payer en Espèces'}
                         </Typography>
                       </Button>
 
@@ -2202,26 +2423,53 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                         size="large"
                         fullWidth
                         startIcon={<PaymentIcon />}
-                        onClick={() => {
+                        onClick={async () => {
                           const amount = calculateAdvanceTotal();
 
-                          setAdvanceAmount(amount);
-                          setTotalPaymentAmount(amount);
+                          console.log(`💳 PAIEMENT AVANCE CB DIRECT - Montant: ${amount}€, Lignes: ${selectedLines.length}, Périodes: ${selectedPeriods.length}`);
 
-                          // Paiement CB uniquement
-                          setPaymentSplit({
-                            balance: 0,
-                            cash: 0,
-                            card: amount
-                          });
+                          try {
+                            // Créer le motif pour le paiement
+                            const reason = `Paiement d'avance CB ${amount}€ pour ${selectedLines.length} ligne(s) × ${selectedPeriods.length} mois`;
 
-                          setPaymentMethodModal(true);
+                            // Appel direct à addLineBalance
+                            const balanceData = {
+                              phoneId: selectedLineId,
+                              clientId: clientId,
+                              amount: amount,
+                              reason: reason,
+                              paymentMethod: 'card'
+                            };
+
+                            console.log('📤 ENVOI addLineBalance CB:', balanceData);
+                            const result = await addLineBalance(balanceData).unwrap();
+
+                            console.log('✅ SUCCES addLineBalance CB:', result);
+
+                            setSnackbar({
+                              open: true,
+                              message: `✅ Paiement d'avance CB de ${amount}€ ajouté au solde de la ligne ${selectedLine?.phoneNumber} ! Nouveau solde: ${result.newBalance}€`,
+                              severity: 'success'
+                            });
+
+                            // Rafraîchir les données
+                            if (refetchOverview) refetchOverview();
+                            if (phoneId && refetchLineData) refetchLineData();
+
+                          } catch (error) {
+                            console.error('❌ ERREUR paiement avance CB:', error);
+                            setSnackbar({
+                              open: true,
+                              message: `❌ Erreur lors du paiement d'avance: ${error.message || error}`,
+                              severity: 'error'
+                            });
+                          }
                         }}
                         disabled={selectedLines.length === 0 || selectedPeriods.length === 0 || isAddingBalance}
                         sx={{ py: 2 }}
                       >
                         <Typography variant="h6">
-                          Paiement CB
+                          {isAddingBalance ? 'Traitement...' : 'Payer en CB'}
                         </Typography>
                       </Button>
                     </Stack>
@@ -2711,95 +2959,150 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
         fullWidth
       >
         <DialogTitle>
-          <Box display="flex" alignItems="center" gap={2}>
-            <CheckCircleIcon color="success" fontSize="large" />
-            <Typography variant="h5" fontWeight="bold">
-              Résultats des paiements
-            </Typography>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={2}>
+              <CheckCircleIcon color="success" fontSize="large" />
+              <Typography variant="h5" fontWeight="bold">
+                Résultats des paiements
+              </Typography>
+            </Box>
+            <IconButton
+              aria-label="fermer"
+              onClick={() => setShowPaymentConfirmation(false)}
+              sx={{
+                color: 'grey.500',
+                '&:hover': {
+                  color: 'grey.700',
+                  bgcolor: 'grey.100'
+                }
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
           </Box>
         </DialogTitle>
 
         <DialogContent>
           <Stack spacing={3}>
-            {/* Résumé global */}
-            <Paper sx={{ p: 2, bgcolor: 'primary.50' }}>
-              <Typography variant="h6" gutterBottom>
-                📊 Résumé
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="body2">
-                    <strong>Lignes traitées:</strong> {paymentResults.length}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2">
-                    <strong>Succès:</strong> {paymentResults.filter(r => r.success).length}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2">
-                    <strong>Montant total:</strong> {paymentResults.filter(r => r.success).reduce((sum, r) => sum + r.amount, 0).toFixed(2)}€
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2">
-                    <strong>Échecs:</strong> {paymentResults.filter(r => !r.success).length}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Paper>
-
-            {/* Détail par ligne */}
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                📱 Détail par ligne
-              </Typography>
-              <Stack spacing={1}>
-                {paymentResults.map((result, index) => (
-                  <Paper
-                    key={result.lineId}
-                    sx={{
-                      p: 2,
-                      bgcolor: result.success ? 'success.50' : 'error.50',
-                      border: '1px solid',
-                      borderColor: result.success ? 'success.200' : 'error.200'
-                    }}
-                  >
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography variant="subtitle1" fontWeight="bold">
+            {/* Tableau des résultats */}
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>📱 Ligne</TableCell>
+                    <TableCell>💰 Montant</TableCell>
+                    <TableCell>📊 Statut</TableCell>
+                    <TableCell align="center">📄 Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paymentResults.map((result, index) => (
+                    <TableRow
+                      key={result.lineId}
+                      sx={{
+                        bgcolor: result.success ? 'success.50' : 'error.50',
+                        '&:hover': { bgcolor: result.success ? 'success.100' : 'error.100' }
+                      }}
+                    >
+                      <TableCell>
+                        <Typography variant="subtitle2" fontWeight="bold">
                           {result.success ? '✅' : '❌'} {result.phoneNumber}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {result.success ?
-                            `Paiement de ${result.amount.toFixed(2)}€ traité avec succès` :
-                            `Erreur: ${result.error}`
-                          }
-                        </Typography>
-                      </Box>
-                      <Box textAlign="right">
+                      </TableCell>
+                      <TableCell>
                         <Typography variant="h6" fontWeight="bold" color={result.success ? 'success.main' : 'error.main'}>
                           {result.amount.toFixed(2)}€
                         </Typography>
-                        {result.success && result.invoiceIds && result.invoiceIds.length > 0 && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="primary"
-                            startIcon={<PrintIcon />}
-                            onClick={() => handlePrintInvoice(result)}
-                            sx={{ mt: 1 }}
-                          >
-                            Imprimer facture{result.invoiceIds.length > 1 ? 's' : ''}
-                          </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {result.success ?
+                            'Paiement réussi' :
+                            `Erreur: ${result.error}`
+                          }
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        {result.success && (
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {(() => {
+                              const invoiceIds = result.invoiceIds || result.result?.invoiceIds || [];
+                              const hasInvoices = invoiceIds.length > 0;
+
+                              // Si pas d'invoiceIds, bouton générique
+                              if (!hasInvoices) {
+                                return (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="primary"
+                                    startIcon={<PrintIcon />}
+                                    onClick={() => handlePrintPaymentReceipt(result)}
+                                  >
+                                    Reçu
+                                  </Button>
+                                );
+                              }
+
+                              const buttons = [];
+
+                              // Bouton PDF consolidé si plusieurs factures
+                              if (invoiceIds.length > 1) {
+                                buttons.push(
+                                  <Button
+                                    key="consolidated"
+                                    size="small"
+                                    variant="contained"
+                                    color="secondary"
+                                    startIcon={<PdfIcon />}
+                                    onClick={() => handlePrintConsolidatedInvoices(result)}
+                                  >
+                                    Toutes ({invoiceIds.length})
+                                  </Button>
+                                );
+                              }
+
+                              // Boutons individuels
+                              if (invoiceIds.length === 1) {
+                                buttons.push(
+                                  <Button
+                                    key="single"
+                                    size="small"
+                                    variant="outlined"
+                                    color="primary"
+                                    startIcon={<PrintIcon />}
+                                    onClick={() => handlePrintSingleInvoice(invoiceIds[0], result.phoneNumber)}
+                                  >
+                                    Facture
+                                  </Button>
+                                );
+                              } else {
+                                invoiceIds.forEach((invoiceId, idx) => {
+                                  buttons.push(
+                                    <Button
+                                      key={invoiceId}
+                                      size="small"
+                                      variant="outlined"
+                                      color="primary"
+                                      startIcon={<PrintIcon />}
+                                      onClick={() => handlePrintSingleInvoice(invoiceId, result.phoneNumber)}
+                                    >
+                                      F{idx + 1}
+                                    </Button>
+                                  );
+                                });
+                              }
+
+                              return buttons;
+                            })()}
+                          </Box>
                         )}
-                      </Box>
-                    </Box>
-                  </Paper>
-                ))}
-              </Stack>
-            </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Stack>
         </DialogContent>
 
@@ -2808,28 +3111,31 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
           {paymentResults.filter(r => r.success && r.invoiceIds && r.invoiceIds.length > 0).length > 0 && (
             <Button
               onClick={() => {
-                // Imprimer toutes les factures des paiements réussis
-                paymentResults
+                // 🖨️ Générer un PDF consolidé pour tous les résultats de paiement
+                const allInvoiceIds = paymentResults
                   .filter(r => r.success && r.invoiceIds && r.invoiceIds.length > 0)
-                  .forEach(result => handlePrintInvoice(result));
+                  .flatMap(result => result.invoiceIds);
+
+                if (allInvoiceIds.length > 0) {
+                  // Créer un résultat fictif pour la fonction consolidée
+                  const consolidatedResult = {
+                    success: true,
+                    invoiceIds: allInvoiceIds,
+                    phoneNumber: 'multiple'
+                  };
+                  handlePrintConsolidatedInvoices(consolidatedResult);
+                } else {
+                  console.warn('Aucune facture à imprimer');
+                }
               }}
-              variant="outlined"
+              variant="contained"
               color="primary"
               size="large"
-              startIcon={<PrintIcon />}
+              startIcon={<PdfIcon />}
             >
-              Imprimer toutes les factures
+              PDF Consolidé ({paymentResults.filter(r => r.success && r.invoiceIds && r.invoiceIds.length > 0).reduce((sum, r) => sum + r.invoiceIds.length, 0)} factures)
             </Button>
           )}
-
-          <Button
-            onClick={() => setShowPaymentConfirmation(false)}
-            variant="contained"
-            color="primary"
-            size="large"
-          >
-            Fermer
-          </Button>
         </DialogActions>
       </Dialog>
     </Dialog>

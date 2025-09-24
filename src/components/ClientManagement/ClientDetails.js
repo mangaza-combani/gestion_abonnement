@@ -110,7 +110,7 @@ const ClientHeader = ({ client, simCard, onOpenModal }) => (
 
       {/* Deuxième ligne : Statuts */}
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.paymentStatus)} />
+        <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.calculatedPaymentStatus || client?.paymentStatus)} />
         <StatusChip status={formatPaymentAndStatusToHumanReadable(client?.phoneStatus)} />
       </Box>
     </Box>
@@ -286,20 +286,20 @@ const SubscriptionCard = ({ client, simCard }) => {
         {/* Alerte pour les lignes en attente, impayés, la résiliation, en pause ou bloquées */}
         {(isWaitingForActivation || dueAmount > 0 || phoneStatus === PHONE_STATUS.SUSPENDED ||
           phoneStatus === PHONE_STATUS.PAUSED || phoneStatus === PHONE_STATUS.BLOCKED ||
-          client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+          (client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
           client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
           <Alert
             severity={
               isWaitingForActivation ? 'info' :
               phoneStatus === PHONE_STATUS.PAUSED ? 'warning' :
-              (client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+              ((client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
                client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? 'error' :
               statusInfo.severity
             }
             icon={
               isWaitingForActivation ? <TimerIcon /> :
               phoneStatus === PHONE_STATUS.PAUSED ? <BlockIcon /> :
-              (client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+              ((client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
                client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? <BlockIcon /> :
               statusInfo.icon
             }
@@ -312,9 +312,9 @@ const SubscriptionCard = ({ client, simCard }) => {
                 ? 'Ligne en pause'
                 : phoneStatus === PHONE_STATUS.SUSPENDED
                 ? 'Abonnement résilié'
-                : client?.paymentStatus === 'DETTE'
+                : (client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE'
                 ? 'Ligne bloquée - Dette de paiement'
-                : client?.paymentStatus === 'EN RETARD'
+                : (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD'
                 ? 'Paiement en retard'
                 : client?.phoneStatus === 'BLOCKED_NONPAYMENT'
                 ? 'Ligne bloquée pour impayé'
@@ -332,7 +332,7 @@ const SubscriptionCard = ({ client, simCard }) => {
                   Cette ligne est actuellement mise en pause.
                 </Typography>
                 {(client?.blockReasonLabel || client?.blockedReason || client?.pendingBlockReason ||
-                  client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+                  (client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
                   client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <InfoIcon fontSize="small" color="warning" />
@@ -370,7 +370,7 @@ const SubscriptionCard = ({ client, simCard }) => {
                     'Cette ligne est bloquée pour impayé.'}
                 </Typography>
                 {(client?.blockReasonLabel || client?.blockedReason || client?.pendingBlockReason ||
-                  client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
+                  (client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
                   client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <InfoIcon fontSize="small" color="error" />
