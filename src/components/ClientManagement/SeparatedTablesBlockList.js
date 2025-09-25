@@ -37,7 +37,8 @@ const SeparatedTablesBlockList = ({ clients }) => {
 
     // Vérifier le rôle de l'utilisateur
     const { data: currentUser } = useWhoIAmQuery();
-    const isSupervisor = currentUser?.role === 'SUPERVISOR';
+    const isSupervisor = currentUser?.role === 'SUPERVISOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
+    const isAgency = currentUser?.role === 'AGENCY';
 
     // Grouper les lignes par compte RED
     const groupByRedAccount = (clients) => {
@@ -133,7 +134,7 @@ const SeparatedTablesBlockList = ({ clients }) => {
         <Stack spacing={3}>
             {groupedData.map((group) => (
                 <Paper key={group.accountName} elevation={2} sx={{ overflow: 'hidden' }}>
-                    {/* En-tête du compte RED - Simplifié */}
+                    {/* En-tête du compte RED */}
                     <Box sx={{
                         bgcolor: 'primary.main',
                         color: 'white',
@@ -144,83 +145,101 @@ const SeparatedTablesBlockList = ({ clients }) => {
                         justifyContent: 'flex-start',
                         gap: 3
                     }}>
-                        {/* Identifiants du compte RED uniquement */}
-                        {group.redAccount && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                {/* Login */}
+                        {group.redAccount ? (
+                            isAgency ? (
+                                // Pour les agences : afficher seulement le nom du compte
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                        Login:
+                                    <AccountIcon />
+                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                        {group.accountName}
                                     </Typography>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontFamily: 'monospace',
-                                            backgroundColor: 'rgba(255,255,255,0.2)',
-                                            px: 1.5,
-                                            py: 0.5,
-                                            borderRadius: 0.5,
-                                            letterSpacing: '0.5px',
-                                            fontWeight: 600,
-                                            fontSize: '0.9rem'
-                                        }}
-                                    >
-                                        {group.redAccount.redAccountId}
-                                    </Typography>
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => copyToClipboard(group.redAccount.redAccountId)}
-                                        sx={{ color: 'white', p: 0.5 }}
-                                        title="Copier le login"
-                                    >
-                                        <CopyIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
                                 </Box>
+                            ) : (
+                                // Pour les superviseurs : afficher login et mot de passe
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    {/* Login */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                            Login:
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                fontFamily: 'monospace',
+                                                backgroundColor: 'rgba(255,255,255,0.2)',
+                                                px: 1.5,
+                                                py: 0.5,
+                                                borderRadius: 0.5,
+                                                letterSpacing: '0.5px',
+                                                fontWeight: 600,
+                                                fontSize: '0.9rem'
+                                            }}
+                                        >
+                                            {group.redAccount.redAccountId}
+                                        </Typography>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => copyToClipboard(group.redAccount.redAccountId)}
+                                            sx={{ color: 'white', p: 0.5 }}
+                                            title="Copier le login"
+                                        >
+                                            <CopyIcon sx={{ fontSize: 16 }} />
+                                        </IconButton>
+                                    </Box>
 
-                                {/* Mot de passe */}
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                        Pass:
-                                    </Typography>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontFamily: 'monospace',
-                                            backgroundColor: 'rgba(255,255,255,0.2)',
-                                            px: 1.5,
-                                            py: 0.5,
-                                            borderRadius: 0.5,
-                                            letterSpacing: '0.5px',
-                                            fontWeight: 600,
-                                            minWidth: '80px',
-                                            fontSize: '0.9rem'
-                                        }}
-                                    >
-                                        {visiblePasswords[group.accountName]
-                                            ? group.redAccount.redPassword
-                                            : '••••••••'
-                                        }
-                                    </Typography>
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => togglePasswordVisibility(group.accountName)}
-                                        sx={{ color: 'white', p: 0.5 }}
-                                        title={visiblePasswords[group.accountName] ? "Masquer" : "Afficher"}
-                                    >
-                                        {visiblePasswords[group.accountName]
-                                            ? <VisibilityOffIcon sx={{ fontSize: 16 }} />
-                                            : <VisibilityIcon sx={{ fontSize: 16 }} />
-                                        }
-                                    </IconButton>
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => copyToClipboard(group.redAccount.redPassword)}
-                                        sx={{ color: 'white', p: 0.5 }}
-                                        title="Copier le mot de passe"
-                                    >
-                                        <CopyIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
+                                    {/* Mot de passe */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                            Pass:
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                fontFamily: 'monospace',
+                                                backgroundColor: 'rgba(255,255,255,0.2)',
+                                                px: 1.5,
+                                                py: 0.5,
+                                                borderRadius: 0.5,
+                                                letterSpacing: '0.5px',
+                                                fontWeight: 600,
+                                                minWidth: '80px',
+                                                fontSize: '0.9rem'
+                                            }}
+                                        >
+                                            {visiblePasswords[group.accountName]
+                                                ? group.redAccount.redPassword
+                                                : '••••••••'
+                                            }
+                                        </Typography>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => togglePasswordVisibility(group.accountName)}
+                                            sx={{ color: 'white', p: 0.5 }}
+                                            title={visiblePasswords[group.accountName] ? "Masquer" : "Afficher"}
+                                        >
+                                            {visiblePasswords[group.accountName]
+                                                ? <VisibilityOffIcon sx={{ fontSize: 16 }} />
+                                                : <VisibilityIcon sx={{ fontSize: 16 }} />
+                                            }
+                                        </IconButton>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => copyToClipboard(group.redAccount.redPassword)}
+                                            sx={{ color: 'white', p: 0.5 }}
+                                            title="Copier le mot de passe"
+                                        >
+                                            <CopyIcon sx={{ fontSize: 16 }} />
+                                        </IconButton>
+                                    </Box>
                                 </Box>
+                            )
+                        ) : (
+                            // Fallback si pas de redAccount
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <AccountIcon />
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                    {group.accountName}
+                                </Typography>
                             </Box>
                         )}
                     </Box>

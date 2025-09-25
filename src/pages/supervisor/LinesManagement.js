@@ -986,7 +986,7 @@ const ClientManagement = () => {
         };
 
         return (
-            <Box sx={{bgcolor: 'grey.50', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+            <Box sx={{bgcolor: 'grey.50', display: 'flex', flexDirection: 'column'}}>
                     <Box sx={{bgcolor: 'white', boxShadow: 1, position: 'relative', flexShrink: 0}}>
                             <Tabs
                                 value={currentTab}
@@ -1038,10 +1038,7 @@ const ClientManagement = () => {
                     <Box sx={{
                         display: 'flex',
                         p: 2,
-                        gap: 2,
-                        flex: 1,
-                        overflow: 'hidden',
-                        minHeight: 0
+                        gap: 2
                     }}>
                             <Box sx={{
                                 flex: selectedClient && currentTab !== TAB_TYPES.TO_ORDER && currentTab !== TAB_TYPES.TO_BLOCK ? '0 0 45%' :

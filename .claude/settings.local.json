@@ -6,7 +6,8 @@
       "Read(//c/Users/Mangaza/Desktop/gestion_sim/api_uwezo/**)",
       "Bash(node ace migration:run:*)",
       "Read(//c/Users/Mangaza/Desktop/gestion_sim/**)",
-      "Read(//c/Users/CYBER UWEZO/Desktop/gestion/api_wezo/**)"
+      "Read(//c/Users/CYBER UWEZO/Desktop/gestion/api_wezo/**)",
+      "Read(//c/Users/CYBER UWEZO/Desktop/gestion/**)"
     ],
     "deny": [],
     "ask": []

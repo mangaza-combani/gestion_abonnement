@@ -9,24 +9,48 @@ import {
     Typography,
     Stack,
     Alert,
-    Box
+    Box,
+    IconButton
 } from '@mui/material';
 import {
     LocalShipping as DeliveryIcon,
-    SimCard as SimIcon
+    SimCard as SimIcon,
+    Close as CloseIcon
 } from '@mui/icons-material';
 import { useDeclareSimReplacementReceivedMutation } from '../../store/slices/simReplacementSlice';
 
 const SimReplacementReceivedButton = ({ client, disabled = false, size = "small" }) => {
     const [open, setOpen] = useState(false);
-    const [iccid, setIccid] = useState('');
+    const [iccidParts, setIccidParts] = useState(['8933', '', '', '', '']);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [declareSimReceived] = useDeclareSimReplacementReceivedMutation();
 
+    const handleICCIDPartChange = (index, value) => {
+        // Only allow digits and limit to 4 characters
+        const numericValue = value.replace(/[^\d]/g, '').slice(0, 4);
+
+        const newParts = [...iccidParts];
+        newParts[index] = numericValue;
+        setIccidParts(newParts);
+
+        // Auto-focus next field if current field is complete and not the last field
+        if (numericValue.length === 4 && index < 4) {
+            const nextField = document.getElementById(`iccid-part-${index + 1}`);
+            if (nextField) {
+                nextField.focus();
+            }
+        }
+    };
+
+    const getFullICCID = () => {
+        return iccidParts.join('');
+    };
+
     const handleDeclareReceived = async () => {
-        if (!iccid.trim()) {
-            alert('Veuillez saisir l\'ICCID de la nouvelle SIM');
+        const fullICCID = getFullICCID();
+        if (fullICCID.length < 20) {
+            alert('Veuillez saisir l\'ICCID complet de la nouvelle SIM (20 chiffres)');
             return;
         }
 
@@ -34,12 +58,12 @@ const SimReplacementReceivedButton = ({ client, disabled = false, size = "small"
         try {
             const result = await declareSimReceived({
                 phoneId: client.id,
-                iccid: iccid.trim()
+                iccid: fullICCID
             }).unwrap();
 
             console.log('✅ Réception SIM de remplacement déclarée:', result);
             setOpen(false);
-            setIccid('');
+            setIccidParts(['8933', '', '', '', '']);
         } catch (error) {
             console.error('Erreur déclaration réception SIM:', error);
             alert('Erreur lors de la déclaration de réception');
@@ -50,7 +74,7 @@ const SimReplacementReceivedButton = ({ client, disabled = false, size = "small"
 
     const handleClose = () => {
         setOpen(false);
-        setIccid('');
+        setIccidParts(['8933', '', '', '', '']);
         setIsSubmitting(false);
     };
 
@@ -83,17 +107,22 @@ const SimReplacementReceivedButton = ({ client, disabled = false, size = "small"
 
             <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
                 <DialogTitle>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <SimIcon color="primary" />
-                        <Typography variant="h6">
-                            Déclarer réception SIM de remplacement
-                        </Typography>
-                    </Stack>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                        Déclarer réception SIM de remplacement
+                        <IconButton
+                            edge="end"
+                            color="inherit"
+                            onClick={handleClose}
+                            aria-label="close"
+                        >
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
                 </DialogTitle>
 
                 <DialogContent>
-                    <Stack spacing={3} sx={{ mt: 1 }}>
-                        <Alert severity="info">
+                    <Box sx={{ mt: 2 }}>
+                        <Alert severity="info" sx={{ mb: 2 }}>
                             <Typography variant="body2">
                                 <strong>Client :</strong> {clientName}<br />
                                 <strong>Ligne :</strong> {client.phoneNumber || 'N/A'}<br />
@@ -101,39 +130,47 @@ const SimReplacementReceivedButton = ({ client, disabled = false, size = "small"
                             </Typography>
                         </Alert>
 
-                        <Alert severity="warning">
-                            <Typography variant="body2">
-                                Une fois la réception déclarée, cette ligne pourra suivre le processus normal d'activation
-                                (vérification paiement puis activation).
-                            </Typography>
-                        </Alert>
+                        <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+                            Veuillez saisir les 16 derniers chiffres inscrits au dos de votre carte SIM
+                        </Typography>
 
-                        <TextField
-                            label="ICCID de la nouvelle SIM *"
-                            value={iccid}
-                            onChange={(e) => setIccid(e.target.value)}
-                            placeholder="Saisissez l'ICCID de la SIM reçue"
-                            fullWidth
-                            variant="outlined"
-                            required
-                            inputProps={{
-                                style: { fontFamily: 'monospace' }
-                            }}
-                        />
+                        {/* Affichage visuel du format ICCID */}
+                        <Typography variant="subtitle2" gutterBottom>
+                            ICCID de la carte SIM
+                        </Typography>
 
-                        <Box sx={{
-                            p: 2,
-                            backgroundColor: 'grey.100',
-                            borderRadius: 1,
-                            border: '1px solid',
-                            borderColor: 'grey.300'
-                        }}>
-                            <Typography variant="caption" color="text.secondary">
-                                <strong>Information :</strong> L'ICCID est généralement un code de 19-20 chiffres
-                                présent sur la carte SIM. Une fois déclaré, cette SIM sera associée à la ligne.
-                            </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
+                            {iccidParts.map((part, index) => (
+                                <TextField
+                                    key={index}
+                                    id={`iccid-part-${index}`}
+                                    size="small"
+                                    value={part}
+                                    onChange={(e) => handleICCIDPartChange(index, e.target.value)}
+                                    disabled={index === 0} // First field always disabled (8933)
+                                    inputProps={{
+                                        maxLength: 4,
+                                        style: {
+                                            fontFamily: 'monospace',
+                                            letterSpacing: '1px',
+                                            fontSize: '1.1rem',
+                                            textAlign: 'center',
+                                            width: '60px'
+                                        }
+                                    }}
+                                    sx={{
+                                        width: '80px',
+                                        '& .MuiInputBase-input.Mui-disabled': {
+                                            WebkitTextFillColor: '#000',
+                                            backgroundColor: '#f5f5f5'
+                                        }
+                                    }}
+                                    placeholder={index === 0 ? "" : "XXXX"}
+                                    autoFocus={index === 1} // Focus on second field
+                                />
+                            ))}
                         </Box>
-                    </Stack>
+                    </Box>
                 </DialogContent>
 
                 <DialogActions>
@@ -143,7 +180,7 @@ const SimReplacementReceivedButton = ({ client, disabled = false, size = "small"
                     <Button
                         onClick={handleDeclareReceived}
                         variant="contained"
-                        disabled={isSubmitting || !iccid.trim()}
+                        disabled={isSubmitting || getFullICCID().length < 20}
                         color="success"
                     >
                         {isSubmitting ? 'Déclaration...' : 'Déclarer la réception'}

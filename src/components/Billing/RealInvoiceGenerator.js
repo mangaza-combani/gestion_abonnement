@@ -126,6 +126,10 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
   // États pour sélection multiple des autres lignes
   const [selectedOtherLines, setSelectedOtherLines] = useState([]);
 
+  // 🆕 États pour l'édition manuelle du montant
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
+  const [manualAmount, setManualAmount] = useState('');
+
   // 🎯 NOUVELLE LOGIQUE : Ligne sélectionnée + Client
   const [currentSelectedLineId, setCurrentSelectedLineId] = useState(selectedLine?.id); // État pour la ligne actuellement sélectionnée
   const selectedLineId = currentSelectedLineId || selectedLine?.id; // ID de la ligne sélectionnée
@@ -175,6 +179,13 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
     error: overviewError,
     refetch: refetchOverview
   } = useGetClientOverviewQuery(clientId, { skip: !clientId });
+
+  // 🆕 Réinitialiser le montant manuel quand les données changent
+  useEffect(() => {
+    // Réinitialiser l'édition et le montant manuel quand la sélection change
+    setIsEditingAmount(false);
+    setManualAmount('');
+  }, [selectedLines, currentSelectedLineId, clientOverview]);
 
   // 🎯 NOUVEAU : Fonction pour obtenir le prix mensuel d'une ligne (définie après clientOverview)
   const getLineMonthlyPrice = (lineId) => {
@@ -790,19 +801,76 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
         return;
       }
 
-      const totalAmount = getSelectedLinesUnpaidInvoicesAmount();
+      // 🆕 Utiliser le montant manuel si défini, sinon le montant calculé
+      const calculatedAmount = getSelectedLinesUnpaidInvoicesAmount();
+      const finalAmount = manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : calculatedAmount;
 
-      await processGroupPayment({
+      const result = await processGroupPayment({
         clientId,
         phoneIds: selectedLinesWithUnpaid,
         paymentMethod: 'manual',
-        amount: totalAmount,
-        notes: `Paiement groupé - ${selectedLinesWithUnpaid.length} ligne(s) - Total: ${totalAmount}€`
+        amount: finalAmount,
+        notes: `Paiement groupé${manualAmount && !isNaN(parseFloat(manualAmount)) && parseFloat(manualAmount) !== calculatedAmount ? ' (montant modifié)' : ''} - ${selectedLinesWithUnpaid.length} ligne(s) - Total: ${finalAmount}€`
       }).unwrap();
-      
+
+      // 🎉 TRAITEMENT DES RÉSULTATS POUR AFFICHAGE
+      console.log('📄 Résultat du paiement groupé:', result);
+
+      const groupedResults = [];
+
+      // Créer les résultats basés sur la réponse de l'API
+      if (result.paidInvoices && result.paidInvoices.length > 0) {
+        // Grouper les résultats par ligne (phoneId)
+        const resultsByLine = new Map();
+
+        result.paidInvoices.forEach(paidInvoice => {
+          const phoneId = paidInvoice.phoneId;
+          const line = clientOverview?.lines?.find(l => l.id === phoneId);
+
+          if (!resultsByLine.has(phoneId)) {
+            resultsByLine.set(phoneId, {
+              lineId: phoneId,
+              phoneNumber: paidInvoice.phoneNumber || line?.phoneNumber,
+              amount: 0,
+              success: true,
+              invoiceIds: [],
+              paymentId: result.paymentId,
+              result: result,
+              paidInvoices: []
+            });
+          }
+
+          const lineResult = resultsByLine.get(phoneId);
+          lineResult.amount += paidInvoice.paidAmount;
+          lineResult.invoiceIds.push(paidInvoice.invoiceId);
+          lineResult.paidInvoices.push(paidInvoice);
+        });
+
+        groupedResults.push(...resultsByLine.values());
+      } else {
+        // Fallback : créer un résultat générique si pas de détails spécifiques
+        selectedLinesWithUnpaid.forEach(lineId => {
+          const line = clientOverview?.lines?.find(l => l.id === lineId);
+
+          groupedResults.push({
+            lineId,
+            phoneNumber: line?.phoneNumber,
+            amount: finalAmount / selectedLinesWithUnpaid.length, // Répartir équitablement
+            success: true,
+            invoiceIds: [],
+            paymentId: result.paymentId,
+            result: result,
+            paidInvoices: []
+          });
+        });
+      }
+
+      setPaymentResults(groupedResults);
+      setShowPaymentConfirmation(true);
+
       setSnackbar({
         open: true,
-        message: '✅ Paiement groupé effectué avec succès !',
+        message: `✅ Paiement groupé de ${finalAmount.toFixed(2)}€ effectué avec succès sur ${selectedLinesWithUnpaid.length} ligne(s) !`,
         severity: 'success'
       });
       
@@ -1174,9 +1242,11 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
     }
 
     // 🎯 NOUVELLE APPROCHE: Ouvrir le modal de sélection de paiement
-    const amount = parseFloat(advanceAmount);
+    // 🆕 Utiliser le montant manuel si défini et valide, sinon utiliser advanceAmount
+    const manualAmountValue = manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null;
+    const amount = manualAmountValue || parseFloat(advanceAmount);
     const lineBalance = selectedLineBalance;
-    
+
     setTotalPaymentAmount(amount);
     setPaymentSplit({
       balance: Math.min(amount, lineBalance), // Utiliser le solde disponible de la ligne
@@ -1692,8 +1762,13 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
 
                   // Si aucune ligne sélectionnée, afficher la ligne active
                   const displayLines = selectedLines.length > 0 ? selectedLinesData : [currentSelectedLine].filter(Boolean);
-                  const displayAmount = selectedLines.length > 0 ? selectedLinesUnpaidAmount :
+                  const calculatedDisplayAmount = selectedLines.length > 0 ? selectedLinesUnpaidAmount :
                     (realPaymentStatus === 'IMPAYÉ' ? unpaidInvoicesList.reduce((total, invoice) => total + (invoice.amount || 0), 0) : 0);
+
+                  // 🆕 Utiliser le montant manuel si défini et valide, sinon utiliser le montant calculé
+                  const manualAmountValue = manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null;
+                  const displayAmount = manualAmountValue || calculatedDisplayAmount;
+
                   const hasUnpaid = selectedLines.length > 0 ? selectedLinesWithUnpaid.length > 0 : realPaymentStatus === 'IMPAYÉ';
 
                   return (
@@ -1716,9 +1791,58 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                         <Box textAlign="center" py={2}>
                           {hasUnpaid ? (
                             <>
-                              <Typography variant="h3" color="error.main" fontWeight="bold">
-                                😟 {displayAmount.toFixed(2)}€
-                              </Typography>
+                              {/* Montant éditable */}
+                              <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
+                                {isEditingAmount ? (
+                                  <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography variant="h3" color="error.main" fontWeight="bold">
+                                      😟
+                                    </Typography>
+                                    <TextField
+                                      value={manualAmount}
+                                      onChange={(e) => setManualAmount(e.target.value)}
+                                      onBlur={() => {
+                                        if (manualAmount === '' || parseFloat(manualAmount) <= 0) {
+                                          setManualAmount(calculatedDisplayAmount.toFixed(2));
+                                        }
+                                        setIsEditingAmount(false);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          if (manualAmount === '' || parseFloat(manualAmount) <= 0) {
+                                            setManualAmount(calculatedDisplayAmount.toFixed(2));
+                                          }
+                                          setIsEditingAmount(false);
+                                        }
+                                        if (e.key === 'Escape') {
+                                          setManualAmount(calculatedDisplayAmount.toFixed(2));
+                                          setIsEditingAmount(false);
+                                        }
+                                      }}
+                                      variant="standard"
+                                      InputProps={{
+                                        style: { fontSize: '2.125rem', fontWeight: 'bold', color: '#d32f2f', textAlign: 'center' },
+                                        endAdornment: '€'
+                                      }}
+                                      sx={{ width: '150px' }}
+                                      autoFocus
+                                    />
+                                  </Box>
+                                ) : (
+                                  <Typography
+                                    variant="h3"
+                                    color="error.main"
+                                    fontWeight="bold"
+                                    onClick={() => {
+                                      setManualAmount(calculatedDisplayAmount.toFixed(2));
+                                      setIsEditingAmount(true);
+                                    }}
+                                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'error.50' } }}
+                                  >
+                                    😟 {displayAmount.toFixed(2)}€
+                                  </Typography>
+                                )}
+                              </Box>
                               <Typography variant="h6" color="text.secondary">
                                 à payer
                                 {selectedLines.length > 0 ? (
@@ -1726,6 +1850,10 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                                 ) : (
                                   ` (${unpaidInvoicesList.length} facture${unpaidInvoicesList.length > 1 ? 's' : ''})`
                                 )}
+                              </Typography>
+                              {/* Indication pour l'utilisateur */}
+                              <Typography variant="caption" color="text.disabled" sx={{ mt: 1 }}>
+                                Cliquez sur le montant pour le modifier
                               </Typography>
                             </>
                           ) : (
@@ -1997,7 +2125,12 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                       
                       <Box sx={{ textAlign: 'center' }}>
                         <Typography variant="h6" gutterBottom>
-                          Total à payer: {unpaidInvoicesList.reduce((sum, inv) => sum + (inv.amount || 0), 0).toFixed(2)}€
+                          Total à payer: {(() => {
+                            const calculatedTotal = unpaidInvoicesList.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+                            const manualAmountValue = manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null;
+                            const finalAmount = manualAmountValue || calculatedTotal;
+                            return finalAmount.toFixed(2);
+                          })()}€
                         </Typography>
                         
                         <Button

@@ -196,7 +196,7 @@ const MainLayout = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', height: '100vh' }}>
       <AppBar
         position="fixed"
         sx={{
@@ -288,19 +288,14 @@ const MainLayout = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          pt: 0,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           height: 'calc(100vh - 64px)',
           bgcolor: 'background.default',
           mt: 8,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
+          overflow: 'auto'
         }}
       >
-        <Box sx={{ flex: 1, overflow: 'hidden' }}>
-          <Outlet />
-        </Box>
+        <Outlet />
       </Box>
     </Box>
   );

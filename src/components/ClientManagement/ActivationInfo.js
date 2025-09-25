@@ -47,6 +47,7 @@ const ActivationInfo = ({ client }) => {
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showSimReplacementConfirmDialog, setShowSimReplacementConfirmDialog] = useState(false); // ✅ NOUVEAU
+  const [showPassword, setShowPassword] = useState(false); // Pour masquer/afficher le mot de passe
   const [selectedSimCard, setSelectedSimCard] = useState(null);
   const [iccid, setIccid] = useState('');
   const [selectedLine, setSelectedLine] = useState('');
@@ -562,6 +563,12 @@ const ActivationInfo = ({ client }) => {
       month: 'long',
       year: 'numeric'
     });
+  };
+
+  // Fonction pour formater l'ICCID avec des espaces (xxxx xxxx xxxx xxxx xxxx)
+  const formatICCID = (iccid) => {
+    if (!iccid) return '';
+    return iccid.replace(/(.{4})/g, '$1 ').trim();
   };
 
   // ✅ FONCTION IDENTIQUE À ActivateTab pour éviter les incohérences
@@ -1211,32 +1218,9 @@ const ActivationInfo = ({ client }) => {
               </Paper>
             ) : (
               /* 🔧 CAS NOUVELLE ACTIVATION : Workflow complet avec ICCID */
-              <Paper sx={{ p: 2, bgcolor: isPreFilledMode ? 'success.lighter' : 'grey.50' }}>
-              {isPreFilledMode ? (
-                <>
-                  <Typography variant="subtitle2" gutterBottom color="success.main">
-                    ✅ ICCID pré-renseigné par l'agence
-                  </Typography>
-                  <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 1, border: '2px solid', borderColor: 'success.main' }}>
-                    <Typography variant="body1" fontWeight="bold" color="success.main">
-                      📱 ICCID: {preFilledIccid}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      L'agence a déjà renseigné cet ICCID lors de la souscription. 
-                      Analyse automatique en cours pour identifier le compte RED approprié.
-                    </Typography>
-                  </Box>
-                  {isAnalyzing && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
-                      <CircularProgress size={20} color="success" />
-                      <Typography variant="body2" color="success.main">
-                        Analyse de l'ICCID en cours...
-                      </Typography>
-                    </Box>
-                  )}
-                </>
-              ) : (
-                <>
+              !isPreFilledMode && (
+                <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                  <>
                   <Typography variant="subtitle2" gutterBottom>
                     📱 Étape 1: Sélectionner une carte SIM en stock
                   </Typography>
@@ -1312,230 +1296,111 @@ const ActivationInfo = ({ client }) => {
                       Impossible de charger les cartes SIM disponibles.
                     </Alert>
                   )}
-                </>
-              )}
-            </Paper>
+                  </>
+                </Paper>
+              )
             )}
             
-            {/* Étape 2: Résultats de l'analyse */}
-            {iccidAnalysis && (
-              <Paper sx={{ p: 2, border: '1px solid', borderColor: 'primary.main' }}>
-                <Typography variant="subtitle2" gutterBottom color="primary">
-                  🔍 Étape 2: Analyse de l'ICCID
-                </Typography>
-                
-                {/* Informations extraites de l'ICCID */}
-                <Box sx={{ mb: 2, p: 1, bgcolor: 'info.lighter', borderRadius: 1 }}>
-                  <Typography variant="body2" fontWeight="bold" gutterBottom>
-                    📊 Informations extraites :
-                  </Typography>
-                  <Typography variant="body2">
-                    • Date de commande: {iccidAnalysis.iccidAnalysis?.extractedInfo?.orderDate}
-                  </Typography>
-                  <Typography variant="body2">
-                    • Numéro possible: {iccidAnalysis.iccidAnalysis?.possiblePhoneNumber}
-                  </Typography>
-                  <Typography variant="body2">
-                    • Longueur ICCID: {iccidAnalysis.iccidAnalysis?.extractedInfo?.length} caractères
-                  </Typography>
-                </Box>
-                
-                {/* Comptes RED trouvés */}
-                {iccidAnalysis.potentialMatches?.map((match, index) => (
-                  <Box key={`match-${match.redAccount?.id || index}`} sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'success.main', borderRadius: 1, bgcolor: 'success.lighter' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <BusinessIcon color="success" />
-                      <Typography variant="subtitle2" color="success.main">
-                        🏢 Agence: {match.redAccount?.agency?.name}
-                      </Typography>
-                      <Chip 
-                        size="small" 
-                        label={`Confiance: ${match.matchConfidence?.score}%`} 
-                        color={match.matchConfidence?.score > 70 ? 'success' : 'warning'}
-                      />
-                    </Box>
-                    <Typography variant="body2">
-                      • Compte RED: {match.redAccount?.accountId}
-                    </Typography>
-                    <Typography variant="body2">
-                      • Adresse: {match.redAccount?.agency?.address}
-                    </Typography>
-                    <Typography variant="body2">
-                      • Contact: {match.redAccount?.agency?.contactFirstName} {match.redAccount?.agency?.contactLastName}
-                    </Typography>
-                    
-                    {/* Lignes disponibles */}
-                    {match.linesAwaitingActivation && (
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2" fontWeight="bold" gutterBottom>
-                          📞 Lignes disponibles pour activation :
-                        </Typography>
-                        
-                        {/* Lignes réservées (priorité) */}
-                        {match.linesAwaitingActivation.reserved?.length > 0 && (
-                          <Box sx={{ mb: 1 }}>
-                            <Typography variant="caption" color="warning.main" fontWeight="bold">
-                              🔒 Lignes réservées (priorité) :
-                            </Typography>
-                            {match.linesAwaitingActivation.reserved.map((line) => (
-                              <Box key={line.id} sx={{ ml: 2, mt: 0.5 }}>
-                                <Button
-                                  variant={selectedLine === line.id ? 'contained' : 'outlined'}
-                                  size="small"
-                                  onClick={() => setSelectedLine(line.id)}
-                                  sx={{ mr: 1, mb: 0.5 }}
-                                >
-                                  {line.temporaryNumber}
-                                </Button>
-                                <Typography variant="caption" color="text.secondary">
-                                  Commande: {line.orderDate}
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
-                        )}
-                        
-                        {/* Lignes disponibles */}
-                        {match.linesAwaitingActivation.available?.length > 0 && (
-                          <Box>
-                            <Typography variant="caption" color="success.main" fontWeight="bold">
-                              ✅ Lignes disponibles :
-                            </Typography>
-                            {match.linesAwaitingActivation.available.map((line) => (
-                              <Box key={line.id} sx={{ ml: 2, mt: 0.5 }}>
-                                <Button
-                                  variant={selectedLine === line.id ? 'contained' : 'outlined'}
-                                  size="small"
-                                  onClick={() => setSelectedLine(line.id)}
-                                  sx={{ mr: 1, mb: 0.5 }}
-                                >
-                                  {line.currentNumber}
-                                </Button>
-                                <Typography variant="caption" color="text.secondary">
-                                  Commande: {line.orderDate}, Livraison estimée: {line.estimatedDelivery}
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
-                        )}
-                        
-                        {(!match.linesAwaitingActivation.reserved?.length && !match.linesAwaitingActivation.available?.length) && (
-                          <Alert severity="warning" sx={{ ml: 2, mt: 1 }}>
-                            <AlertTitle>Aucune ligne suggérée</AlertTitle>
-                            Aucune ligne réservée ou disponible trouvée pour ce compte RED.
-                            Vous pouvez saisir manuellement un numéro ci-dessous.
-                          </Alert>
-                        )}
+            {/* Interface simplifiée */}
+            {iccidAnalysis && iccidAnalysis.potentialMatches && iccidAnalysis.potentialMatches.length > 0 && (
+              <Box>
+                {(() => {
+                  const redAccount = iccidAnalysis.potentialMatches[0].redAccount;
+                  const linesAwaitingActivation = iccidAnalysis.potentialMatches[0].linesAwaitingActivation;
+
+                  return (
+                    <>
+                      {/* ICCID */}
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" color="text.secondary">ICCID:</Typography>
+                        <Typography variant="h6" fontWeight="bold">{formatICCID(iccid || finalPreFilledIccid)}</Typography>
                       </Box>
-                    )}
-                  </Box>
-                ))}
-                
-                {/* Saisie manuelle de numéro (nouveau) */}
-                <Box sx={{ mt: 2, p: 2, border: '1px dashed', borderColor: 'grey.400', borderRadius: 1 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    📝 Ou saisissez manuellement un numéro :
-                  </Typography>
-                  {console.log('🔍 DEBUG Frontend - iccidAnalysis:', iccidAnalysis)}
-                  {console.log('🔍 DEBUG Frontend - availableForManualSelection:', iccidAnalysis?.availableForManualSelection)}
-                  <Autocomplete
-                    fullWidth
-                    size="small"
-                    options={iccidAnalysis?.availableForManualSelection || []}
-                    getOptionLabel={(option) => option.phoneNumber}
-                    value={selectedManualNumber}
-                    onChange={(event, newValue) => {
-                      setSelectedManualNumber(newValue);
-                      if (newValue) {
-                        setSelectedLine('');
-                      }
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        placeholder="Exemple: 0699123456"
-                        helperText="Si aucune ligne suggérée ne convient, saisissez le numéro à attribuer"
-                      />
-                    )}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        <Box>
-                          <Typography variant="body2" fontWeight="bold">
-                            {option.phoneNumber}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {option.status === 'AVAILABLE' ? 'Disponible' : `Temporaire - ${option.conflictInfo?.currentClient?.name}`}
-                          </Typography>
+
+                      {/* Identifiants RED */}
+                      <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>Compte RED:</Typography>
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                          {redAccount?.login && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body1">
+                                Login: <strong>{redAccount?.login}</strong>
+                              </Typography>
+                              <Button
+                                size="small"
+                                onClick={() => navigator.clipboard.writeText(redAccount?.login)}
+                                sx={{ minWidth: 'auto', px: 1, py: 0 }}
+                              >
+                                📋
+                              </Button>
+                            </Box>
+                          )}
+
+                          {redAccount?.password && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body1">
+                                Mot de passe: <strong>{showPassword ? redAccount?.password : '••••••••'}</strong>
+                              </Typography>
+                              <Button
+                                size="small"
+                                onClick={() => setShowPassword(!showPassword)}
+                                sx={{ minWidth: 'auto', px: 1, py: 0 }}
+                              >
+                                {showPassword ? '🙈' : '👁️'}
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={() => navigator.clipboard.writeText(redAccount?.password)}
+                                sx={{ minWidth: 'auto', px: 1, py: 0 }}
+                              >
+                                📋
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       </Box>
-                    )}
-                    noOptionsText="Aucun numéro trouvé"
-                  />
-                  {selectedManualNumber && selectedManualNumber.status !== 'AVAILABLE' && (
-                    <Alert severity="warning" sx={{ mt: 1 }}>
-                      <AlertTitle>Conflit détecté</AlertTitle>
-                      Ce numéro est attribué à {selectedManualNumber.conflictInfo?.currentClient?.name}. 
-                      L'activation nécessitera une résolution de conflit.
-                    </Alert>
-                  )}
-                </Box>
-                
-                {/* Instructions superviseur */}
-                {iccidAnalysis.supervisorInstructions && (
-                  <Alert severity="info" sx={{ mt: 2 }}>
-                    <AlertTitle>📋 Instructions superviseur</AlertTitle>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      {iccidAnalysis.supervisorInstructions.message}
-                    </Typography>
-                    {iccidAnalysis.supervisorInstructions.steps?.map((step, index) => (
-                      <Typography key={`step-${index}-${step.slice(0, 10)}`} variant="body2" sx={{ ml: 1 }}>
-                        {step}
-                      </Typography>
-                    ))}
-                  </Alert>
-                )}
-              </Paper>
+
+                      {/* Sélection de numéro */}
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Numéro à attribuer:
+                        </Typography>
+
+                        {/* Saisie avec autocomplete */}
+                        <Autocomplete
+                          fullWidth
+                          size="small"
+                          options={iccidAnalysis?.availableForManualSelection || []}
+                          getOptionLabel={(option) => option.phoneNumber}
+                          value={selectedManualNumber}
+                          onChange={(event, newValue) => {
+                            setSelectedManualNumber(newValue);
+                            if (newValue) {
+                              setSelectedLine('');
+                            }
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Saisissez ou sélectionnez un numéro"
+                            />
+                          )}
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Typography variant="body2" fontWeight="bold">
+                                {option.phoneNumber}
+                              </Typography>
+                            </Box>
+                          )}
+                          noOptionsText="Aucun numéro trouvé"
+                        />
+                      </Box>
+                    </>
+                  );
+                })()}
+              </Box>
             )}
             
-            {/* Récapitulatif final */}
-            {(selectedManualNumber || (iccid && selectedLine && iccidAnalysis)) && (
-              <Paper sx={{ p: 2, bgcolor: 'success.lighter', border: '1px solid', borderColor: 'success.main' }}>
-                <Typography variant="subtitle2" color="success.main" gutterBottom>
-                  ✅ Étape 3: Récapitulatif de l'activation
-                </Typography>
-                <Typography variant="body2">
-                  • Client: {client?.user?.firstname} {client?.user?.lastname} ({client?.user?.email})
-                </Typography>
-                {selectedManualNumber ? (
-                  <>
-                    <Typography variant="body2">
-                      • Numéro sélectionné: <strong>{selectedManualNumber.phoneNumber}</strong> (sélection manuelle)
-                    </Typography>
-                    <Typography variant="body2">
-                      • Statut: {selectedManualNumber.status === 'AVAILABLE' ? 'Disponible' : 'Temporaire - Conflit possible'}
-                    </Typography>
-                    <Typography variant="body2">
-                      • Agence: {selectedManualNumber.agency}
-                    </Typography>
-                  </>
-                ) : (
-                  <>
-                    <Typography variant="body2">
-                      • ICCID: {iccid}
-                    </Typography>
-                    <Typography variant="body2">
-                      • Ligne sélectionnée: ID {selectedLine}
-                    </Typography>
-                    <Typography variant="body2">
-                      • Agence identifiée: {iccidAnalysis.potentialMatches?.[0]?.redAccount?.agency?.name}
-                    </Typography>
-                    <Typography variant="body2">
-                      • Date de commande: {iccidAnalysis.iccidAnalysis?.extractedInfo?.orderDate}
-                    </Typography>
-                  </>
-                )}
-              </Paper>
-            )}
             
           </Stack>
         </DialogContent>

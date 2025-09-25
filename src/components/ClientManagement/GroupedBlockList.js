@@ -24,10 +24,15 @@ import {
     Visibility as VisibilityIcon,
     VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
+import { useWhoIAmQuery } from '../../store/slices/authSlice';
 
 const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
     const [expandedAccordion, setExpandedAccordion] = useState(null);
     const [visiblePasswords, setVisiblePasswords] = useState({});
+
+    // Vérifier le rôle de l'utilisateur
+    const { data: currentUser } = useWhoIAmQuery();
+    const isAgency = currentUser?.role === 'AGENCY';
 
     // Grouper les lignes par compte RED
     const groupByRedAccount = (clients) => {
@@ -140,25 +145,25 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                         {group.agency?.name || 'Agence non spécifiée'}
                                     </Typography>
                                     
-                                    {/* Identifiants du compte RED */}
-                                    {group.lines[0]?.redAccount && (
-                                        <Box sx={{ 
-                                            mt: 2, 
-                                            p: 1.5, 
-                                            backgroundColor: 'rgba(25, 118, 210, 0.08)', 
+                                    {/* Identifiants du compte RED - Masquer pour les agences */}
+                                    {group.lines[0]?.redAccount && !isAgency && (
+                                        <Box sx={{
+                                            mt: 2,
+                                            p: 1.5,
+                                            backgroundColor: 'rgba(25, 118, 210, 0.08)',
                                             borderRadius: 1,
                                             border: '1px solid rgba(25, 118, 210, 0.2)',
-                                            display: 'flex', 
-                                            flexDirection: 'column', 
-                                            gap: 1 
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 1
                                         }}>
                                             {/* Login */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                 <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', minWidth: '80px' }}>
                                                     Login:
                                                 </Typography>
-                                                <Typography variant="body2" sx={{ 
-                                                    fontFamily: 'monospace', 
+                                                <Typography variant="body2" sx={{
+                                                    fontFamily: 'monospace',
                                                     backgroundColor: 'rgba(0,0,0,0.04)',
                                                     px: 1,
                                                     py: 0.5,
@@ -174,7 +179,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                         e.stopPropagation();
                                                         copyToClipboard(group.lines[0].redAccount.redAccountId);
                                                     }}
-                                                    sx={{ 
+                                                    sx={{
                                                         p: 0.5,
                                                         backgroundColor: 'primary.main',
                                                         color: 'white',
@@ -185,14 +190,14 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                     <CopyIcon sx={{ fontSize: 14 }} />
                                                 </IconButton>
                                             </Box>
-                                            
+
                                             {/* Mot de passe */}
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                 <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', minWidth: '80px' }}>
                                                     Password:
                                                 </Typography>
-                                                <Typography variant="body2" sx={{ 
-                                                    fontFamily: 'monospace', 
+                                                <Typography variant="body2" sx={{
+                                                    fontFamily: 'monospace',
                                                     backgroundColor: 'rgba(0,0,0,0.04)',
                                                     px: 1,
                                                     py: 0.5,
@@ -201,8 +206,8 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                     fontWeight: 500,
                                                     minWidth: '100px'
                                                 }}>
-                                                    {visiblePasswords[group.accountName] 
-                                                        ? group.lines[0].redAccount.redPassword 
+                                                    {visiblePasswords[group.accountName]
+                                                        ? group.lines[0].redAccount.redPassword
                                                         : '••••••••••'
                                                     }
                                                 </Typography>
@@ -212,7 +217,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                         e.stopPropagation();
                                                         togglePasswordVisibility(group.accountName);
                                                     }}
-                                                    sx={{ 
+                                                    sx={{
                                                         p: 0.5,
                                                         backgroundColor: 'secondary.main',
                                                         color: 'white',
@@ -220,7 +225,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                     }}
                                                     title={visiblePasswords[group.accountName] ? "Masquer" : "Afficher"}
                                                 >
-                                                    {visiblePasswords[group.accountName] 
+                                                    {visiblePasswords[group.accountName]
                                                         ? <VisibilityOffIcon sx={{ fontSize: 14 }} />
                                                         : <VisibilityIcon sx={{ fontSize: 14 }} />
                                                     }
@@ -231,7 +236,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                         e.stopPropagation();
                                                         copyToClipboard(group.lines[0].redAccount.redPassword);
                                                     }}
-                                                    sx={{ 
+                                                    sx={{
                                                         p: 0.5,
                                                         backgroundColor: 'primary.main',
                                                         color: 'white',

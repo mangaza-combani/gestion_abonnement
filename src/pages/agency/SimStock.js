@@ -49,10 +49,11 @@ import {useCreateSimCardOrderMutation} from "../../store/slices/agencySlice";
 const SimCardManagement = () => {
   // États
   const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   // États d'activation retirés - réservés au superviseur
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [newICCID, setNewICCID] = useState('');
+  const [iccidParts, setIccidParts] = useState(['8933', '', '', '', '']);
   const [deliveryDate, setDeliveryDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [createSimCard] = useCreateSimCardMutation();
@@ -148,34 +149,71 @@ const SimCardManagement = () => {
     ordered: simOrders.reduce((acc, order) => acc + (order.quantity - order.quantityReceived), 0)
   };
 
+  // Gestionnaire pour ouvrir la modal pour une commande spécifique
+  const handleReceiveForOrder = (order) => {
+    setSelectedOrder(order);
+    setIccidParts(['8933', '', '', '', '']); // Reset avec préfixe
+    setShowReceiveModal(true);
+  };
+
+  // Gestionnaire pour le changement d'une partie de l'ICCID
+  const handleICCIDPartChange = (index, value) => {
+    // Skip first field (always 8933)
+    if (index === 0) return;
+
+    // Ne permettre que des chiffres et limiter à 4 caractères
+    const cleaned = value.replace(/\D/g, '').slice(0, 4);
+
+    const newParts = [...iccidParts];
+    newParts[index] = cleaned;
+    setIccidParts(newParts);
+
+    // Auto-focus sur le champ suivant si 4 chiffres sont saisis
+    if (cleaned.length === 4 && index < 4) {
+      const nextInput = document.getElementById(`iccid-part-${index + 1}`);
+      if (nextInput) {
+        nextInput.focus();
+      }
+    }
+  };
+
+  // Fonction pour obtenir l'ICCID complet
+  const getFullICCID = () => {
+    return iccidParts.join('');
+  };
+
   // Gestionnaires d'événements
   const handleReceiveSubmit = async () => {
+    // Obtenir l'ICCID complet
+    const cleanedICCID = getFullICCID();
+
     console.log('🚀 DEBUT handleReceiveSubmit - Données:', {
-      newICCID,
+      iccid: cleanedICCID,
       deliveryDate,
       connectedUser: connectedUser?.agencyId,
       simOrders: simOrders?.length,
     });
 
-    if (!newICCID) {
+    if (!cleanedICCID || cleanedICCID.length < 20) {
       console.error("❌ Invalid ICCID", {
-        newICCID
+        iccidParts,
+        fullICCID: cleanedICCID
       });
       setSnackbar({
         open: true,
-        message: "Veuillez saisir un ICCID valide",
+        message: "Veuillez saisir un ICCID valide (20 chiffres requis)",
         severity: 'error'
       });
       return;
     }
 
-    // Utiliser la première commande en cours ou créer une commande par défaut
-    let availableOrder = simOrders?.find(order => (order.quantityReceived || 0) < order.quantity);
-    
-    console.log('📦 Commande disponible:', availableOrder);
-    
-    // Si aucune commande n'existe, créer une commande automatique
-    if (!availableOrder && simOrders.length === 0) {
+    // Utiliser la commande sélectionnée ou la première commande en cours
+    let availableOrder = selectedOrder || simOrders?.find(order => (order.quantityReceived || 0) < order.quantity);
+
+    console.log('📦 Commande sélectionnée/disponible:', availableOrder);
+
+    // Si aucune commande n'existe, créer une commande automatique (seulement si pas de commande sélectionnée)
+    if (!availableOrder && !selectedOrder && simOrders.length === 0) {
       console.log('⚠️ Aucune commande trouvée, création automatique d\'une commande...');
       
       try {
@@ -215,7 +253,7 @@ const SimCardManagement = () => {
         console.log("✅ receiveSimCard réponse:", receiveNewSimCardDate);
 
         console.log('⏳ Envoi createSimCard...', {
-          iccid: newICCID,
+          iccid: cleanedICCID,
           status: "IN_STOCK",
           simCardReceiptId: receiveNewSimCardDate?.data?.simCardReceipt?.id,
           simCardOrderId: availableOrder.id,
@@ -223,7 +261,7 @@ const SimCardManagement = () => {
         });
 
         const newSimCard = await createSimCard({
-          iccid: newICCID,
+          iccid: cleanedICCID,
           status: "IN_STOCK",
           simCardReceiptId: receiveNewSimCardDate?.data?.simCardReceipt?.id,
           simCardOrderId: availableOrder.id,
@@ -254,7 +292,7 @@ const SimCardManagement = () => {
           console.log("🎉 Déclaration de réception SIM réussie !");
           setSnackbar({
             open: true,
-            message: `Carte SIM ${newICCID} ajoutée au stock avec succès !`,
+            message: `Carte SIM ${cleanedICCID} ajoutée au stock avec succès !`,
             severity: 'success'
           });
         }
@@ -277,7 +315,8 @@ const SimCardManagement = () => {
     }
 
     setShowReceiveModal(false);
-    setNewICCID('');
+    setSelectedOrder(null);
+    setIccidParts(['8933', '', '', '', '']);
     setDeliveryDate(dayjs().format('YYYY-MM-DD'));
   };
 
@@ -483,13 +522,27 @@ const SimCardManagement = () => {
                     Commande #{order.id}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Commandé par: {order.orderedBy?.firstname + ' ' + order.orderedBy?.lastname} le {dayjs(order.orderDate).format("dddd D MMMM YYYY")}
+                    Commandé par: {order.orderedBy?.firstname + ' ' + order.orderedBy?.lastname} le <strong>{dayjs(order.orderDate).format("dddd D MMMM YYYY")}</strong>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Compte RED: <strong>{order.redAccount?.redAccountId || 'Non spécifié'}</strong>
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: 'right' }}>
+                <Box sx={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                   <Typography variant="body2" color="text.secondary">
                     Reçues: {order.quantityReceived || 0}/{order.quantity}
                   </Typography>
+                  {(order.quantityReceived || 0) < order.quantity && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<LocalShippingIcon />}
+                      onClick={() => handleReceiveForOrder(order)}
+                      sx={{ fontSize: '0.75rem', px: 2, py: 0.5 }}
+                    >
+                      Déclarer Réception
+                    </Button>
+                  )}
                 </Box>
               </Box>
             ));
@@ -573,11 +626,17 @@ const SimCardManagement = () => {
       >
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            Déclarer une réception d'une carte SIM
-            <IconButton 
-              edge="end" 
-              color="inherit" 
-              onClick={() => setShowReceiveModal(false)}
+            {selectedOrder
+              ? `Réception SIM - Commande #${selectedOrder.id}`
+              : 'Déclarer une réception d\'une carte SIM'
+            }
+            <IconButton
+              edge="end"
+              color="inherit"
+              onClick={() => {
+                setShowReceiveModal(false);
+                setSelectedOrder(null);
+              }}
               aria-label="close"
             >
               <CloseIcon />
@@ -586,44 +645,47 @@ const SimCardManagement = () => {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Date de livraison
+            <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+              Veuillez saisir les 16 derniers chiffres inscrits au dos de votre carte SIM
             </Typography>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              value={deliveryDate}
-              onChange={(e) => setDeliveryDate(e.target.value)}
-              sx={{ mb: 3 }}
-              helperText="Date indiquée sur le courrier de livraison"
-            />
 
+            {/* Affichage visuel du format ICCID */}
             <Typography variant="subtitle2" gutterBottom>
-              ICCID de la carte SIM reçue
+              ICCID de la carte SIM
             </Typography>
-            <TextField
-              fullWidth
-              size="small"
-              value={newICCID}
-              onChange={(e) => setNewICCID(e.target.value)}
-              placeholder="Entrez l'ICCID de la carte reçue"
-              inputProps={{ maxLength: 20 }}
-              sx={{ mb: 2 }}
-              autoFocus
-            />
 
-            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Information
-              </Typography>
-              <Typography variant="body2">
-                • La carte sera automatiquement ajoutée à votre stock
-              </Typography>
-              <Typography variant="body2">
-                • Date de livraison: {dayjs(deliveryDate).format('dddd D MMMM YYYY')}
-              </Typography>
+            <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
+              {iccidParts.map((part, index) => (
+                <TextField
+                  key={index}
+                  id={`iccid-part-${index}`}
+                  size="small"
+                  value={part}
+                  onChange={(e) => handleICCIDPartChange(index, e.target.value)}
+                  disabled={index === 0} // First field always disabled (8933)
+                  inputProps={{
+                    maxLength: 4,
+                    style: {
+                      fontFamily: 'monospace',
+                      letterSpacing: '1px',
+                      fontSize: '1.1rem',
+                      textAlign: 'center',
+                      width: '60px'
+                    }
+                  }}
+                  sx={{
+                    width: '80px',
+                    '& .MuiInputBase-input.Mui-disabled': {
+                      WebkitTextFillColor: '#000',
+                      backgroundColor: '#f5f5f5'
+                    }
+                  }}
+                  placeholder={index === 0 ? "" : "XXXX"}
+                  autoFocus={index === 1} // Focus on second field
+                />
+              ))}
             </Box>
+
           </Box>
         </DialogContent>
         <DialogActions>
@@ -633,7 +695,7 @@ const SimCardManagement = () => {
           <Button
             variant="contained"
             onClick={handleReceiveSubmit}
-            disabled={!newICCID}
+            disabled={getFullICCID().length < 20} // 8933 + 4*4 = 20 characters minimum
           >
             Ajouter au stock
           </Button>
