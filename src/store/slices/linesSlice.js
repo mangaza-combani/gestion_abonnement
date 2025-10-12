@@ -123,10 +123,7 @@ export const phoneApiSlice = apiSliceWithPrefix.injectEndpoints({
                         query: () => '/phones/lines/overdue',
                         providesTags: ['Phone']
                 }),
-                getPhonesToActivate: builder.query({
-                        query: () => '/phones/lines/to-activate',
-                        providesTags: ['Phone']
-                }),
+                // ❌ SUPPRIMÉ: Doublon de getPhonesToActivate (voir ligne 212-215 pour la version correcte)
                 // Historique des paiements d'une ligne spécifique
                 getPhonePaymentHistory: builder.query({
                         query: (phoneId) => `/phones/${phoneId}/payment-history`,

@@ -68,7 +68,7 @@ export const simReplacementApiSlice = apiSliceWithPrefix.injectEndpoints({
         'PhonesList', // Mettre à jour liste des lignes
         'Reservation', // Mettre à jour réservations
         'LineReservation', // Forcer rafraîchissement onglet À ACTIVER
-        'PhoneToActivate' // Au cas où elle va dans À ACTIVER
+        { type: 'PhoneToActivate', id: 'LIST' } // ✅ CORRIGÉ: Format correct pour invalider le cache
       ]
     })
   })
