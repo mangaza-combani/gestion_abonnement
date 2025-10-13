@@ -236,6 +236,30 @@ export class InvoiceService {
 
     currentY = pdf.lastAutoTable.finalY + 20;
 
+    // 🆕 Section Prorata 10+ (surplus versé au solde)
+    if (invoiceData.prorata && invoiceData.prorata.isFullMonthCharged && invoiceData.prorata.surplusToBalance > 0) {
+      pdf.setFontSize(12);
+      pdf.setTextColor(...greenColor);
+      pdf.text('SURPLUS PRORATA (RÈGLE 10+)', 20, currentY);
+
+      currentY += 10;
+      pdf.setFontSize(9);
+      pdf.setTextColor(0, 0, 0);
+
+      pdf.text(`Activation le ${invoiceData.prorata.activationDay} du mois (≥10)`, 25, currentY);
+      currentY += 5;
+      pdf.text(`→ Mois complet facturé: ${invoiceData.prorata.fullAmount.toFixed(2)}€`, 25, currentY);
+      currentY += 5;
+      pdf.text(`→ Prorata réel (${invoiceData.prorata.billedDays}/${invoiceData.prorata.totalDays} jours): ${invoiceData.prorata.prorataAmount.toFixed(2)}€`, 25, currentY);
+      currentY += 5;
+      pdf.setTextColor(...greenColor);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`→ Surplus versé au solde: ${invoiceData.prorata.surplusToBalance.toFixed(2)}€`, 25, currentY);
+      pdf.setFont(undefined, 'normal');
+
+      currentY += 15;
+    }
+
     // Section arriérés si applicable
     if (invoiceData.arrears > 0) {
       pdf.setFontSize(12);
@@ -529,17 +553,29 @@ export class InvoiceService {
 
     const activationDate = new Date(client.activationDate);
     const periodDate = this.parsePeriodfromString(period);
-    
+
     // Vérifier si l'activation a eu lieu dans la période facturée
-    if (activationDate.getFullYear() === periodDate.year && 
+    if (activationDate.getFullYear() === periodDate.year &&
         activationDate.getMonth() === periodDate.month) {
-      
+
       const dayOfActivation = activationDate.getDate();
       const daysInMonth = new Date(periodDate.year, periodDate.month + 1, 0).getDate();
       const remainingDays = daysInMonth - dayOfActivation + 1;
-      
+
       const prorataAmount = (baseAmount * remainingDays) / daysInMonth;
-      
+
+      // 🆕 RÈGLE 10+: Si activation >= 10, surplus versé au solde
+      let surplusToBalance = 0;
+      let isFullMonthCharged = false;
+      let chargedAmount = prorataAmount;
+
+      if (dayOfActivation >= 10) {
+        // Mois complet facturé, surplus au solde
+        chargedAmount = baseAmount;
+        surplusToBalance = Math.round((baseAmount - prorataAmount) * 100) / 100;
+        isFullMonthCharged = true;
+      }
+
       return {
         isProrata: true,
         activationDay: dayOfActivation,
@@ -547,7 +583,12 @@ export class InvoiceService {
         billedDays: remainingDays,
         fullAmount: baseAmount,
         prorataAmount: prorataAmount,
-        reason: `Activation le ${dayOfActivation}/${periodDate.month + 1}/${periodDate.year}`
+        chargedAmount: chargedAmount,
+        surplusToBalance: surplusToBalance,
+        isFullMonthCharged: isFullMonthCharged,
+        reason: isFullMonthCharged
+          ? `Activation le ${dayOfActivation}/${periodDate.month + 1} (≥10) - Mois complet facturé`
+          : `Activation le ${dayOfActivation}/${periodDate.month + 1}/${periodDate.year}`
       };
     }
 

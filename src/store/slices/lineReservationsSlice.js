@@ -256,6 +256,20 @@ export const lineReservationsApiSlice = apiSlice.injectEndpoints({
         { type: 'Client', id: clientId },
         { type: 'Client', id: 'LIST' }
       ]
+    }),
+
+    // 👤 Mettre à jour l'utilisateur de la ligne
+    updateLineUser: builder.mutation({
+      query: ({ phoneId, lineUser }) => ({
+        url: `/api/phones/${phoneId}/line-user`,
+        method: 'PATCH',
+        body: { lineUser }
+      }),
+      invalidatesTags: (result, error, { phoneId }) => [
+        { type: 'Phone', id: phoneId },
+        { type: 'Phone', id: 'LIST' },
+        { type: 'Phone', id: 'CLIENT_LINES' }
+      ]
     })
   })
 });
@@ -278,5 +292,6 @@ export const {
   useProcessInvoicePaymentMutation,
   useGetClientLinesQuery, // 🆕 Récupérer les lignes d'un client
   useGetClientPaymentsQuery, // 🆕 Récupérer les paiements d'un client
-  useUpdateClientMutation // 🆕 Mettre à jour les informations d'un client
+  useUpdateClientMutation, // 🆕 Mettre à jour les informations d'un client
+  useUpdateLineUserMutation // 🆕 Mettre à jour l'utilisateur de la ligne
 } = lineReservationsApiSlice;

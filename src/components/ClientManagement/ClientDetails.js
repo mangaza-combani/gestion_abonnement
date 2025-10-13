@@ -84,17 +84,15 @@ const NotesCard = ({simCard, agency}) => (
 const ClientHeader = ({ client, simCard, onOpenModal }) => (
   <Card sx={{ mb: 3, bgcolor: 'primary.light' }}>
     <Box sx={{ p: 2 }}>
-      {/* Première ligne : Avatar + Nom + Bouton */}
+      {/* Première ligne : Nom + Bouton */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-        <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontSize: '1.25rem' }}>
-          {client.user?.firstname?.[0]?.toUpperCase()}{client.user?.lastname?.[0]?.toUpperCase()}
-        </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h5" color="white" sx={{ mb: 0.5, fontWeight: 'medium' }}>
             {client.user?.firstname} {client.user?.lastname}
           </Typography>
           <Typography variant="body2" color="rgba(255,255,255,0.8)" sx={{ fontWeight: 'medium' }}>
             {client.phoneNumber || 'N/C'}
+            {client.lineUser && ` | ${client.lineUser}`}
           </Typography>
         </Box>
         <Button

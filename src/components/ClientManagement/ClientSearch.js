@@ -59,7 +59,7 @@ const ClientSearch = ({
           <TextField
             fullWidth
             size="small"
-            placeholder="Recherche par Nom ou Prénom ou Téléphone"
+            placeholder="Recherche par Nom, Prénom, Téléphone ou Utilisateur ligne"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             InputProps={{

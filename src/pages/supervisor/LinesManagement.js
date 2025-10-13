@@ -335,25 +335,8 @@ const ClientManagement = () => {
                                         filteredData = clientsToOrderData?.data || [];
                                         break;
                                 case TAB_TYPES.TO_ACTIVATE:
-                                        // Calculer manuellement avec la même logique que getFilteredClients()
-                                        if (linesData) {
-                                                filteredData = linesData.filter(client => {
-                                                        // Même logique que dans getFilteredClients() pour TO_ACTIVATE
-                                                        const needsActivation = client?.phoneStatus === PHONE_STATUS.NEEDS_TO_BE_ACTIVATED;
-                                                        const hasReservation = client?.user?.hasActiveReservation === true ||
-                                                                              client?.user?.reservationStatus === 'RESERVED' ||
-                                                                              client?.hasActiveReservation === true ||
-                                                                              client?.reservationStatus === 'RESERVED';
-
-                                                        const needsReactivation = client?.phoneStatus === PHONE_STATUS.PAUSED &&
-                                                                                 client?.paymentStatus === 'À JOUR' &&
-                                                                                 client?.blockedReason === 'nonpayment';
-
-                                                        const isAlreadyActive = client?.phoneStatus === PHONE_STATUS.ACTIVE;
-
-                                                        return (needsActivation || hasReservation || needsReactivation) && !isAlreadyActive;
-                                                });
-                                        }
+                                        // Utiliser phonesToActivateData comme les autres onglets
+                                        filteredData = phonesToActivateData || [];
                                         break;
                                 case TAB_TYPES.TO_UNBLOCK:
                                         // Calculer manuellement pour TO_UNBLOCK
@@ -659,7 +642,9 @@ const ClientManagement = () => {
                                         client?.user?.firstname?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
                                         client?.user?.lastname?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
                                         client?.user?.email?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
-                                        client?.user?.phoneNumber?.includes(searchTerm);
+                                        client?.user?.phoneNumber?.includes(searchTerm) ||
+                                        client?.phoneNumber?.includes(searchTerm) ||
+                                        client?.lineUser?.toLowerCase()?.includes(searchTerm.toLowerCase());
 
                                 // Filtre de statut
                                 let matchesStatus = true;
@@ -721,10 +706,12 @@ const ClientManagement = () => {
                         }
 
                         const matchesSearch = !searchTerm ? true :
-                            client?.user?.firstname.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
-                            client?.user?.lastname.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
-                            client?.user?.email.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
-                            client?.user?.phoneNumber?.includes(searchTerm);
+                            client?.user?.firstname?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                            client?.user?.lastname?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                            client?.user?.email?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                            client?.user?.phoneNumber?.includes(searchTerm) ||
+                            client?.phoneNumber?.includes(searchTerm) ||
+                            client?.lineUser?.toLowerCase()?.includes(searchTerm.toLowerCase());
 
 
                         // Filtres basés sur la logique métier

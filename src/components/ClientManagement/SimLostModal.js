@@ -157,17 +157,17 @@ const SimLostModal = ({
                         />
                         
                         <FormControlLabel
-                            value="pause_line"
+                            value="block_only"
                             control={<Radio />}
                             label={
                                 <Stack direction="row" spacing={1} alignItems="center">
                                     <PauseIcon fontSize="small" />
                                     <Box>
                                         <Typography variant="body2" fontWeight="medium">
-                                            Mettre la ligne en pause
+                                            Bloquer la ligne (commander plus tard)
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            Suspendre temporairement la ligne sans commander de nouvelle SIM
+                                            Bloquer définitivement la ligne pour perte/vol - Le client pourra commander une SIM plus tard
                                         </Typography>
                                     </Box>
                                 </Stack>

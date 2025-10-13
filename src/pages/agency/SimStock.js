@@ -144,7 +144,7 @@ const SimCardManagement = () => {
     total: simCards.length,
     active: simCards.filter(sim => sim.status === 'IN_USE').length,
     stock: simCards.filter(sim => sim.status === 'IN_STOCK').length,
-    lost: simCards.filter(sim => sim.status === 'BLOCKED').length,
+    lost: simCards.filter(sim => sim.status === 'LOST_STOLEN' || sim.status === 'BLOCKED').length,
     inactive: simCards.filter(sim => sim.status === 'INACTIVE').length,
     ordered: simOrders.reduce((acc, order) => acc + (order.quantity - order.quantityReceived), 0)
   };
@@ -467,10 +467,10 @@ const SimCardManagement = () => {
               En Stock
             </Button>
             <Button
-              variant={filterStatus === 'BLOCKED' ? 'contained' : 'outlined'}
+              variant={filterStatus === 'LOST_STOLEN' ? 'contained' : 'outlined'}
               size="small"
               color="error"
-              onClick={() => setFilterStatus('BLOCKED')}
+              onClick={() => setFilterStatus('LOST_STOLEN')}
               startIcon={<ErrorOutlineIcon />}
             >
               Perdues/Volées
@@ -575,14 +575,18 @@ const SimCardManagement = () => {
                       label={
                         sim.status === 'IN_USE' ? 'Active' :
                         sim.status === 'INACTIVE' ? 'Inactive' :
-                        sim.status === 'BLOCKED' ? 'Bloqué / Volé / Perdu' :
+                        sim.status === 'LOST_STOLEN' ? 'Perdue/Volée' :
+                        sim.status === 'BLOCKED' ? 'Bloquée' :
                         sim.status === 'IN_STOCK' ? 'En Stock' :
+                        sim.status === 'RESERVED' ? 'Réservée' :
                         'Inconnu'
                       }
                       color={
                         sim.status === 'IN_USE' ? 'success' :
                         sim.status === 'IN_STOCK' ? 'warning' :
+                        sim.status === 'LOST_STOLEN' ? 'error' :
                         sim.status === 'BLOCKED' ? 'error' :
+                        sim.status === 'RESERVED' ? 'info' :
                         sim.status === 'INACTIVE' ? 'default' :
                         'default'
                       }
@@ -597,14 +601,21 @@ const SimCardManagement = () => {
                           Assignée à: {sim.orderedBy.firstname} {sim.orderedBy.lastname}
                         </Typography>
                       )}
-                      {sim.reportDate && (
-                        <Typography variant="body2">
-                          Date de déclaration: {dayjs(sim.reportDate).format('dddd D MMMM YYYY')}
+                      {sim.status === 'LOST_STOLEN' && sim.reportDate && (
+                        <Typography variant="body2" color="error">
+                          🚨 Déclarée perdue/volée le {dayjs(sim.reportDate).format('DD/MM/YYYY')}
+                        </Typography>
+                      )}
+                      {sim.status === 'LOST_STOLEN' && sim.reportReason && (
+                        <Typography variant="caption" color="error">
+                          Raison: {sim.reportReason === 'LOST_THEFT' ? 'Perte/Vol' :
+                                   sim.reportReason === 'SUPERVISOR_CONFIRMED_BLOCKING' ? 'Confirmé par superviseur' :
+                                   sim.reportReason}
                         </Typography>
                       )}
                       {sim.simCardReceiptId && (
                         <Typography variant="body2">
-                          N° De Reçu #${sim.simCardReceiptId}
+                          N° De Reçu #{sim.simCardReceiptId}
                         </Typography>
                       )}
                       {/* Activation réservée au superviseur - bouton retiré pour les agences */}

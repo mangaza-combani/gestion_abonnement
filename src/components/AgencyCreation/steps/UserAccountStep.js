@@ -73,8 +73,29 @@ const UserAccountStep = ({ formData, errors, onChange }) => {
       </Alert>
 
       <Grid container spacing={3}>
+        {/* Username (optionnel) */}
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Nom d'utilisateur (optionnel)"
+            type="text"
+            value={formData.username || ''}
+            onChange={onChange('username')}
+            error={!!errors.username}
+            helperText={errors.username || 'Généré automatiquement si vide'}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <AccountCircleIcon color="primary" />
+                </InputAdornment>
+              ),
+            }}
+            placeholder="Ex: abdou_agency"
+          />
+        </Grid>
+
         {/* Email */}
-        <Grid item xs={12}>
+        <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
             label="Adresse email"
@@ -82,7 +103,7 @@ const UserAccountStep = ({ formData, errors, onChange }) => {
             value={formData.email}
             onChange={onChange('email')}
             error={!!errors.email}
-            helperText={errors.email || 'Cette adresse sera utilisée pour la connexion'}
+            helperText={errors.email || 'Utilisée pour la connexion'}
             required
             InputProps={{
               startAdornment: (

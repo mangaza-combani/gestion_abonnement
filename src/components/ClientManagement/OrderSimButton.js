@@ -35,9 +35,16 @@ const OrderSimButton = ({ client, size = "medium" }) => {
   // 🆕 Logique mise à jour pour détecter SIM perdue sans commande de remplacement
   const canOrderSim = client?.isPausedForLostSim === true ||
                      client?.pendingBlockReason === 'lost_sim_no_replacement' ||
-                     (client?.simCard?.status === 'INACTIVE' &&
+                     // Ligne BLOCKED/PAUSED avec SIM perdue sans remplacement (tous les cas)
+                     ((client?.phoneStatus === 'BLOCKED' || client?.phoneStatus === 'PAUSED') &&
+                      (client?.blockedReason === 'lost_sim' || client?.blockedReason === 'lost_sim_no_replacement') &&
+                      !client?.replacementSimOrdered &&
+                      !client?.replacementSimReceived) ||
+                     // Ligne avec SIM LOST_STOLEN ou INACTIVE confirmée par superviseur
+                     ((client?.simCard?.status === 'LOST_STOLEN' || client?.simCard?.status === 'INACTIVE') &&
                       client?.simCard?.reportReason === 'SUPERVISOR_CONFIRMED_BLOCKING' &&
-                      !client?.replacementSimOrdered);
+                      !client?.replacementSimOrdered &&
+                      !client?.replacementSimReceived);
 
   const handleOrderSim = async () => {
     if (!paymentMethod || !amount) {

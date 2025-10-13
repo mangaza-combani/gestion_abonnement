@@ -220,6 +220,51 @@ const InvoiceGenerator = ({ open, onClose, client }) => {
                   </Box>
                 </Box>
 
+                {/* 🆕 Surplus Prorata 10+ si applicable */}
+                {invoiceData?.prorata?.isFullMonthCharged && invoiceData?.prorata?.surplusToBalance > 0 && (
+                  <Box sx={{ mb: 3, bgcolor: 'success.50', p: 2, borderRadius: 1, border: 1, borderColor: 'success.main' }}>
+                    <Typography variant="subtitle1" gutterBottom fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TrendingDownIcon color="success" />
+                      Surplus Prorata (Règle 10+)
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {invoiceData.prorata.reason}
+                    </Typography>
+                    <List dense>
+                      <ListItem sx={{ px: 0 }}>
+                        <ListItemText
+                          primary="Mois complet facturé"
+                          secondary={`Activation après le 10 du mois`}
+                        />
+                        <Typography variant="body1">
+                          {invoiceData.prorata.fullAmount.toFixed(2)}€
+                        </Typography>
+                      </ListItem>
+                      <ListItem sx={{ px: 0 }}>
+                        <ListItemText
+                          primary="Prorata réel utilisé"
+                          secondary={`${invoiceData.prorata.billedDays}/${invoiceData.prorata.totalDays} jours`}
+                        />
+                        <Typography variant="body1">
+                          {invoiceData.prorata.prorataAmount.toFixed(2)}€
+                        </Typography>
+                      </ListItem>
+                      <ListItem sx={{ px: 0 }}>
+                        <ListItemText
+                          primary={<Typography fontWeight="bold">Surplus versé au solde</Typography>}
+                          secondary="Crédit disponible pour les prochaines factures"
+                        />
+                        <Chip
+                          label={`+${invoiceData.prorata.surplusToBalance.toFixed(2)}€`}
+                          color="success"
+                          size="medium"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      </ListItem>
+                    </List>
+                  </Box>
+                )}
+
                 {/* Arriérés si applicable */}
                 {invoiceData?.arrears > 0 && (
                   <Box sx={{ mb: 3 }}>
