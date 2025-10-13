@@ -22,7 +22,9 @@ import {
   PhoneAndroid,
   Settings,
   ExitToApp,
-  Phone as PhoneIcon
+  Phone as PhoneIcon,
+  AccountBalance as AccountBalanceIcon,
+  TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { logOut, useLogoutMutation } from '../../store/slices/authSlice';
@@ -78,6 +80,7 @@ const MainLayout = () => {
         { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
         { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
         { text: 'Gestion Abonnements', icon: <PhoneIcon />, path: '/subscriptions' },
+        { text: 'Commissions', icon: <AccountBalanceIcon />, path: '/commissions' },
         { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
         { text: 'Paramètres', icon: <Settings />, path: '/settings' },
         { text: 'Utilisateur', icon: <Settings />, path: '/user' },
@@ -86,6 +89,7 @@ const MainLayout = () => {
               { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
               { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
               { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
+              { text: 'Mes Commissions', icon: <TrendingUpIcon />, path: '/my-commissions' },
       ];
 
   const handleDrawerToggle = () => {

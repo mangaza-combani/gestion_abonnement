@@ -58,6 +58,17 @@ export const agencyApiSlice = apiSliceWithPrefix.injectEndpoints({
     // Récupérer toutes les agences
     getAgencies: builder.query({
       query: () => '/agencies',
+      transformResponse: (response) => {
+        // S'assurer qu'on retourne toujours un tableau
+        if (response?.success && Array.isArray(response.data)) {
+          return response.data;
+        }
+        if (Array.isArray(response)) {
+          return response;
+        }
+        console.warn('Format de réponse inattendu pour /agencies:', response);
+        return [];
+      },
       providesTags: ['Agencies']
     }),
     

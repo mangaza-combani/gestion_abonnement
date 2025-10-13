@@ -44,6 +44,7 @@ const SubscriptionsManagement = () => {
     name: '',
     description: '',
     price: '',
+    redPrice: '',
     currency: 'EUR',
     durationDays: 30,
     dataAllowanceMb: 1024,
@@ -76,6 +77,7 @@ const SubscriptionsManagement = () => {
         name: subscription.name || '',
         description: subscription.description || '',
         price: subscription.price || '',
+        redPrice: subscription.redPrice || '',
         currency: subscription.currency || 'EUR',
         durationDays: subscription.durationDays || 30,
         dataAllowanceMb: subscription.dataAllowanceMb || 0,
@@ -99,6 +101,7 @@ const SubscriptionsManagement = () => {
         name: '',
         description: '',
         price: '',
+        redPrice: '',
         currency: 'EUR',
         durationDays: 30,
         dataAllowanceMb: 1024,
@@ -130,6 +133,7 @@ const SubscriptionsManagement = () => {
       const subscriptionData = {
         ...formData,
         price: parseFloat(formData.price),
+        redPrice: formData.redPrice ? parseFloat(formData.redPrice) : null,
         durationDays: parseInt(formData.durationDays),
         dataAllowanceMb: parseInt(formData.dataAllowanceMb),
         callMinutes: parseInt(formData.callMinutes),
@@ -455,18 +459,30 @@ const SubscriptionsManagement = () => {
             </Grid>
 
             {/* Prix et durée */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <TextField
                 fullWidth
-                label="Prix"
+                label="Prix client (€)"
                 type="number"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 required
+                helperText="Prix facturé au client"
               />
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                label="Prix RED (€)"
+                type="number"
+                value={formData.redPrice}
+                onChange={(e) => setFormData({ ...formData, redPrice: e.target.value })}
+                helperText="Coût d'achat chez RED"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Devise</InputLabel>
                 <Select
@@ -481,7 +497,7 @@ const SubscriptionsManagement = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <TextField
                 fullWidth
                 label="Durée (jours)"
@@ -491,6 +507,31 @@ const SubscriptionsManagement = () => {
                 required
               />
             </Grid>
+
+            {/* Affichage de la marge calculée */}
+            {formData.price && formData.redPrice && (
+              <Grid item xs={12}>
+                <Alert
+                  severity={parseFloat(formData.price) > parseFloat(formData.redPrice) ? "info" : "warning"}
+                  sx={{ mb: 2 }}
+                >
+                  <Typography variant="body2">
+                    <strong>Marge disponible pour commissions: </strong>
+                    {parseFloat(formData.price) - parseFloat(formData.redPrice)}€
+                    {parseFloat(formData.price) > 0 && (
+                      <>
+                        {' '}({Math.round(((parseFloat(formData.price) - parseFloat(formData.redPrice)) / parseFloat(formData.price)) * 100)}%)
+                      </>
+                    )}
+                  </Typography>
+                  {parseFloat(formData.price) <= parseFloat(formData.redPrice) && (
+                    <Typography variant="body2" color="error">
+                      ⚠️ Le prix client doit être supérieur au prix RED pour dégager une marge
+                    </Typography>
+                  )}
+                </Alert>
+              </Grid>
+            )}
 
             {/* Services inclus */}
             <Grid item xs={12} md={4}>
