@@ -57,7 +57,7 @@ import {
   Save as SaveIcon,
   Close as CancelEditIcon
 } from '@mui/icons-material';
-import { useGetClientLinesQuery, useGetClientPaymentsQuery, useUpdateClientMutation } from '../../store/slices/lineReservationsSlice';
+import { useGetClientLinesQuery, useGetClientPaymentsQuery, useUpdateClientMutation, useUpdateLineUserMutation } from '../../store/slices/lineReservationsSlice';
 import API_CONFIG from '../../config/api.js';
 import ClientEditForm from './ClientEditForm';
 
@@ -633,6 +633,12 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
 
   // Lignes du client
   const ClientLines = () => {
+    const [updateLineUser] = useUpdateLineUserMutation();
+    const [editingValues, setEditingValues] = useState({});
+
+    const lines = clientLinesData?.lines || [];
+    const summary = clientLinesData?.summary || {};
+
     if (linesLoading) {
       return (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -649,16 +655,58 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
       );
     }
 
-    const lines = clientLinesData?.lines || [];
-    const summary = clientLinesData?.summary || {};
-
     console.log('🔍 DEBUG ClientLines:', {
       clientLinesData,
       lines,
       summary,
       linesLength: lines.length,
-      clientId
+      clientId,
+      firstLineData: lines.length > 0 ? lines[0] : null,
+      lineUserValues: lines.map(l => ({ id: l.id, lineUser: l.lineUser }))
     });
+
+    // Handler pour mettre à jour la valeur pendant l'édition
+    const handleLineUserChange = (phoneId, newValue) => {
+      setEditingValues(prev => ({
+        ...prev,
+        [phoneId]: newValue
+      }));
+    };
+
+    // Handler pour sauvegarder au blur
+    const handleLineUserBlur = async (phoneId, newValue) => {
+      try {
+        console.log('💾 Sauvegarde lineUser:', { phoneId, newValue });
+
+        const result = await updateLineUser({
+          phoneId,
+          lineUser: newValue || null
+        }).unwrap();
+
+        console.log('✅ Résultat sauvegarde:', result);
+
+        // Retirer la valeur d'édition pour revenir aux données du serveur
+        setEditingValues(prev => {
+          const newValues = { ...prev };
+          delete newValues[phoneId];
+          console.log('🧹 Nettoyage editingValues:', { before: prev, after: newValues });
+          return newValues;
+        });
+
+        setSnackbar({
+          open: true,
+          message: 'Utilisateur de la ligne mis à jour',
+          severity: 'success'
+        });
+      } catch (error) {
+        console.error('❌ Erreur mise à jour lineUser:', error);
+        setSnackbar({
+          open: true,
+          message: 'Erreur lors de la mise à jour',
+          severity: 'error'
+        });
+      }
+    };
 
     return (
       <Box>
@@ -687,6 +735,7 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
             <TableHead>
               <TableRow>
                 <TableCell><strong>Numéro</strong></TableCell>
+                <TableCell><strong>Utilisateur</strong></TableCell>
                 <TableCell><strong>Statut Ligne</strong></TableCell>
                 <TableCell><strong>Statut Paiement</strong></TableCell>
                 <TableCell><strong>Compte RED</strong></TableCell>
@@ -696,7 +745,7 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
             <TableBody>
               {lines.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} sx={{ textAlign: 'center', py: 3 }}>
+                  <TableCell colSpan={6} sx={{ textAlign: 'center', py: 3 }}>
                     <Typography color="text.secondary">
                       Aucune ligne trouvée pour ce client
                     </Typography>
@@ -710,6 +759,22 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
                         <PhoneIcon fontSize="small" />
                         {line.phoneNumber || 'En attente'}
                       </Box>
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        variant="outlined"
+                        placeholder="Ex: Ma femme..."
+                        value={editingValues[line.id] !== undefined ? editingValues[line.id] : (line.lineUser || '')}
+                        onChange={(e) => handleLineUserChange(line.id, e.target.value)}
+                        onBlur={(e) => handleLineUserBlur(line.id, e.target.value)}
+                        sx={{
+                          minWidth: '150px',
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.875rem'
+                          }
+                        }}
+                      />
                     </TableCell>
                     <TableCell>
                       <Chip

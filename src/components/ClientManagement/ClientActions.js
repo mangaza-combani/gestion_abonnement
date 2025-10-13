@@ -42,6 +42,7 @@ import { useWhoIAmQuery } from "../../store/slices/authSlice";
 import RealInvoiceGenerator from '../Billing/RealInvoiceGenerator';
 import SimLostModal from './SimLostModal';
 import OrderSimButton from './OrderSimButton';
+import SimReplacementReceivedButton from './SimReplacementReceivedButton';
 import { PHONE_STATUS, TAB_TYPES } from './constant';
 
 const ClientActions = ({client, currentTab}) => {
@@ -378,11 +379,24 @@ const ClientActions = ({client, currentTab}) => {
                                phoneStatus === PHONE_STATUS.BLOCKED ||
                                phoneStatus === PHONE_STATUS.PAUSED;
 
-        // 🆕 Détecter ligne avec SIM inactive due à perte/vol SANS commande de remplacement
-        const isLostSimNoReplacement = client?.pendingBlockReason === 'lost_sim_no_replacement' ||
-                                      (client?.simCard?.status === 'INACTIVE' &&
-                                       client?.simCard?.reportReason === 'SUPERVISOR_CONFIRMED_BLOCKING' &&
-                                       !client?.replacementSimOrdered);
+        // 🆕 Détecter ligne avec SIM inactive/perdue due à perte/vol SANS commande de remplacement
+        // IMPORTANT: Vérifier que replacementSimOrdered est FAUX ET que replacementSimReceived est FAUX
+        const isLostSimNoReplacement = !client?.replacementSimOrdered && !client?.replacementSimReceived && (
+                                       // CAS 1: blockedReason indique "pas de commande de remplacement"
+                                       client?.blockedReason === 'lost_sim_no_replacement' ||
+                                       // CAS 2: pendingBlockReason indique "pas encore de commande"
+                                       client?.pendingBlockReason === 'lost_sim_no_replacement' ||
+                                       // CAS 3: Ligne BLOCKED/PAUSED avec blockedReason = lost_sim MAIS pas de commande
+                                       ((phoneStatus === PHONE_STATUS.BLOCKED || phoneStatus === PHONE_STATUS.PAUSED) &&
+                                        client?.blockedReason === 'lost_sim' &&
+                                        !client?.replacementSimOrdered &&
+                                        !client?.replacementSimReceived) ||
+                                       // CAS 4: SIM carte marquée LOST_STOLEN/INACTIVE par superviseur MAIS pas de commande
+                                       ((client?.simCard?.status === 'LOST_STOLEN' || client?.simCard?.status === 'INACTIVE') &&
+                                        client?.simCard?.reportReason === 'SUPERVISOR_CONFIRMED_BLOCKING' &&
+                                        !client?.replacementSimOrdered &&
+                                        !client?.replacementSimReceived)
+                                      );
 
         // Nouvelles logiques d'activation
         const isBlockedForNonPayment = phoneStatus === PHONE_STATUS.BLOCKED &&
@@ -395,12 +409,48 @@ const ClientActions = ({client, currentTab}) => {
         const hasPaymentIssues = ['EN RETARD', 'DETTE'].includes(paymentStatus);
         const hideActivateButton = (isBlockedForNonPayment && paymentStatus !== 'À JOUR') || hasPaymentIssues;
 
+        // 🆕 Exclure les lignes en attente de SIM de remplacement (pas encore reçue)
+        const isWaitingForReplacementSim = client?.replacementSimOrdered === true &&
+                                          client?.replacementSimReceived === false;
+
         const needsActivation = phoneStatus === PHONE_STATUS.INACTIVE ||
                                (isLineSuspended && !hideActivateButton);
 
+        // 🆕 Détecter si c'est une ligne avec perte/vol de SIM (tous cas confondus)
+        const isLostSimLine = client?.blockedReason === 'lost_sim' ||
+                             client?.blockedReason === 'lost_sim_no_replacement' ||
+                             client?.pendingBlockReason === 'lost_sim' ||
+                             client?.pendingBlockReason === 'lost_sim_no_replacement' ||
+                             client?.replacementSimOrdered === 1 ||
+                             client?.replacementSimOrdered === true;
+
         // 🆕 Priorité au bouton "Commander SIM" si SIM perdue sans remplacement
         const shouldShowOrderSimButton = isLostSimNoReplacement && !hideActivateButton;
-        const shouldShowActivateButton = needsActivation && !hideActivateButton && !shouldShowOrderSimButton;
+
+        // ❌ JAMAIS afficher "Activer" pour les lignes avec perte/vol de SIM
+        const shouldShowActivateButton = needsActivation &&
+                                        !hideActivateButton &&
+                                        !shouldShowOrderSimButton &&
+                                        !isWaitingForReplacementSim &&
+                                        !isLostSimLine; // ✅ EXCLURE TOUTES les lignes avec perte/vol
+
+        // 🔍 DEBUG: Logger la logique d'affichage des boutons
+        if (client?.id) {
+                console.log(`🔍 DEBUG ClientActions - Ligne ${client.id}:`, {
+                        phoneStatus,
+                        blockedReason: client?.blockedReason,
+                        pendingBlockReason: client?.pendingBlockReason,
+                        replacementSimOrdered: client?.replacementSimOrdered,
+                        replacementSimReceived: client?.replacementSimReceived,
+                        isLostSimLine,
+                        isLostSimNoReplacement,
+                        isWaitingForReplacementSim,
+                        needsActivation,
+                        shouldShowOrderSimButton,
+                        shouldShowActivateButton,
+                        hideActivateButton
+                });
+        }
 
         // Logique pour masquer les actions selon le rôle et l'onglet
         const shouldShowActions = () => {
@@ -445,6 +495,9 @@ const ClientActions = ({client, currentTab}) => {
                                     {shouldShowOrderSimButton && (
                                         <OrderSimButton client={client} />
                                     )}
+
+                                    {/* 🆕 Bouton Déclarer réception SIM - Pour remplacements SIM en attente */}
+                                    <SimReplacementReceivedButton client={client} size="medium" />
 
                                     {/* Bouton Activer - Seulement si pas de SIM perdue sans remplacement */}
                                     {shouldShowActivateButton && (

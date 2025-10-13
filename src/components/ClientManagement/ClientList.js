@@ -200,16 +200,24 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                   }
                 }}
               >
-                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                      {client?.user?.lastname} {client?.user?.firstname}
-                    </Typography>
-                    {/* Marqueur pour remplacement SIM vol/perte */}
-                    {(client?.replacementReason === 'SIM_LOST_THEFT' || client?.trackingNotes?.includes('REMPLACEMENT SIM')) && (
-                      <Tooltip title="Remplacement SIM - Vol/Perte">
-                        <WarningIcon sx={{ color: 'error.main', fontSize: 16 }} />
-                      </Tooltip>
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                        {client?.user?.lastname} {client?.user?.firstname}
+                      </Typography>
+                      {/* Marqueur pour remplacement SIM vol/perte */}
+                      {(client?.replacementReason === 'SIM_LOST_THEFT' || client?.trackingNotes?.includes('REMPLACEMENT SIM')) && (
+                        <Tooltip title="Remplacement SIM - Vol/Perte">
+                          <WarningIcon sx={{ color: 'error.main', fontSize: 16 }} />
+                        </Tooltip>
+                      )}
+                    </Box>
+                    {/* Affichage du lineUser si défini */}
+                    {client?.lineUser && (
+                      <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.secondary', display: 'block' }}>
+                        {client.lineUser}
+                      </Typography>
                     )}
                   </Box>
                 </TableCell>

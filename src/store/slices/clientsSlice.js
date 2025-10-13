@@ -85,7 +85,12 @@ export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
         method: 'POST',
         body: {},
       }),
-      invalidatesTags: ['ClientToOrder'],
+      invalidatesTags: [
+        'ClientToOrder',    // Retirer de "À COMMANDER"
+        'PhoneToActivate',  // Ajouter dans "À ACTIVER"
+        'Phone',            // Mettre à jour liste générale
+        'PhonesList'        // Mettre à jour vue liste
+      ],
     }),
   }),
 });

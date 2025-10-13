@@ -41,8 +41,8 @@ const NewUserDialog = ({ open, onClose, onSubmit, agencies }) => {
   };
 
   const handleSubmit = () => {
-    // Validation des champs obligatoires
-    if (!userData.username || !userData.email || !userData.agency || !userData.role || !userData.password) {
+    // Validation des champs obligatoires (username est maintenant optionnel)
+    if (!userData.email || !userData.agency || !userData.role || !userData.password) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -93,12 +93,12 @@ const NewUserDialog = ({ open, onClose, onSubmit, agencies }) => {
             <Grid item xs={12} md={6}>
               <TextField
                   fullWidth
-                  label="Nom d'utilisateur*"
+                  label="Nom d'utilisateur (optionnel)"
                   name="username"
                   value={userData.username}
                   onChange={handleInputChange}
-                  required
                   variant="outlined"
+                  helperText="Si non fourni, un nom d'utilisateur sera généré automatiquement"
               />
             </Grid>
             <Grid item xs={12} md={6}>

@@ -20,7 +20,7 @@ import {
 import { useConfirmReplacementSimOrderMutation } from '../../store/slices/clientsSlice';
 
 const ConfirmReplacementSimModal = ({ open, onClose, client }) => {
-  const [confirmReplacementSimOrder, { isLoading, error }] = useConfirmReplacementSimOrderMutation();
+  const [confirmOrder, { isLoading, error }] = useConfirmReplacementSimOrderMutation();
 
   const handleConfirm = async () => {
     if (!client?.phoneId) {
@@ -29,10 +29,12 @@ const ConfirmReplacementSimModal = ({ open, onClose, client }) => {
     }
 
     try {
-      await confirmReplacementSimOrder({
+      // Utiliser l'endpoint correct depuis clientsSlice
+      await confirmOrder({
         phoneId: client.phoneId
       }).unwrap();
 
+      console.log('✅ Commande SIM de remplacement confirmée');
       onClose(true); // true indique succès
     } catch (error) {
       console.error('Erreur lors de la confirmation de remplacement SIM:', error);

@@ -134,13 +134,14 @@ const LoginPage = () => {
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Nom d'utilisateur"
+              label="Email ou Nom d'utilisateur"
               name="identifiant"
               value={formData.identifiant}
               onChange={handleChange}
               margin="normal"
               variant="outlined"
               disabled={isLoading}
+              helperText="Vous pouvez utiliser votre email ou nom d'utilisateur"
             />
             <TextField
               fullWidth
