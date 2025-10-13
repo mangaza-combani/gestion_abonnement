@@ -1,12 +1,23 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { apiSlice } from '../api/apiSlice';
 
+// Fonction pour récupérer les données utilisateur depuis localStorage
+const getUserFromLocalStorage = () => {
+  try {
+    const userData = localStorage.getItem('user');
+    return userData ? JSON.parse(userData) : null;
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+    return null;
+  }
+};
+
 // Initial state pour le auth slice
 const initialState = {
-  user: null,
+  user: getUserFromLocalStorage(),
   token: localStorage.getItem('token'),
-  role: null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  role: getUserFromLocalStorage()?.role || null,
+  isAuthenticated: !!localStorage.getItem('token') && !!getUserFromLocalStorage(),
   loading: false,
   error: null,
 };

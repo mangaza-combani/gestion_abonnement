@@ -1650,6 +1650,16 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                                   >
                                     {line.phoneNumber || 'N/A'}
                                   </Typography>
+                                  {line.lineUser && (
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                      display="block"
+                                      sx={{ mt: 0.5 }}
+                                    >
+                                      👤 {line.lineUser}
+                                    </Typography>
+                                  )}
                                   {isCurrentlySelected && (
                                     <Typography variant="caption" color="primary.main">
                                       ← Active
@@ -1661,26 +1671,26 @@ const RealInvoiceGenerator = ({ open, onClose, client, selectedLine }) => {
                                   align="center"
                                   onClick={() => setCurrentSelectedLineId(line.id)}
                                 >
-                                  {unpaidAmount > 0 ? (
-                                    // Affichage du montant des factures impayées en rouge négatif
+                                  {/* Affichage du solde actuel de la ligne */}
+                                  <Typography
+                                    variant="body2"
+                                    fontWeight="bold"
+                                    color={
+                                      lineBalance > 0 ? 'success.main' :
+                                      lineBalance < 0 ? 'error.main' : 'text.primary'
+                                    }
+                                  >
+                                    {lineBalance.toFixed(2)}€
+                                  </Typography>
+                                  {/* Affichage des impayés sous le solde s'il y en a */}
+                                  {unpaidAmount > 0 && (
                                     <Typography
-                                      variant="body2"
-                                      fontWeight="bold"
+                                      variant="caption"
                                       color="error.main"
+                                      display="block"
+                                      sx={{ mt: 0.5, fontWeight: 'bold' }}
                                     >
-                                      -{unpaidAmount.toFixed(2)}€
-                                    </Typography>
-                                  ) : (
-                                    // Affichage du solde normal
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight="bold"
-                                      color={
-                                        lineBalance > 0 ? 'success.main' :
-                                        lineBalance < 0 ? 'error.main' : 'text.primary'
-                                      }
-                                    >
-                                      {lineBalance.toFixed(2)}€
+                                      Impayés: -{unpaidAmount.toFixed(2)}€
                                     </Typography>
                                   )}
                                 </TableCell>

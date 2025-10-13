@@ -390,7 +390,8 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     birthday: '',
     city: '',
     phoneNumber: '',
-    email: ''
+    email: '',
+    lineUser: '' // 🆕 Utilisateur de la ligne (ex: "Ma femme", "Mon fils Ahmed")
   });
   const [isNewClientMode, setIsNewClientMode] = useState(false); // Permettre la recherche même en mode agence
   const [simCardInfo, setSimCardInfo] = useState({
@@ -429,13 +430,29 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     }, 800);
   };
 
-  // Calculer le prorata pour l'abonnement
+  // Calculer le prorata pour l'abonnement avec règle du 10+
   const calculateProrata = () => {
     if (!selectedSubscription) return 0;
     const today = new Date();
+    const currentDay = today.getDate();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const remainingDays = daysInMonth - today.getDate();
-    return parseFloat(((selectedSubscription.totalMonthlyPrice * remainingDays) / daysInMonth).toFixed(2));
+    const remainingDays = daysInMonth - currentDay + 1; // +1 pour inclure le jour actuel
+
+    // Calculer le prorata réel (jours utilisés)
+    const prorataAmount = parseFloat(((selectedSubscription.totalMonthlyPrice * remainingDays) / daysInMonth).toFixed(2));
+
+    // 🆕 RÈGLE 10+: Si activation à partir du 10, facturer le mois complet
+    if (currentDay >= 10) {
+      // Retourner le montant complet - le surplus sera crédité au solde de la ligne
+      console.log(`🆕 RÈGLE 10+ APPLIQUÉE (jour ${currentDay}):`);
+      console.log(`   💰 Prorata réel: ${prorataAmount}€`);
+      console.log(`   💰 Montant facturé: ${selectedSubscription.totalMonthlyPrice}€ (mois complet)`);
+      console.log(`   💰 Surplus au solde: ${(selectedSubscription.totalMonthlyPrice - prorataAmount).toFixed(2)}€`);
+      return selectedSubscription.totalMonthlyPrice; // Facturer le mois complet
+    } else {
+      console.log(`✅ Activation avant le 10 (jour ${currentDay}) - Prorata normal: ${prorataAmount}€`);
+      return prorataAmount; // Prorata normal
+    }
   };
 
   // Mise à jour des totaux quand l'étape ou les infos de la carte SIM changent
@@ -481,11 +498,8 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
             isValid = false;
           }
 
-          // Validation email obligatoire
-          if (!newClient.email?.trim()) {
-            newErrors.email = "L'email est requis";
-            isValid = false;
-          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.email)) {
+          // Validation email optionnelle - vérifier format seulement si fourni
+          if (newClient.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.email)) {
             newErrors.email = "Format d'email invalide";
             isValid = false;
           }
@@ -682,7 +696,8 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
       birthday: '',
       city: '',
       phoneNumber: '',
-      email: ''
+      email: '',
+      lineUser: ''
     });
     setIsNewClientMode(false);
     setSimCardInfo({
@@ -898,12 +913,12 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                       <Grid item xs={12} sm={6}>
                         <TextField
                           fullWidth
-                          label="Email *"
+                          label="Email (optionnel)"
                           type="email"
                           value={newClient.email}
                           onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
                           error={!!formErrors.email}
-                          helperText={formErrors.email}
+                          helperText={formErrors.email || "L'email n'est plus obligatoire"}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -912,7 +927,30 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                             ),
                           }}
                           variant="outlined"
-                          sx={{ 
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 2
+                            }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          label="Utilisateur de la ligne (optionnel)"
+                          value={newClient.lineUser}
+                          onChange={(e) => setNewClient({ ...newClient, lineUser: e.target.value })}
+                          placeholder="Ex: Ma femme, Oncle Freddy, Mon fils Ahmed..."
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <ContactMailIcon color="primary" />
+                              </InputAdornment>
+                            ),
+                          }}
+                          helperText="Identifier facilement qui utilise cette ligne"
+                          variant="outlined"
+                          sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 2
                             }
@@ -1303,21 +1341,39 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
               </Fade>
               
               {simCardInfo.hasSIM ? (
-                <Alert 
-                  severity="info" 
-                  icon={<SimCardIcon />}
-                  sx={{ 
-                    mt: 2,
-                    borderRadius: 2
-                  }}
-                >
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    Attribution avec carte SIM
-                  </Typography>
-                  <Typography variant="body2">
-                    La carte SIM sera facturée 10€ et un prorata de l'abonnement ({calculateProrata().toFixed(2)}€) sera calculé pour le mois en cours.
-                  </Typography>
-                </Alert>
+                (() => {
+                  const today = new Date();
+                  const currentDay = today.getDate();
+                  const prorataAmount = calculateProrata();
+                  const isRule10Applied = currentDay >= 10;
+                  const monthlyPrice = selectedSubscription?.totalMonthlyPrice || 0;
+
+                  return (
+                    <Alert
+                      severity={isRule10Applied ? "success" : "info"}
+                      icon={<SimCardIcon />}
+                      sx={{
+                        mt: 2,
+                        borderRadius: 2
+                      }}
+                    >
+                      <Typography variant="subtitle2" fontWeight="bold">
+                        {isRule10Applied ? "Règle 10+ appliquée" : "Attribution avec carte SIM"}
+                      </Typography>
+                      <Typography variant="body2">
+                        {isRule10Applied ? (
+                          <>
+                            Activation le {currentDay} du mois (≥10) → Mois complet facturé ({prorataAmount.toFixed(2)}€).
+                            <br />
+                            Surplus de {(prorataAmount - ((monthlyPrice * (new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() - currentDay + 1)) / new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate())).toFixed(2)}€ sera crédité au solde de la ligne.
+                          </>
+                        ) : (
+                          `La carte SIM sera facturée 10€ et un prorata de l'abonnement (${prorataAmount.toFixed(2)}€) sera calculé pour le mois en cours.`
+                        )}
+                      </Typography>
+                    </Alert>
+                  );
+                })()
               ) : (
                 <Alert 
                   severity="warning" 
@@ -1416,31 +1472,66 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                   <Grid item xs={5}>
                     <Typography variant="body1" align="right" fontWeight="medium">10,00 €</Typography>
                   </Grid>
-                  
-                  {simCardInfo.hasSIM && (
-                    <>
-                      <Grid item xs={7}>
-                        <Typography variant="body1" fontWeight="medium">
-                          Prorata abonnement :
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                            (Reste du mois en cours)
+
+                  {simCardInfo.hasSIM && (() => {
+                    const today = new Date();
+                    const currentDay = today.getDate();
+                    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+                    const remainingDays = daysInMonth - currentDay + 1;
+                    const monthlyPrice = selectedSubscription?.totalMonthlyPrice || 0;
+                    const prorataAmount = parseFloat(((monthlyPrice * remainingDays) / daysInMonth).toFixed(2));
+                    const isRule10Applied = currentDay >= 10;
+                    const surplusAmount = isRule10Applied ? parseFloat((monthlyPrice - prorataAmount).toFixed(2)) : 0;
+
+                    return (
+                      <>
+                        <Grid item xs={7}>
+                          <Typography variant="body1" fontWeight="medium">
+                            {isRule10Applied ? 'Abonnement mois complet :' : 'Prorata abonnement :'}
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                              {isRule10Applied ? '(Règle 10+ appliquée)' : '(Reste du mois en cours)'}
+                            </Typography>
                           </Typography>
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={5}>
-                        <Typography variant="body1" align="right" fontWeight="medium">
-                          {paymentInfo.subscription.toFixed(2)} €
-                        </Typography>
-                      </Grid>
-                    </>
-                  )}
-                  
+                        </Grid>
+                        <Grid item xs={5}>
+                          <Typography variant="body1" align="right" fontWeight="medium">
+                            {paymentInfo.subscription.toFixed(2)} €
+                          </Typography>
+                        </Grid>
+
+                        {isRule10Applied && surplusAmount > 0 && (
+                          <>
+                            <Grid item xs={12}>
+                              <Box sx={{
+                                bgcolor: alpha(theme.palette.success.main, 0.1),
+                                p: 1.5,
+                                borderRadius: 1,
+                                border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
+                                mt: 1
+                              }}>
+                                <Typography variant="body2" color="success.dark" fontWeight="medium" sx={{ mb: 0.5 }}>
+                                  💰 Prorata réel : {prorataAmount.toFixed(2)}€ ({remainingDays}/{daysInMonth} jours)
+                                </Typography>
+                                <Typography variant="body2" color="success.dark" fontWeight="bold">
+                                  ✅ Surplus de {surplusAmount.toFixed(2)}€ crédité sur le solde de la ligne
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  Ce crédit sera déduit de la prochaine facture
+                                </Typography>
+                              </Box>
+                            </Grid>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+
                   <Grid item xs={12}>
                     <Divider sx={{ mt: 1, mb: 2 }} />
                   </Grid>
-                  
+
                   <Grid item xs={7}>
-                    <Typography variant="h6" fontWeight="bold" color="primary.main">TOTAL :</Typography>
+                    <Typography variant="h6" fontWeight="bold" color="primary.main">TOTAL À PAYER :</Typography>
                   </Grid>
                   <Grid item xs={5}>
                     <Typography variant="h6" fontWeight="bold" align="right" color="primary.main">
