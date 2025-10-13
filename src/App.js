@@ -36,32 +36,97 @@ dayjs.locale('fr'); // Set the locale to French
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  const token = localStorage.getItem('token');
+
+  // Double vérification: Redux state + token localStorage
+  if (!isAuthenticated || !token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 };
 
-const RoleBasedRoute = ({ supervisorComponent, agencyComponent }) => {
+const RoleBasedRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const token = localStorage.getItem('token');
   const userData = localStorage.getItem('user');
+
+  // Vérifier l'authentification d'abord
+  if (!isAuthenticated || !token) {
+    return <Navigate to="/login" replace />;
+  }
+
   let user = null;
-  
+
   try {
     user = userData ? JSON.parse(userData) : null;
   } catch (error) {
     console.error('Invalid user data in localStorage:', error);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    // Ne pas supprimer immédiatement, juste rediriger
+    return <Navigate to="/login" replace />;
   }
 
-  const { role } = useSelector((state) => {
-    return {
-      role: user ? user.role : null,
-    };
-  });
-    if (!role) {
-      localStorage.removeItem('user')
-      localStorage.removeItem('token')
-      return <Navigate to="/login" />;
-    }
-  return (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === "SUPERVISOR") ? supervisorComponent : agencyComponent;
+  // Si pas d'utilisateur ou pas de rôle
+  if (!user || !user.role) {
+    console.warn('Utilisateur sans rôle détecté');
+    return <Navigate to="/login" replace />;
+  }
+
+  // Vérifier si le rôle de l'utilisateur est autorisé
+  if (!allowedRoles.includes(user.role)) {
+    console.warn(`Accès refusé: rôle ${user.role} non autorisé pour cette page`);
+    // Rediriger vers dashboard au lieu de déconnecter
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Helper pour les routes superviseur uniquement
+const SupervisorRoute = ({ children }) => (
+  <RoleBasedRoute allowedRoles={['SUPERVISOR', 'ADMIN', 'SUPER_ADMIN']}>
+    {children}
+  </RoleBasedRoute>
+);
+
+// Helper pour les routes agence uniquement
+const AgencyRoute = ({ children }) => (
+  <RoleBasedRoute allowedRoles={['AGENCY']}>
+    {children}
+  </RoleBasedRoute>
+);
+
+// Helper pour dashboard adaptatif
+const DashboardRoute = ({ supervisorComponent, agencyComponent }) => {
+  const userData = localStorage.getItem('user');
+  let user = null;
+
+  try {
+    user = userData ? JSON.parse(userData) : null;
+  } catch (error) {
+    console.error('Invalid user data in localStorage:', error);
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user || !user.role) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const isSupervisor = ['ADMIN', 'SUPER_ADMIN', 'SUPERVISOR'].includes(user.role);
+  return isSupervisor ? supervisorComponent : agencyComponent;
+};
+
+// Composant pour empêcher l'accès à /login si déjà connecté
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const token = localStorage.getItem('token');
+
+  // Si l'utilisateur est connecté, rediriger vers dashboard
+  if (isAuthenticated && token) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
 };
 
 const App = () => {
@@ -71,8 +136,15 @@ const App = () => {
         <CssBaseline />
         <BrowserRouter>
           <Routes>
-            {/* Route publique de connexion */}
-            <Route path="/login" element={<LoginPage />} />
+            {/* Route publique de connexion - redirige si déjà connecté */}
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <LoginPage />
+                </PublicRoute>
+              }
+            />
 
             {/* Routes protégées */}
             <Route
@@ -92,29 +164,92 @@ const App = () => {
               <Route
                 path="dashboard"
                 element={
-                  <RoleBasedRoute
+                  <DashboardRoute
                     agencyComponent={<AgencyDashboard />}
                     supervisorComponent={<SupervisorDashboard />}
                   />
                 }
               />
 
-              {/* Routes Superviseur */}
-              <Route path="agencies" element={<AgenciesManagement />} />
-              <Route path="subscriptions" element={<SubscriptionsManagement />} />
-              <Route path="commissions" element={<CommissionWithdrawal />} />
-              <Route path="accountresign" element={<AccountResign />} />
-              <Route path="user" element={<UsersManagement />} />
+              {/* Routes Superviseur uniquement */}
+              <Route
+                path="agencies"
+                element={
+                  <SupervisorRoute>
+                    <AgenciesManagement />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="subscriptions"
+                element={
+                  <SupervisorRoute>
+                    <SubscriptionsManagement />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="accountresign"
+                element={
+                  <SupervisorRoute>
+                    <AccountResign />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="user"
+                element={
+                  <SupervisorRoute>
+                    <UsersManagement />
+                  </SupervisorRoute>
+                }
+              />
 
-              {/* Routes Communes */}
-              <Route path="lines" element={<LinesManagement />} />
+              {/* Route Gestion Lignes - Accessible par Superviseur ET Agence */}
+              <Route
+                path="lines"
+                element={
+                  <RoleBasedRoute allowedRoles={['SUPERVISOR', 'ADMIN', 'SUPER_ADMIN', 'AGENCY']}>
+                    <LinesManagement />
+                  </RoleBasedRoute>
+                }
+              />
 
-              {/* Routes Agence */}
-              <Route path="my-lines" element={<MyLines />} />
-              <Route path="sim-stock" element={<SimStock />} />
+              {/* Routes Agence uniquement */}
+              <Route
+                path="sim-stock"
+                element={
+                  <AgencyRoute>
+                    <SimStock />
+                  </AgencyRoute>
+                }
+              />
 
-              {/* Route commune */}
-              <Route path="settings" element={<Settings />} />
+              {/* Routes Superviseur uniquement (non accessibles par Agence) */}
+              <Route
+                path="commissions"
+                element={
+                  <SupervisorRoute>
+                    <CommissionWithdrawal />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="my-lines"
+                element={
+                  <SupervisorRoute>
+                    <MyLines />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="settings"
+                element={
+                  <SupervisorRoute>
+                    <Settings />
+                  </SupervisorRoute>
+                }
+              />
 
               {/* Redirection pour les routes inconnues */}
               <Route path="*" element={<Navigate to="/dashboard" />} />
