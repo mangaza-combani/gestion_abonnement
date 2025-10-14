@@ -13,10 +13,12 @@ import {
   Business as BusinessIcon,
   Security as SecurityIcon,
   Notifications as NotificationsIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  Percent as PercentIcon
 } from '@mui/icons-material';
 import InvoiceSettings from '../components/Settings/InvoiceSettings';
 import InvoiceAutomationSettings from '../components/Settings/InvoiceAutomationSettings';
+import CommissionsSettings from '../components/Settings/CommissionsSettings';
 
 const TabPanel = ({ children, value, index, ...other }) => (
   <div
@@ -80,9 +82,15 @@ const Settings = () => {
               iconPosition="start"
               sx={{ textTransform: 'none', minHeight: 64 }}
             />
-            <Tab 
-              label="Génération Auto" 
-              icon={<ScheduleIcon />} 
+            <Tab
+              label="Génération Auto"
+              icon={<ScheduleIcon />}
+              iconPosition="start"
+              sx={{ textTransform: 'none', minHeight: 64 }}
+            />
+            <Tab
+              label="Commissions"
+              icon={<PercentIcon />}
               iconPosition="start"
               sx={{ textTransform: 'none', minHeight: 64 }}
             />
@@ -121,6 +129,10 @@ const Settings = () => {
 
         <TabPanel value={currentTab} index={3}>
           <InvoiceAutomationSettings />
+        </TabPanel>
+
+        <TabPanel value={currentTab} index={4}>
+          <CommissionsSettings />
         </TabPanel>
       </Box>
     </Box>

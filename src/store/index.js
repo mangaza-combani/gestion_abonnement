@@ -8,6 +8,7 @@ import linesReducer from './slices/linesSlice';
 import redAccountsReducer from './slices/redAccountsSlice';
 import uiReducer from './slices/uiSlice';
 import agencySlice from './slices/agencySlice';
+import commissionsReducer from './slices/commissionsSlice';
 import { subscriptionsApi } from './slices/subscriptionsSlice';
 // linePaymentsApi is now injected into apiSliceWithPrefix, no need to import separately
 
@@ -22,7 +23,8 @@ export const store = configureStore({
     lines: linesReducer,
     redAccounts: redAccountsReducer,
     ui: uiReducer,
-    agency : agencySlice
+    agency : agencySlice,
+    commissions: commissionsReducer
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
