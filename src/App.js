@@ -30,6 +30,8 @@ import AccountResign from './pages/supervisor/AccountResign';
 import UsersManagement from './pages/supervisor/UsersManagement';
 import SubscriptionsManagement from './pages/supervisor/SubscriptionsManagement';
 import BankManagement from './pages/supervisor/BankManagement';
+import CommissionsManagement from './pages/supervisor/CommissionsManagement';
+import MyCommissions from './pages/agency/MyCommissions';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 
@@ -234,9 +236,27 @@ const App = () => {
                 }
               />
 
+              {/* Routes Agence - Commissions */}
+              <Route
+                path="my-commissions"
+                element={
+                  <AgencyRoute>
+                    <MyCommissions />
+                  </AgencyRoute>
+                }
+              />
+
               {/* Routes Superviseur uniquement (non accessibles par Agence) */}
               <Route
                 path="commissions"
+                element={
+                  <SupervisorRoute>
+                    <CommissionsManagement />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="commission-withdrawal"
                 element={
                   <SupervisorRoute>
                     <CommissionWithdrawal />

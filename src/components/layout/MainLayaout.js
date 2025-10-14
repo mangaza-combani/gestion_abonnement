@@ -23,7 +23,8 @@ import {
   Settings,
   ExitToApp,
   Phone as PhoneIcon,
-  AccountBalance as BankIcon
+  AccountBalance as BankIcon,
+  Euro as EuroIcon
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { logOut, useLogoutMutation } from '../../store/slices/authSlice';
@@ -76,17 +77,19 @@ const MainLayout = () => {
   const menuItems = role === 'SUPERVISOR' || role === 'ADMIN' || role === 'SUPER_ADMIN'
     ? [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-        { text: 'Gestion Agences', icon: <People />, path: '/agencies' },
-        { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
-        { text: 'Gestion Abonnements', icon: <PhoneIcon />, path: '/subscriptions' },
-        { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
-        { text: 'Banque', icon: <BankIcon />, path: '/bank' },
+        { text: 'Agences', icon: <People />, path: '/agencies' },
+        { text: 'Lignes', icon: <PhoneAndroid />, path: '/lines' },
+        { text: 'Commissions', icon: <EuroIcon />, path: '/commissions' },
+        { text: 'Abonnements', icon: <PhoneIcon />, path: '/subscriptions' },
+        { text: 'C. Rattachés', icon: <People />, path: '/accountresign' },
+        { text: 'Banques', icon: <BankIcon />, path: '/bank' },
         { text: 'Paramètres', icon: <Settings />, path: '/settings' },
-        { text: 'Utilisateur', icon: <Settings />, path: '/user' },
+        { text: 'Utilisateurs', icon: <Settings />, path: '/user' },
       ]
     : [
               { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-              { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
+              { text: 'Lignes', icon: <PhoneAndroid />, path: '/lines' },
+              { text: 'Mes Commissions', icon: <EuroIcon />, path: '/my-commissions' },
               { text: 'Stock SIM', icon: <PhoneAndroid />, path: '/sim-stock' },
       ];
 

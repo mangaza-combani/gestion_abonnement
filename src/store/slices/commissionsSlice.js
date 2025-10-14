@@ -65,6 +65,61 @@ export const commissionsApiSlice = apiSliceWithPrefix.injectEndpoints({
         method: 'DELETE'
       }),
       invalidatesTags: ['Commissions']
+    }),
+
+    // ========== Calcul des commissions ==========
+
+    // Obtenir les commissions du mois courant pour toutes les agences (superviseur)
+    getCurrentMonthAllAgencies: builder.query({
+      query: (month) => {
+        const url = '/commissions/current-month/all';
+        return month ? `${url}?month=${month}` : url;
+      },
+      transformResponse: (response) => response.data,
+      providesTags: ['CommissionsCalculation']
+    }),
+
+    // Obtenir les commissions du mois courant pour une agence spécifique
+    getCurrentMonthByAgency: builder.query({
+      query: ({ agencyId, month }) => {
+        const url = `/commissions/current-month/agency/${agencyId}`;
+        return month ? `${url}?month=${month}` : url;
+      },
+      transformResponse: (response) => response.data,
+      providesTags: (result, error, { agencyId }) => [
+        { type: 'CommissionsCalculation', id: `current-${agencyId}` }
+      ]
+    }),
+
+    // Obtenir l'historique des commissions d'une agence
+    getCommissionHistory: builder.query({
+      query: ({ agencyId, periods = 12 }) =>
+        `/commissions/history/agency/${agencyId}?periods=${periods}`,
+      transformResponse: (response) => response.data,
+      providesTags: (result, error, { agencyId }) => [
+        { type: 'CommissionsCalculation', id: `history-${agencyId}` }
+      ]
+    }),
+
+    // ========== Gestion des paiements ==========
+
+    // Déclarer un paiement de commission (Agence)
+    declarePayment: builder.mutation({
+      query: (month) => ({
+        url: '/commissions/payments/declare',
+        method: 'POST',
+        body: { month }
+      }),
+      invalidatesTags: ['CommissionsCalculation']
+    }),
+
+    // Confirmer un paiement de commission (Superviseur)
+    confirmPayment: builder.mutation({
+      query: (paymentId) => ({
+        url: `/commissions/payments/${paymentId}/confirm`,
+        method: 'POST'
+      }),
+      invalidatesTags: ['CommissionsCalculation']
     })
   })
 });
@@ -74,7 +129,12 @@ export const {
   useGetAllCommissionsQuery,
   useGetCommissionsByAgencyQuery,
   useUpsertCommissionMutation,
-  useDeleteCommissionMutation
+  useDeleteCommissionMutation,
+  useGetCurrentMonthAllAgenciesQuery,
+  useGetCurrentMonthByAgencyQuery,
+  useGetCommissionHistoryQuery,
+  useDeclarePaymentMutation,
+  useConfirmPaymentMutation
 } = commissionsApiSlice;
 
 // Sélecteurs
