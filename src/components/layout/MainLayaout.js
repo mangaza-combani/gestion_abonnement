@@ -22,7 +22,8 @@ import {
   PhoneAndroid,
   Settings,
   ExitToApp,
-  Phone as PhoneIcon
+  Phone as PhoneIcon,
+  AccountBalance as BankIcon
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { logOut, useLogoutMutation } from '../../store/slices/authSlice';
@@ -79,6 +80,7 @@ const MainLayout = () => {
         { text: 'Gestion Lignes', icon: <PhoneAndroid />, path: '/lines' },
         { text: 'Gestion Abonnements', icon: <PhoneIcon />, path: '/subscriptions' },
         { text: 'C.rattacher', icon: <People />, path: '/accountresign' },
+        { text: 'Banque', icon: <BankIcon />, path: '/bank' },
         { text: 'Paramètres', icon: <Settings />, path: '/settings' },
         { text: 'Utilisateur', icon: <Settings />, path: '/user' },
       ]

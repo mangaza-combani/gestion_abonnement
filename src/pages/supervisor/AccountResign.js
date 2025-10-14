@@ -186,15 +186,13 @@ const ModernAccountManagement = () => {
   // Gérer la mise à jour des informations de paiement
   const handleUpdatePaymentInfo = async (paymentData) => {
     if (!selectedAccount) return;
-    
+
     try {
       await updatePaymentInfo({
         accountId: selectedAccount.id,
-        bankName: paymentData.bankName,
-        cardLastFour: paymentData.cardLastFour,
-        cardExpiry: paymentData.cardExpiry
+        bankAccountId: paymentData.bankAccountId
       }).unwrap();
-      
+
       showSnackbar('Informations de paiement mises à jour avec succès', 'success');
     } catch (err) {
       showSnackbar(`Erreur lors de la mise à jour: ${err.data?.message || err.message}`, 'error');

@@ -176,16 +176,17 @@ export const redAccountsApiSlice = apiSliceWithPrefix.injectEndpoints({
       ]
     }),
     
-    // Mettre à jour les informations de paiement d'un compte
+    // Mettre à jour les informations de paiement d'un compte (lier à un compte bancaire)
     updatePaymentInfo: builder.mutation({
-      query: ({ accountId, bankName, cardLastFour, cardExpiry }) => ({
-        url: `/red-accounts/${accountId}/payment-info`,
-        method: 'PATCH',
-        body: { bankName, cardLastFour, cardExpiry }
+      query: ({ accountId, bankAccountId }) => ({
+        url: `/bank-management/red-accounts/${accountId}/link`,
+        method: 'PUT',
+        body: { bankAccountId }
       }),
       invalidatesTags: (result, error, { accountId }) => [
         { type: 'RedAccount', id: accountId },
-        { type: 'RedAccount', id: 'LIST' }
+        { type: 'RedAccount', id: 'LIST' },
+        { type: 'BankAccount', id: 'LIST' }
       ]
     }),
 

@@ -49,6 +49,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { useGetAgenciesQuery } from '../../store/slices/agencySlice';
 import { useCreateRedAccountMutation, useCreateLineMutation } from '../../store/slices/redAccountsSlice';
+import { useGetBankAccountsForSelectionQuery } from '../../store/slices/bankManagementSlice';
 
 const NewAccountDialog = ({ 
   open, 
@@ -59,10 +60,13 @@ const NewAccountDialog = ({
 }) => {
   // Récupération des agences depuis Redux via le hook RTK Query
   const { data: agenciesData, isLoading: agenciesLoading, isError: agenciesError, refetch: refetchAgencies } = useGetAgenciesQuery();
-  
+
+  // Récupération des comptes bancaires pour sélection
+  const { data: bankAccountsData, isLoading: bankAccountsLoading } = useGetBankAccountsForSelectionQuery();
+
   // Mutation pour créer un compte RED
   const [createRedAccount, { isLoading: isSubmitting, isError: submitError, error: submitErrorDetails, isSuccess }] = useCreateRedAccountMutation();
-  
+
   // Mutation pour créer une ligne
   const [createLine, { isLoading: isCreatingLine }] = useCreateLineMutation();
   
@@ -73,13 +77,11 @@ const NewAccountDialog = ({
     password: '',
     agencyId: preselectedAgency?.id?.toString() || '',
     maxLines: 5,
-    
-    // Étape 2: Informations de paiement
-    cardLastFour: '',
-    cardExpiry: '',
-    bankName: '',
-    cardHolderName: '',
-    
+
+    // Étape 2: Informations de paiement (nouvelle logique)
+    bankAccountId: '',
+    bankCardId: '',
+
     // Étape 3: Ligne(s) initiale(s)
     lines: []
   });
@@ -101,6 +103,10 @@ const NewAccountDialog = ({
 
   // Extraction des agences à partir des données récupérées
   const agencies = Array.isArray(agenciesData) ? agenciesData : [];
+
+  // Extraction des comptes bancaires
+  const bankAccounts = bankAccountsData?.data || [];
+  const selectedBankAccount = bankAccounts.find(ba => ba.id === parseInt(formData.bankAccountId));
 
   // Réinitialiser le formulaire quand la mutation est réussie
   useEffect(() => {
@@ -372,13 +378,8 @@ const NewAccountDialog = ({
           formData.password &&
           formData.agencyId
         );
-      case 1: // Étape 2: Informations de paiement
-        return (
-          formData.cardLastFour.length === 4 &&
-          formData.cardExpiry.length === 5 &&
-          formData.bankName &&
-          formData.cardHolderName
-        );
+      case 1: // Étape 2: Informations de paiement (sélection compte bancaire/carte)
+        return formData.bankAccountId && formData.bankCardId;
       case 2: // Étape 3: Ligne(s) initiale(s)
         return true; // Optionnel d'ajouter des lignes
       default:
@@ -505,106 +506,143 @@ const NewAccountDialog = ({
       
       case 1:
         return (
-          <div>
+          <Fade in={activeStep === 1} timeout={500}>
             <Box>
               <Typography variant="subtitle1" gutterBottom>
-                Informations de paiement
+                Sélection du compte bancaire et de la carte
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Nom sur la carte"
-                    name="cardHolderName"
-                    value={formData.cardHolderName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, cardHolderName: e.target.value.toUpperCase() }))}
-                    placeholder="ex: JOHN DOE"
-                    error={activeStep > 1 && !formData.cardHolderName}
-                    helperText={activeStep > 1 && !formData.cardHolderName ? "Ce champ est obligatoire" : "Nom tel qu'inscrit sur la carte"}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <AccountCircleIcon color="primary" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+              {bankAccountsLoading ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={24} sx={{ mr: 2 }} />
+                  <Typography variant="body2">Chargement des comptes bancaires...</Typography>
+                </Box>
+              ) : bankAccounts.length === 0 ? (
+                <Alert severity="warning">
+                  Aucun compte bancaire configuré. Veuillez créer un compte bancaire depuis la page "Gestion Bancaire" avant de créer un compte RED.
+                </Alert>
+              ) : (
+                <Grid container spacing={3}>
+                  {/* Sélection du compte bancaire */}
+                  <Grid item xs={12}>
+                    <FormControl fullWidth required error={activeStep > 1 && !formData.bankAccountId}>
+                      <InputLabel>Compte Bancaire</InputLabel>
+                      <Select
+                        value={formData.bankAccountId}
+                        onChange={(e) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            bankAccountId: e.target.value,
+                            bankCardId: '' // Réinitialiser la carte lors du changement de compte
+                          }));
+                        }}
+                        startAdornment={
+                          <InputAdornment position="start">
+                            <BankIcon color="primary" />
+                          </InputAdornment>
+                        }
+                      >
+                        {bankAccounts.map((account) => (
+                          <MenuItem key={account.id} value={account.id}>
+                            <Box>
+                              <Typography variant="body1">{account.accountName}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Banque: {account.accountHolder} • {account.cards.length} carte(s)
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {activeStep > 1 && !formData.bankAccountId && (
+                        <Typography variant="caption" color="error">
+                          Veuillez sélectionner un compte bancaire
+                        </Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Banque"
-                    name="bankName"
-                    value={formData.bankName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, bankName: e.target.value }))}
-                    placeholder="ex: Crédit Agricole, BNP Paribas, Société Générale..."
-                    error={activeStep > 1 && !formData.bankName}
-                    helperText={activeStep > 1 && !formData.bankName ? "Ce champ est obligatoire" : "Nom de la banque émettrice de la carte"}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <BankIcon color="primary" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                  {/* Sélection de la carte bancaire */}
+                  {formData.bankAccountId && selectedBankAccount && (
+                    <Grid item xs={12}>
+                      <Fade in={true} timeout={500}>
+                        <Box>
+                          <FormControl fullWidth required error={activeStep > 1 && !formData.bankCardId}>
+                            <InputLabel>Carte Bancaire</InputLabel>
+                            <Select
+                              value={formData.bankCardId}
+                              onChange={(e) => {
+                                setFormData(prev => ({ ...prev, bankCardId: e.target.value }));
+                              }}
+                              startAdornment={
+                                <InputAdornment position="start">
+                                  <CreditCardIcon color="primary" />
+                                </InputAdornment>
+                              }
+                              disabled={!selectedBankAccount.cards || selectedBankAccount.cards.length === 0}
+                            >
+                              {selectedBankAccount.cards.map((card) => (
+                                <MenuItem key={card.id} value={card.id}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="body1" fontWeight="bold">
+                                      {card.cardName}
+                                    </Typography>
+                                    {card.isPrimary && (
+                                      <Chip label="Principale" size="small" color="primary" />
+                                    )}
+                                    <Typography variant="body2" color="text.secondary">
+                                      • **** {card.cardLastFour}
+                                    </Typography>
+                                    {card.bankName && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        ({card.bankName})
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </MenuItem>
+                              ))}
+                            </Select>
+                            {activeStep > 1 && !formData.bankCardId && (
+                              <Typography variant="caption" color="error">
+                                Veuillez sélectionner une carte bancaire
+                              </Typography>
+                            )}
+                            {selectedBankAccount.cards.length === 0 && (
+                              <Typography variant="caption" color="warning.main" sx={{ mt: 1 }}>
+                                Aucune carte active pour ce compte. Veuillez en ajouter une depuis la page "Gestion Bancaire".
+                              </Typography>
+                            )}
+                          </FormControl>
+                        </Box>
+                      </Fade>
+                    </Grid>
+                  )}
+
+                  {/* Récapitulatif de la sélection */}
+                  {formData.bankAccountId && formData.bankCardId && (
+                    <Grid item xs={12}>
+                      <Fade in={true} timeout={500}>
+                        <Alert severity="success" icon={<CheckCircleIcon />}>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Carte sélectionnée
+                          </Typography>
+                          <Typography variant="body2">
+                            Compte : <strong>{selectedBankAccount.accountName}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Carte : <strong>
+                              {selectedBankAccount.cards.find(c => c.id === parseInt(formData.bankCardId))?.cardName}
+                            </strong>
+                            {' '}• **** {selectedBankAccount.cards.find(c => c.id === parseInt(formData.bankCardId))?.cardLastFour}
+                          </Typography>
+                        </Alert>
+                      </Fade>
+                    </Grid>
+                  )}
                 </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="4 derniers chiffres de la carte"
-                    name="cardLastFour"
-                    value={formData.cardLastFour}
-                    onChange={handleCardLastFourChange}
-                    inputProps={{ maxLength: 4 }}
-                    placeholder="ex: 1234"
-                    helperText={activeStep > 1 && formData.cardLastFour.length !== 4 
-                      ? "Veuillez saisir les 4 chiffres" 
-                      : "Uniquement les 4 derniers chiffres"}
-                    error={activeStep > 1 && formData.cardLastFour.length !== 4}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <CreditCardIcon color="primary" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Date d'expiration"
-                    name="cardExpiry"
-                    value={formData.cardExpiry}
-                    onChange={handleCardExpiryChange}
-                    inputProps={{ maxLength: 5 }}
-                    placeholder="MM/YY"
-                    helperText={activeStep > 1 && formData.cardExpiry.length !== 5 
-                      ? "Format invalide" 
-                      : "Format: MM/YY"}
-                    error={activeStep > 1 && formData.cardExpiry.length !== 5}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <DateRangeIcon color="primary" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
-              </Grid>
+              )}
             </Box>
-          </div>
+          </Fade>
         );
 
       case 2:

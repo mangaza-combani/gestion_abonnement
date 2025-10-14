@@ -1,11 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import { 
-  Box, 
-  Card, 
-  CardContent, 
-  Typography, 
-  Divider, 
-  Stack, 
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Divider,
+  Stack,
   Button,
   Table,
   TableBody,
@@ -24,7 +24,8 @@ import {
   Badge,
   Grid,
   useTheme,
-  alpha
+  alpha,
+  Link
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -293,6 +294,14 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
   const handleNavigateToLine = (lineId) => {
     // Navigate to /lines page with parameters for tab and selected line
     navigate(`/lines?tab=list&selectedLine=${lineId}`);
+  };
+
+  // Function to navigate to bank management page and expand the bank account details
+  const handleNavigateToBankAccount = (bankAccountId) => {
+    // Store the bank account ID to expand in localStorage
+    localStorage.setItem('expandedBankAccountId', bankAccountId);
+    // Navigate to bank management page
+    navigate('/bank');
   };
 
   // Récupérer la première lettre du login pour l'avatar
@@ -596,16 +605,29 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                   
                   <Divider sx={{ my: 2 }} />
                   
-                  {account?.bankName || account?.cardLastFour || account?.cardExpiry || account?.cardHolderName ? (
+                  {account?.bankAccount && account.bankAccount.bankCards && account.bankAccount.bankCards.length > 0 ? (
                     <Grid container spacing={2}>
                       <Grid item xs={12} sm={3}>
                         <Box>
                           <Typography variant="caption" color="text.secondary" display="block">
                             Nom de la carte
                           </Typography>
-                          <Typography variant="body2" fontWeight="medium">
-                            {account?.cardHolderName || 'Non renseigné'}
-                          </Typography>
+                          <Link
+                            component="button"
+                            variant="body2"
+                            onClick={() => handleNavigateToBankAccount(account.bankAccount.id)}
+                            sx={{
+                              textDecoration: 'none',
+                              color: 'primary.main',
+                              fontWeight: 'medium',
+                              cursor: 'pointer',
+                              '&:hover': {
+                                textDecoration: 'underline'
+                              }
+                            }}
+                          >
+                            {account.bankAccount.bankCards[0]?.cardName || 'Non renseigné'}
+                          </Link>
                         </Box>
                       </Grid>
                       <Grid item xs={12} sm={3}>
@@ -614,7 +636,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                             Banque
                           </Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {account?.bankName || 'Non renseigné'}
+                            {account.bankAccount.bankCards[0]?.bankName || account.bankAccount?.accountHolder || 'Non renseigné'}
                           </Typography>
                         </Box>
                       </Grid>
@@ -624,7 +646,7 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                             Carte
                           </Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {account?.cardLastFour ? `**** **** **** ${account.cardLastFour}` : 'Non renseigné'}
+                            {account.bankAccount.bankCards[0]?.cardLastFour ? `**** **** **** ${account.bankAccount.bankCards[0].cardLastFour}` : 'Non renseigné'}
                           </Typography>
                         </Box>
                       </Grid>
@@ -637,15 +659,15 @@ const AccountDetails = ({ account, onAddLine, onNavigateToLine, onUpdatePaymentI
                             variant="body2"
                             fontWeight="medium"
                             color={(() => {
-                              if (!account?.cardExpiry) return 'text.primary';
-                              const [month, year] = account.cardExpiry.split('/');
+                              if (!account.bankAccount.bankCards[0]?.cardExpiry) return 'text.primary';
+                              const [month, year] = account.bankAccount.bankCards[0].cardExpiry.split('/');
                               const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
                               const twoMonthsFromNow = new Date();
                               twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
                               return expiryDate <= twoMonthsFromNow ? 'warning.main' : 'text.primary';
                             })()}
                           >
-                            {account?.cardExpiry || 'Non renseigné'}
+                            {account.bankAccount.bankCards[0]?.cardExpiry || 'Non renseigné'}
                           </Typography>
                         </Box>
                       </Grid>

@@ -29,6 +29,7 @@ import CommissionWithdrawal from './pages/agency/CommissionWithdrawal';
 import AccountResign from './pages/supervisor/AccountResign';
 import UsersManagement from './pages/supervisor/UsersManagement';
 import SubscriptionsManagement from './pages/supervisor/SubscriptionsManagement';
+import BankManagement from './pages/supervisor/BankManagement';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 
@@ -201,6 +202,14 @@ const App = () => {
                 element={
                   <SupervisorRoute>
                     <UsersManagement />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="bank"
+                element={
+                  <SupervisorRoute>
+                    <BankManagement />
                   </SupervisorRoute>
                 }
               />
