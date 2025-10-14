@@ -20,7 +20,8 @@ import {
   Delete as DeleteIcon,
   Phone as PhoneIcon,
   Block as BlockIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  SwapHoriz as SwapHorizIcon
 } from '@mui/icons-material';
 import StatusChip from './StatusChip';
 import {formatPaymentAndStatusToHumanReadable} from "../../utils/helper";
@@ -212,11 +213,36 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                           <WarningIcon sx={{ color: 'error.main', fontSize: 16 }} />
                         </Tooltip>
                       )}
+                      {/* 🆕 Marqueur pour portabilité RIO */}
+                      {client?.isPortability && (
+                        <Tooltip title={`Portabilité RIO${client?.rioCode ? ': ' + client.rioCode : ''}`}>
+                          <Chip
+                            icon={<SwapHorizIcon />}
+                            label="RIO"
+                            size="small"
+                            color="secondary"
+                            sx={{
+                              fontSize: '0.65rem',
+                              fontWeight: 'bold',
+                              height: '20px',
+                              '& .MuiChip-icon': {
+                                fontSize: '14px'
+                              }
+                            }}
+                          />
+                        </Tooltip>
+                      )}
                     </Box>
                     {/* Affichage du lineUser si défini */}
                     {client?.lineUser && (
                       <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.secondary', display: 'block' }}>
                         {client.lineUser}
+                      </Typography>
+                    )}
+                    {/* 🆕 Affichage des infos RIO si portabilité */}
+                    {client?.isPortability && client?.rioCode && (
+                      <Typography variant="caption" sx={{ color: 'secondary.main', display: 'block', fontWeight: 'medium' }}>
+                        📱 RIO: {client.rioCode}
                       </Typography>
                     )}
                   </Box>

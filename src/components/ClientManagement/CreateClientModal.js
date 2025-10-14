@@ -398,6 +398,13 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     hasSIM: false,
     simCCID: ''
   });
+  const [portabilityInfo, setPortabilityInfo] = useState({
+    isPortability: false,
+    phoneNumberToKeep: '', // 🆕 Numéro que le client veut garder
+    rioCode: '',
+    identityNumber: '',
+    portabilityAddress: ''
+  });
   const [selectedSubscription, setSelectedSubscription] = useState(null);
   const [paymentInfo, setPaymentInfo] = useState({
     simCard: 10,
@@ -613,6 +620,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
             // Ajouter les informations de demande de ligne/SIM
             simCardInfo,
             paymentInfo,
+            portabilityInfo, // 🆕 Ajouter les informations de portabilité
             needsLine: true, // Indiquer qu'une ligne est demandée
             subscriptionId: selectedSubscription?.id || null
           };
@@ -639,7 +647,8 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
               agencyId: autoSelectedAgencyId,
               simCardInfo,
               paymentInfo,
-              needsLine: true, 
+              portabilityInfo, // 🆕 Ajouter les informations de portabilité
+              needsLine: true,
               subscriptionId: selectedSubscription?.id || null
             };
             
@@ -654,6 +663,7 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
               agencyId: autoSelectedAgencyId,
               simCardInfo,
               paymentInfo,
+              portabilityInfo, // 🆕 Ajouter les informations de portabilité
               needsLine: true,
               subscriptionId: selectedSubscription?.id || null
             };
@@ -703,6 +713,13 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     setSimCardInfo({
       hasSIM: false,
       simCCID: ''
+    });
+    setPortabilityInfo({
+      isPortability: false,
+      phoneNumberToKeep: '',
+      rioCode: '',
+      identityNumber: '',
+      portabilityAddress: ''
     });
     setPaymentInfo({
       simCard: 10,
@@ -1340,6 +1357,140 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                 </Box>
               </Fade>
               
+              {!simCardInfo.hasSIM && (
+                <Box sx={{ mt: 3, mb: 2 }}>
+                  <Divider sx={{ mb: 2 }}>
+                    <Chip label="Portabilité (optionnel)" color="primary" size="small" />
+                  </Divider>
+
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={portabilityInfo.isPortability}
+                        onChange={(e) => setPortabilityInfo({ ...portabilityInfo, isPortability: e.target.checked })}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Typography variant="body1" fontWeight="medium">
+                        Le client souhaite conserver son numéro existant (Portabilité)
+                      </Typography>
+                    }
+                    sx={{ mb: 2 }}
+                  />
+
+                  {portabilityInfo.isPortability && (
+                    <Fade in={portabilityInfo.isPortability} timeout={500}>
+                      <Box>
+                        <Grid container spacing={2}>
+                          {/* 🆕 Numéro à conserver */}
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Numéro de téléphone à conserver"
+                              value={portabilityInfo.phoneNumberToKeep}
+                              onChange={(e) => {
+                                const formattedPhone = formatPhoneNumber(e.target.value);
+                                setPortabilityInfo({ ...portabilityInfo, phoneNumberToKeep: formattedPhone });
+                              }}
+                              placeholder="06 12 34 56 78"
+                              required
+                              helperText="Le numéro que le client souhaite garder"
+                              inputProps={{
+                                maxLength: 14, // 10 chiffres + 4 espaces
+                              }}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <PhoneIcon color="secondary" />
+                                  </InputAdornment>
+                                ),
+                              }}
+                              variant="outlined"
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 2,
+                                  bgcolor: 'secondary.50'
+                                }
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              label="Code RIO"
+                              value={portabilityInfo.rioCode}
+                              onChange={(e) => setPortabilityInfo({ ...portabilityInfo, rioCode: e.target.value })}
+                              placeholder="Ex: 3ABC12345678"
+                              helperText="Relevé d'Identité Opérateur"
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <ContactMailIcon color="primary" />
+                                  </InputAdornment>
+                                ),
+                              }}
+                              variant="outlined"
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 2
+                                }
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              label="Numéro de pièce d'identité"
+                              value={portabilityInfo.identityNumber}
+                              onChange={(e) => setPortabilityInfo({ ...portabilityInfo, identityNumber: e.target.value })}
+                              placeholder="Numéro CNI, Passeport..."
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <VerifiedUserIcon color="primary" />
+                                  </InputAdornment>
+                                ),
+                              }}
+                              variant="outlined"
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 2
+                                }
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Adresse pour la portabilité"
+                              value={portabilityInfo.portabilityAddress}
+                              onChange={(e) => setPortabilityInfo({ ...portabilityInfo, portabilityAddress: e.target.value })}
+                              placeholder="Adresse complète du client"
+                              multiline
+                              rows={2}
+                              InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <HomeIcon color="primary" />
+                                  </InputAdornment>
+                                ),
+                              }}
+                              variant="outlined"
+                              sx={{
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 2
+                                }
+                              }}
+                            />
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    </Fade>
+                  )}
+                </Box>
+              )}
+
               {simCardInfo.hasSIM ? (
                 (() => {
                   const today = new Date();
@@ -1375,20 +1526,26 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
                   );
                 })()
               ) : (
-                <Alert 
-                  severity="warning" 
+                <Alert
+                  severity="warning"
                   icon={<InfoIcon />}
-                  sx={{ 
+                  sx={{
                     mt: 2,
                     borderRadius: 2
                   }}
                 >
                   <Typography variant="subtitle2" fontWeight="bold">
-                    Attribution sans carte SIM
+                    Attribution sans carte SIM {portabilityInfo.isPortability && '- Portabilité demandée'}
                   </Typography>
                   <Typography variant="body2">
-                    Vous n'attribuez pas de carte SIM pour le moment. Seule la carte SIM (10€) sera facturée. 
+                    Vous n'attribuez pas de carte SIM pour le moment. Seule la carte SIM (10€) sera facturée.
                     Une carte SIM devra être attribuée ultérieurement pour activer la ligne.
+                    {portabilityInfo.isPortability && (
+                      <>
+                        <br /><br />
+                        <strong>Note :</strong> Le client souhaite conserver son numéro existant via portabilité (RIO).
+                      </>
+                    )}
                   </Typography>
                 </Alert>
               )}

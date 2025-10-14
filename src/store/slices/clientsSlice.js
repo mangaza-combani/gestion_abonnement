@@ -92,6 +92,21 @@ export const clientsApiSliceWithPrefix = apiSliceWithPrefix.injectEndpoints({
         'PhonesList'        // Mettre à jour vue liste
       ],
     }),
+
+    // Confirmer la création d'une ligne avec portabilité (RIO)
+    confirmPortabilityLine: builder.mutation({
+      query: ({ lineRequestId }) => ({
+        url: `/line-requests/${lineRequestId}/confirm-portability`,
+        method: 'POST',
+        body: {},
+      }),
+      invalidatesTags: [
+        'ClientToOrder',    // Retirer de "À COMMANDER"
+        'PhoneToActivate',  // Ajouter dans "À ACTIVER"
+        'Phone',            // Mettre à jour liste générale
+        'PhonesList'        // Mettre à jour vue liste
+      ],
+    }),
   }),
 });
 
@@ -109,6 +124,7 @@ export const {
   useGetClientsToOrderQuery,
   useConfirmSimOrderMutation,
   useConfirmReplacementSimOrderMutation,
+  useConfirmPortabilityLineMutation,
 } = clientsApiSliceWithPrefix;
 
 // Slice Redux pour la gestion d'état locale des clients

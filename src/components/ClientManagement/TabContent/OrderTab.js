@@ -33,6 +33,7 @@ import NewLineDialog from '../../AccountManagement/NewLineDialog';
 import { useGetRedAccountsQuery } from '../../../store/slices/redAccountsSlice';
 import { useGetAvailableLinesQuery } from '../../../store/slices/lineReservationsSlice';
 import { useWhoIAmQuery } from '../../../store/slices/authSlice';
+import { useConfirmPortabilityLineMutation } from '../../../store/slices/clientsSlice';
 import { PHONE_STATUS } from '../constant';
 
 // Fonction pour détecter si c'est un remplacement SIM
@@ -51,6 +52,188 @@ const isSimReplacementClient = (client) => {
   );
 
   return hasReplacementNotes || hasSimLostNotes;
+};
+
+// Composant Panel pour les portabilités RIO
+const PortabilityPanel = ({ client, onConfirmLineCreated, isSupervisor = false }) => {
+  return (
+    <Stack spacing={2}>
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SwapHorizIcon color="secondary" />
+              <Typography variant="h6">Portabilité de Numéro (RIO)</Typography>
+              <Chip label="Conservation numéro" color="secondary" size="small" />
+            </Box>
+
+            <Alert severity="info" sx={{ bgcolor: 'secondary.50' }}>
+              <Typography variant="body2">
+                <strong>Client :</strong> {client.user?.firstname} {client.user?.lastname}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Demande :</strong> Le client souhaite conserver son numéro existant
+              </Typography>
+            </Alert>
+
+            {/* Informations RIO */}
+            <Box sx={{
+              p: 2,
+              bgcolor: 'grey.50',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'secondary.main'
+            }}>
+              <Typography variant="body2" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, fontWeight: 'bold', color: 'secondary.main' }}>
+                <SwapHorizIcon fontSize="small" />
+                Informations de Portabilité
+              </Typography>
+
+              <Stack spacing={1.5}>
+                {/* Numéro à conserver */}
+                {client?.phoneNumberToKeep && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                      Numéro à conserver :
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      fontWeight="bold"
+                      sx={{
+                        fontFamily: 'monospace',
+                        bgcolor: 'white',
+                        px: 1.5,
+                        py: 1,
+                        borderRadius: 1,
+                        border: '2px solid',
+                        borderColor: 'primary.main',
+                        mt: 0.5,
+                        fontSize: '1.1rem',
+                        color: 'primary.dark'
+                      }}
+                    >
+                      📞 {client.phoneNumberToKeep}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Code RIO */}
+                {client?.rioCode && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                      Code RIO :
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      fontWeight="bold"
+                      sx={{
+                        fontFamily: 'monospace',
+                        bgcolor: 'white',
+                        px: 1.5,
+                        py: 1,
+                        borderRadius: 1,
+                        border: '2px solid',
+                        borderColor: 'secondary.main',
+                        mt: 0.5,
+                        fontSize: '1rem',
+                        color: 'secondary.dark'
+                      }}
+                    >
+                      {client.rioCode}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Numéro de pièce d'identité */}
+                {client?.identityNumber && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                      Numéro de pièce d'identité :
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        bgcolor: 'white',
+                        px: 1.5,
+                        py: 0.75,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'grey.300',
+                        mt: 0.5
+                      }}
+                    >
+                      {client.identityNumber}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Adresse pour portabilité */}
+                {client?.portabilityAddress && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                      Adresse pour la portabilité :
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        bgcolor: 'white',
+                        px: 1.5,
+                        py: 0.75,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'grey.300',
+                        mt: 0.5,
+                        whiteSpace: 'pre-wrap'
+                      }}
+                    >
+                      {client.portabilityAddress}
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            </Box>
+
+            {/* Instructions */}
+            <Alert severity="warning" sx={{ fontSize: '0.875rem' }}>
+              <Typography variant="body2" fontWeight="bold" gutterBottom>
+                Instructions pour le superviseur :
+              </Typography>
+              <Typography variant="body2" component="div">
+                1. Se connecter au compte RED et créer une nouvelle ligne
+                <br />
+                2. Utiliser le code RIO fourni lors de la commande de ligne
+                <br />
+                3. Le processus de portabilité peut prendre 1 à 3 jours ouvrés
+                <br />
+                4. Vérifier que l'identité et l'adresse correspondent
+              </Typography>
+            </Alert>
+
+            {/* Bouton de confirmation */}
+            <Box sx={{ pt: 2 }}>
+              {isSupervisor ? (
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  size="large"
+                  fullWidth
+                  startIcon={<CheckCircleIcon />}
+                  onClick={() => onConfirmLineCreated(client)}
+                  sx={{ py: 1.5 }}
+                >
+                  Confirmer - Ligne Créée avec RIO
+                </Button>
+              ) : (
+                <Alert severity="info" sx={{ fontSize: '0.875rem' }}>
+                  Actions disponibles pour les superviseurs uniquement
+                </Alert>
+              )}
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
+  );
 };
 
 // Composant Panel pour les remplacements SIM
@@ -287,6 +470,9 @@ const OrderTab = ({
   const [newLineModalOpen, setNewLineModalOpen] = useState(false);
   const [selectedRedAccountForNewLine, setSelectedRedAccountForNewLine] = useState(null);
 
+  // RTK Query mutation pour confirmer la portabilité
+  const [confirmPortabilityLine, { isLoading: isConfirmingPortability }] = useConfirmPortabilityLineMutation();
+
   // Récupérer les données des comptes RED et lignes disponibles
   const { data: redAccountsData, isLoading: accountsLoading } = useGetRedAccountsQuery();
   const redAccounts = redAccountsData?.redAccounts || [];
@@ -361,6 +547,38 @@ const OrderTab = ({
   const handleNewLineModalClose = () => {
     setNewLineModalOpen(false);
     setSelectedRedAccountForNewLine(null);
+  };
+
+  // Handler pour la confirmation de portabilité
+  const handleConfirmPortabilityLine = async (client) => {
+    if (!client || !client.lineRequestId) {
+      console.error('❌ Client ou lineRequestId manquant');
+      return;
+    }
+
+    try {
+      console.log('🔍 Confirmation portabilité pour:', client);
+
+      const result = await confirmPortabilityLine({
+        lineRequestId: client.lineRequestId
+      }).unwrap();
+
+      console.log('✅ Portabilité confirmée:', result);
+
+      setSuccessMessage(result.message || 'Portabilité confirmée ! La ligne a été assignée au client.');
+      setTimeout(() => setSuccessMessage(''), 5000);
+
+      // Désélectionner le client après confirmation
+      onClientSelect(null);
+    } catch (error) {
+      console.error('❌ Erreur confirmation portabilité:', error);
+
+      const errorMessage = error?.data?.message || 'Erreur lors de la confirmation de la portabilité';
+      setSuccessMessage(''); // Clear success message
+
+      // Afficher l'erreur à l'utilisateur
+      alert(errorMessage);
+    }
   };
 
   const getStatistics = () => {
@@ -626,13 +844,22 @@ const OrderTab = ({
         {/* Colonne droite: Panel adapté selon le type de demande */}
         {selectedClient && (
           <Grid item xs={12} md={6}>
-            {isSimReplacementClient(selectedClient) ? (
+            {selectedClient?.isPortability ? (
+              // Afficher le panel de portabilité RIO
+              <PortabilityPanel
+                client={selectedClient}
+                onConfirmLineCreated={handleConfirmPortabilityLine}
+                isSupervisor={isSupervisor}
+              />
+            ) : isSimReplacementClient(selectedClient) ? (
+              // Afficher le panel de remplacement SIM
               <SimReplacementPanel
                 client={selectedClient}
                 onConfirmSimOrder={handleConfirmSimOrder}
                 isSupervisor={isSupervisor}
               />
             ) : (
+              // Afficher le panel normal de gestion compte RED
               <RedAccountManagement client={selectedClient} />
             )}
           </Grid>
