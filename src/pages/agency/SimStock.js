@@ -504,29 +504,55 @@ const SimCardManagement = () => {
             }
             
             return ordersInProgress.map(order => (
-              <Box 
-                key={order.id} 
-                sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+              <Box
+                key={order.id}
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   py: 2,
-                  '&:not(:last-child)': { 
-                    borderBottom: 1, 
-                    borderColor: 'divider' 
+                  '&:not(:last-child)': {
+                    borderBottom: 1,
+                    borderColor: 'divider'
                   }
                 }}
               >
                 <Box>
-                  <Typography variant="subtitle1">
-                    Commande #{order.id}
-                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <Typography variant="subtitle1">
+                      Commande #{order.id}
+                    </Typography>
+                    {order.isPortability && (
+                      <Chip
+                        label="PORTABILITÉ RIO"
+                        color="info"
+                        size="small"
+                        sx={{
+                          fontWeight: 'bold',
+                          fontSize: '0.7rem',
+                          height: '24px'
+                        }}
+                      />
+                    )}
+                  </Stack>
                   <Typography variant="body2" color="text.secondary">
                     Commandé par: {order.orderedBy?.firstname + ' ' + order.orderedBy?.lastname} le <strong>{dayjs(order.orderDate).format("dddd D MMMM YYYY")}</strong>
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Compte RED: <strong>{order.redAccount?.redAccountId || 'Non spécifié'}</strong>
                   </Typography>
+                  {order.isPortability && order.phoneNumberToKeep && (
+                    <>
+                      <Typography variant="body2" color="info.main" sx={{ fontWeight: 'medium', mt: 0.5 }}>
+                        📱 Numéro à conserver: <strong>{order.phoneNumberToKeep}</strong>
+                      </Typography>
+                      {order.rioCode && (
+                        <Typography variant="body2" color="info.main" sx={{ fontWeight: 'medium' }}>
+                          🔑 Code RIO: <strong>{order.rioCode}</strong>
+                        </Typography>
+                      )}
+                    </>
+                  )}
                 </Box>
                 <Box sx={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                   <Typography variant="body2" color="text.secondary">

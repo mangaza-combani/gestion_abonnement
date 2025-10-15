@@ -67,15 +67,6 @@ const PortabilityPanel = ({ client, onConfirmLineCreated, isSupervisor = false }
               <Chip label="Conservation numéro" color="secondary" size="small" />
             </Box>
 
-            <Alert severity="info" sx={{ bgcolor: 'secondary.50' }}>
-              <Typography variant="body2">
-                <strong>Client :</strong> {client.user?.firstname} {client.user?.lastname}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Demande :</strong> Le client souhaite conserver son numéro existant
-              </Typography>
-            </Alert>
-
             {/* Informations RIO */}
             <Box sx={{
               p: 2,
@@ -192,22 +183,6 @@ const PortabilityPanel = ({ client, onConfirmLineCreated, isSupervisor = false }
                 )}
               </Stack>
             </Box>
-
-            {/* Instructions */}
-            <Alert severity="warning" sx={{ fontSize: '0.875rem' }}>
-              <Typography variant="body2" fontWeight="bold" gutterBottom>
-                Instructions pour le superviseur :
-              </Typography>
-              <Typography variant="body2" component="div">
-                1. Se connecter au compte RED et créer une nouvelle ligne
-                <br />
-                2. Utiliser le code RIO fourni lors de la commande de ligne
-                <br />
-                3. Le processus de portabilité peut prendre 1 à 3 jours ouvrés
-                <br />
-                4. Vérifier que l'identité et l'adresse correspondent
-              </Typography>
-            </Alert>
 
             {/* Bouton de confirmation */}
             <Box sx={{ pt: 2 }}>
@@ -783,17 +758,6 @@ const OrderTab = ({
 
 
       {/* Aide contextuelle */}
-      {stats.linesInDelivery > 0 && (
-        <Card sx={{ bgcolor: 'success.light', mb: 2 }}>
-          <CardContent sx={{ p: 2 }}>
-            <Typography variant="body2" color="success.dark">
-              💡 <strong>Optimisation possible :</strong> {stats.linesInDelivery} ligne(s) en cours de livraison disponible(s). 
-              Vous pouvez les attribuer directement aux clients en attente au lieu de commander de nouvelles lignes.
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
-
       {stats.needsNewAccount > 0 && (
         <Card sx={{ bgcolor: 'warning.light', mb: 2 }}>
           <CardContent sx={{ p: 2 }}>

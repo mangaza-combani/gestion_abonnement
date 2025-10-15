@@ -88,7 +88,7 @@ const ClientHeader = ({ client, simCard, onOpenModal }) => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h5" color="white" sx={{ mb: 0.5, fontWeight: 'medium' }}>
-            {client.user?.firstname} {client.user?.lastname}
+            {(client.user?.firstname || '') + ' ' + (client.user?.lastname || '')}
           </Typography>
           <Typography variant="body2" color="rgba(255,255,255,0.8)" sx={{ fontWeight: 'medium' }}>
             {client.phoneNumber || 'N/C'}
@@ -331,7 +331,7 @@ const SubscriptionCard = ({ client, simCard }) => {
                 </Typography>
                 {(client?.blockReasonLabel || client?.blockedReason || client?.pendingBlockReason ||
                   (client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
-                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
+                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <InfoIcon fontSize="small" color="warning" />
                     <Typography variant="body2" color="text.secondary">
@@ -350,12 +350,12 @@ const SubscriptionCard = ({ client, simCard }) => {
                       }
                     </Typography>
                   </Box>
-                )}
-                {(client?.notes || client?.blockedNotes || client?.pendingBlockNotes) && (
+                ) : null}
+                {(client?.notes || client?.blockedNotes || client?.pendingBlockNotes) ? (
                   <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                     {client.notes || client.blockedNotes || client.pendingBlockNotes}
                   </Typography>
-                )}
+                ) : null}
               </Stack>
             ) : (client?.paymentStatus === 'DETTE' || client?.paymentStatus === 'EN RETARD' ||
                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? (
@@ -369,7 +369,7 @@ const SubscriptionCard = ({ client, simCard }) => {
                 </Typography>
                 {(client?.blockReasonLabel || client?.blockedReason || client?.pendingBlockReason ||
                   (client?.calculatedPaymentStatus || client?.paymentStatus) === 'DETTE' || (client?.calculatedPaymentStatus || client?.paymentStatus) === 'EN RETARD' ||
-                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') && (
+                  client?.phoneStatus === 'BLOCKED_NONPAYMENT') ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <InfoIcon fontSize="small" color="error" />
                     <Typography variant="body2" color="text.secondary">
@@ -382,12 +382,12 @@ const SubscriptionCard = ({ client, simCard }) => {
                       }
                     </Typography>
                   </Box>
-                )}
-                {(client?.notes || client?.blockedNotes || client?.pendingBlockNotes) && (
+                ) : null}
+                {(client?.notes || client?.blockedNotes || client?.pendingBlockNotes) ? (
                   <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                     {client.notes || client.blockedNotes || client.pendingBlockNotes}
                   </Typography>
-                )}
+                ) : null}
               </Stack>
             ) : phoneStatus === PHONE_STATUS.SUSPENDED ? (
               <Typography variant="body2">
@@ -448,7 +448,7 @@ const SubscriptionCard = ({ client, simCard }) => {
         </Stack>
 
         {/* Affichage compte RED rattaché (version compacte) */}
-        {(client?.redAccountId || client?.lineRequest?.redAccountId) && (
+        {(client?.redAccountId || client?.lineRequest?.redAccountId) ? (
           <Box sx={{
             mt: 2,
             p: 1.5,
@@ -471,16 +471,16 @@ const SubscriptionCard = ({ client, simCard }) => {
                `Compte ${client?.redAccountId || client?.lineRequest?.redAccountId}`}
             </Typography>
           </Box>
-        )}
+        ) : null}
 
         {/* Indicateur de dernier paiement */}
-        {paymentStatus === PAYMENT_STATUS.UP_TO_DATE && lastPaymentDate && (
+        {(paymentStatus === PAYMENT_STATUS.UP_TO_DATE && lastPaymentDate) ? (
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
             <Typography variant="body2" color="text.secondary">
               Dernier paiement : {formatDate(lastPaymentDate)}
             </Typography>
           </Box>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -603,8 +603,8 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
             </Stack>
           </Box>
 
-          {showPassword && (
-            <Alert 
+          {showPassword ? (
+            <Alert
               severity="info"
               icon={<TimerIcon />}
               sx={{
@@ -616,14 +616,14 @@ const AccountDetails = ({agency,  redAccount = { id: 'RED_123456', password: 'Se
               <Typography variant="body2">
                 Le mot de passe sera masqué automatiquement
               </Typography>
-              <Chip 
+              <Chip
                 label={`${remainingTime}s`}
                 size="small"
                 color="info"
                 variant="outlined"
               />
             </Alert>
-          )}
+          ) : null}
         </Stack>
       </CardContent>
     </Card>

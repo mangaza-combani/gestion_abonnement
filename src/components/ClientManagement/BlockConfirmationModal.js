@@ -156,7 +156,7 @@ const BlockConfirmationModal = ({
                         <Stack spacing={2} alignItems="center">
                             <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main' }} />
                             <Typography variant="h6" fontWeight="medium" gutterBottom>
-                                {client.user?.lastname} {client.user?.firstname}
+                                {(client.user?.lastname || '') + ' ' + (client.user?.firstname || '')}
                             </Typography>
                             <Typography variant="body1" color="text.secondary" gutterBottom>
                                 {client.phoneNumber || 'En cours...'}

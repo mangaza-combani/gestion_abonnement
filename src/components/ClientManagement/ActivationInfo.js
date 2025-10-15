@@ -60,15 +60,17 @@ const ActivationInfo = ({ client }) => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [activationDataPending, setActivationDataPending] = useState(null);
   const [currentMonthInvoice, setCurrentMonthInvoice] = useState(null);
+  const [portabilityPrefilledIccid, setPortabilityPrefilledIccid] = useState(null); // 🆕 ICCID pré-rempli pour portabilité
 
   // 🆕 États pour les messages de succès
   const [successMessage, setSuccessMessage] = useState('');
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
-  // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1) ou pour remplacement SIM (CAS 2)
+  // Détecter si l'ICCID est déjà renseigné par l'agence (CAS 1) ou pour remplacement SIM (CAS 2) ou portabilité (CAS 3)
   const preFilledIccid = client?.preAssignedIccid || client?.activatedWithIccid || client?.user?.activatedWithIccid;
   const replacementIccid = client?.replacementSimIccid; // ✅ NOUVEAU: ICCID de remplacement
-  const finalPreFilledIccid = replacementIccid || preFilledIccid; // Prioriser l'ICCID de remplacement
+  const portabilityIccid = (client?.isPortability && client?.activatedWithIccid) ? client.activatedWithIccid : null; // ✅ NOUVEAU: ICCID pour portabilité
+  const finalPreFilledIccid = replacementIccid || portabilityIccid || preFilledIccid; // Prioriser remplacement, puis portabilité, puis pré-assigné
   const isPreFilledMode = client?.isPreAssigned || !!finalPreFilledIccid;
 
   // Debug: afficher les informations ICCID
@@ -78,12 +80,16 @@ const ActivationInfo = ({ client }) => {
     activatedWithIccid: client?.activatedWithIccid,
     userActivatedWithIccid: client?.user?.activatedWithIccid,
     replacementSimIccid: client?.replacementSimIccid,
+    isPortability: client?.isPortability, // ✅ NOUVEAU: Flag portabilité
+    phoneNumberToKeep: client?.phoneNumberToKeep, // ✅ NOUVEAU: Numéro à garder
+    portabilityIccid, // ✅ NOUVEAU: ICCID pour portabilité
     activationType: client?.activationType, // 🔑 ACTIVATIONTYPE
     replacementSimReceived: client?.replacementSimReceived, // 🔑 CLEF
     preFilledIccid,
     finalPreFilledIccid, // ✅ NOUVEAU
     isPreFilledMode,
     isReplacementCase: !!replacementIccid, // ✅ NOUVEAU
+    isPortabilityCase: !!portabilityIccid, // ✅ NOUVEAU
     fullClient: client // Structure complète pour debugging
   });
   
@@ -230,6 +236,15 @@ const ActivationInfo = ({ client }) => {
     }
   }, [unpaidInvoices, client]);
 
+  // 🆕 Pré-remplir l'ICCID de la portabilité quand le modal de paiement s'ouvre
+  useEffect(() => {
+    if (showPaymentDialog && client?.isPortability && client?.portabilitySimOrderIccid) {
+      console.log('📱 PORTABILITÉ - Pré-remplissage ICCID:', client.portabilitySimOrderIccid);
+      setIccid(client.portabilitySimOrderIccid);
+      setPortabilityPrefilledIccid(client.portabilitySimOrderIccid);
+    }
+  }, [showPaymentDialog, client?.isPortability, client?.portabilitySimOrderIccid]);
+
   const handleIccidChange = (e) => {
     const newIccid = e.target.value;
     setIccid(newIccid);
@@ -316,12 +331,13 @@ const ActivationInfo = ({ client }) => {
       });
 
       // Vérifier les paiements requis avec l'ID de la ligne ET du client
-      const paymentCheck = await checkPaymentBeforeActivation({ 
-        phoneId, 
-        clientId: clientUserId 
+      const paymentCheck = await checkPaymentBeforeActivation({
+        phoneId,
+        clientId: clientUserId
       }).unwrap();
 
       console.log('💳 Agence - Résultat vérification paiement:', paymentCheck);
+      console.log('💳 Agence - Structure complète des données:', JSON.stringify(paymentCheck, null, 2));
 
       // Ouvrir directement le modal de paiement avec les données
       setPaymentVerificationData(paymentCheck);
@@ -348,9 +364,35 @@ const ActivationInfo = ({ client }) => {
 
   // 🆕 Nouvelle fonction pour vérifier les paiements avant activation
   const handleCheckPaymentAndActivate = async () => {
+    console.log('🔍 handleCheckPaymentAndActivate appelé');
+
     const finalIccid = isPreFilledMode ? preFilledIccid : iccid;
 
-    if (!selectedManualNumber && (!finalIccid || !selectedLine)) return;
+    // ✅ Pour portabilité, utiliser directement l'ID du client
+    if (client?.isPortability) {
+      console.log('📱 CAS PORTABILITÉ - Utilisation directe du client ID:', client.id);
+
+      try {
+        // Pas de paiement requis pour portabilité, activer directement
+        await performActivation({
+          phoneId: client.id,
+          iccid: finalIccid,
+          clientId: client?.user?.id || client?.id
+        });
+      } catch (error) {
+        console.error('❌ Erreur lors de l\'activation portabilité:', error);
+      }
+      return;
+    }
+
+    if (!selectedManualNumber && (!finalIccid || !selectedLine)) {
+      console.log('❌ Validation échouée - données manquantes:', {
+        selectedManualNumber,
+        finalIccid,
+        selectedLine
+      });
+      return;
+    }
 
     try {
       // Détermine le phoneId à partir de la sélection
@@ -402,16 +444,30 @@ const ActivationInfo = ({ client }) => {
   };
 
   // 💰 Gérer la confirmation de paiement (MODIFIÉ pour séparer Agence/Superviseur)
-  const handlePaymentConfirmation = async () => {
-    if (!activationDataPending || !selectedPaymentMethod || !paymentAmount) return;
+  const handlePaymentConfirmation = async (paymentMethod = selectedPaymentMethod) => {
+    if (!activationDataPending || !paymentMethod || !paymentAmount) {
+      console.log('❌ Validation paiement échouée:', {
+        hasActivationData: !!activationDataPending,
+        hasPaymentMethod: !!paymentMethod,
+        hasPaymentAmount: !!paymentAmount
+      });
+      return;
+    }
 
     try {
+      console.log('💰 handlePaymentConfirmation appelé avec:', {
+        paymentMethod,
+        activationDataPending,
+        paymentAmount,
+        iccid
+      });
+
       // Traiter le paiement de la facture générée
       const invoiceId = paymentVerificationData?.data?.currentMonthInvoice?.id;
 
       await processInvoicePayment({
         phoneId: activationDataPending.phoneId,
-        paymentMethod: selectedPaymentMethod,
+        paymentMethod: paymentMethod,
         paymentAmount: parseFloat(paymentAmount),
         invoiceId: invoiceId,
         iccid: iccid // Passer l'ICCID sélectionné
@@ -1363,29 +1419,55 @@ const ActivationInfo = ({ client }) => {
                       {/* Sélection de numéro */}
                       <Box>
                         <Typography variant="body2" color="text.secondary" gutterBottom>
-                          Numéro à attribuer:
+                          {client?.isPortability ? 'Numéro à porter (RIO):' : 'Numéro à attribuer:'}
                         </Typography>
 
-                        {/* Saisie avec autocomplete */}
-                        <Autocomplete
-                          fullWidth
-                          size="small"
-                          options={iccidAnalysis?.availableForManualSelection || []}
-                          getOptionLabel={(option) => option.phoneNumber}
-                          value={selectedManualNumber}
-                          onChange={(event, newValue) => {
-                            setSelectedManualNumber(newValue);
-                            if (newValue) {
-                              setSelectedLine('');
-                            }
-                          }}
-                          renderInput={(params) => (
+                        {/* 🆕 CAS PORTABILITÉ: Afficher uniquement le numéro à garder */}
+                        {client?.isPortability ? (
+                          <Box>
+                            <Alert severity="info" sx={{ mb: 1 }}>
+                              <Typography variant="body2" fontWeight="bold">
+                                📞 Portabilité RIO - Numéro à garder
+                              </Typography>
+                              <Typography variant="caption">
+                                Ce numéro sera conservé lors de l'activation
+                              </Typography>
+                            </Alert>
                             <TextField
-                              {...params}
-                              placeholder="Saisissez ou sélectionnez un numéro"
+                              fullWidth
+                              size="small"
+                              value={client?.phoneNumberToKeep || client?.phoneNumber || ''}
+                              disabled
+                              sx={{
+                                '& .MuiInputBase-input': {
+                                  fontWeight: 'bold',
+                                  fontSize: '1.1rem',
+                                  color: 'secondary.main'
+                                }
+                              }}
                             />
-                          )}
-                          renderOption={(props, option) => (
+                          </Box>
+                        ) : (
+                          /* Saisie avec autocomplete normale */
+                          <Autocomplete
+                            fullWidth
+                            size="small"
+                            options={iccidAnalysis?.availableForManualSelection || []}
+                            getOptionLabel={(option) => option.phoneNumber}
+                            value={selectedManualNumber}
+                            onChange={(event, newValue) => {
+                              setSelectedManualNumber(newValue);
+                              if (newValue) {
+                                setSelectedLine('');
+                              }
+                            }}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                placeholder="Saisissez ou sélectionnez un numéro"
+                              />
+                            )}
+                            renderOption={(props, option) => (
                             <Box component="li" {...props}>
                               <Typography variant="body2" fontWeight="bold">
                                 {option.phoneNumber}
@@ -1394,6 +1476,7 @@ const ActivationInfo = ({ client }) => {
                           )}
                           noOptionsText="Aucun numéro trouvé"
                         />
+                        )}
                       </Box>
                     </>
                   );
@@ -1411,7 +1494,7 @@ const ActivationInfo = ({ client }) => {
           <Button
             variant="contained"
             onClick={handleActivationConfirm}
-            disabled={isActivating || (client?.activationType === 'NEW_ACTIVATION' && (!selectedManualNumber && (!iccid || !selectedLine)))}
+            disabled={isActivating || (client?.activationType === 'NEW_ACTIVATION' && !client?.isPortability && (!selectedManualNumber && (!iccid || !selectedLine)))}
             startIcon={isActivating ? <CircularProgress size={20} /> : <CheckIcon />}
             color={client?.activationType === 'NEW_ACTIVATION' ? "primary" : "success"}
           >
@@ -1658,7 +1741,7 @@ const ActivationInfo = ({ client }) => {
                     💰 Montant total à payer
                   </Typography>
                   <Typography variant="h4" sx={{ textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
-                    {paymentVerificationData.totalAmountDue || paymentAmount}€
+                    {parseFloat(paymentVerificationData.data?.totalAmountDue || paymentVerificationData.totalAmountDue || paymentAmount).toFixed(2)}€
                   </Typography>
 
                   {paymentVerificationData.paymentBreakdown && (
@@ -1678,6 +1761,69 @@ const ActivationInfo = ({ client }) => {
                       )}
                     </Box>
                   )}
+
+                  {/* 🆕 Affichage des détails prorata (règle 10+) */}
+                  {(paymentVerificationData.prorataDetails || paymentVerificationData.data?.prorataDetails || paymentVerificationData.data?.currentMonthInvoice?.prorataDetails) && (() => {
+                    // Trouver les détails du prorata dans la structure de données
+                    const prorataDetails = paymentVerificationData.prorataDetails ||
+                                          paymentVerificationData.data?.prorataDetails ||
+                                          paymentVerificationData.data?.currentMonthInvoice?.prorataDetails;
+
+                    console.log('🔍 DEBUG Modal Paiement - Prorata Details:', prorataDetails);
+
+                    if (!prorataDetails) return null;
+
+                    return (
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'primary.main' }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom fontWeight="bold">
+                        📊 Détails de facturation :
+                      </Typography>
+
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2">
+                          Date d'activation : {prorataDetails.activationDate}
+                        </Typography>
+
+                        {prorataDetails.isRule10Applied && (
+                          <>
+                            <Alert severity="info" sx={{ mt: 1, mb: 1, py: 0.5 }}>
+                              <Typography variant="body2" fontWeight="bold">
+                                🆕 Règle 10+ appliquée
+                              </Typography>
+                              <Typography variant="caption">
+                                Activation le {prorataDetails.activationDay} du mois (≥10) → Mois complet facturé
+                              </Typography>
+                            </Alert>
+
+                            <Typography variant="body2">
+                              • Montant mensuel : {prorataDetails.monthlyAmount.toFixed(2)}€
+                            </Typography>
+                            <Typography variant="body2">
+                              • Prorata réel ({prorataDetails.usedDays}/{prorataDetails.totalDays} jours) : {prorataDetails.prorataAmount.toFixed(2)}€
+                            </Typography>
+
+                            {prorataDetails.surplusToBalance > 0 && (
+                              <Box sx={{ mt: 1, p: 1.5, bgcolor: 'success.lighter', borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
+                                <Typography variant="body2" color="success.dark" fontWeight="bold">
+                                  ✅ Surplus de {prorataDetails.surplusToBalance.toFixed(2)}€ crédité au solde de la ligne
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  Ce crédit sera automatiquement déduit de la prochaine facture
+                                </Typography>
+                              </Box>
+                            )}
+                          </>
+                        )}
+
+                        {!prorataDetails.isRule10Applied && (
+                          <Typography variant="body2">
+                            • Prorata ({prorataDetails.usedDays}/{prorataDetails.totalDays} jours) : {prorataDetails.prorataAmount.toFixed(2)}€
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                    );
+                  })()}
                 </Paper>
 
                 <Divider />
@@ -1744,64 +1890,71 @@ const ActivationInfo = ({ client }) => {
 
                 <Divider />
 
-                {/* Sélection mode de paiement */}
+                {/* Sélection mode de paiement avec boutons */}
                 <Box>
                   <Typography variant="h6" gutterBottom>
-                    💳 Mode de paiement
+                    💳 Encaissement
                   </Typography>
 
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Sélectionner le mode de paiement</InputLabel>
-                    <Select
-                      value={selectedPaymentMethod}
-                      label="Sélectionner le mode de paiement"
-                      onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
+                    Sélectionnez le mode de paiement pour confirmer l'encaissement de <strong>{parseFloat(paymentAmount).toFixed(2)}€</strong>
+                  </Typography>
+
+                  <Stack direction="row" spacing={2}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      fullWidth
+                      size="large"
+                      startIcon={<Typography variant="h6">💵</Typography>}
+                      onClick={async () => {
+                        setSelectedPaymentMethod('cash');
+                        await handlePaymentConfirmation('cash');
+                      }}
+                      disabled={isProcessingPayment || !iccid}
+                      sx={{
+                        py: 3,
+                        fontWeight: 'bold',
+                        fontSize: '1.2rem'
+                      }}
                     >
-                      <MenuItem value="cash">💵 Espèces</MenuItem>
-                      <MenuItem value="card">💳 Carte bancaire</MenuItem>
-                      <MenuItem value="bank_transfer">🏦 Virement bancaire</MenuItem>
-                      <MenuItem value="mobile_money">📱 Mobile Money</MenuItem>
-                      <MenuItem value="check">📄 Chèque</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <TextField
-                    fullWidth
-                    label="Montant reçu"
-                    type="number"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    InputProps={{
-                      endAdornment: <Typography variant="body2">€</Typography>
-                    }}
-                    helperText="Confirmez le montant exact reçu du client"
-                  />
+                      {isProcessingPayment && selectedPaymentMethod === 'cash' ? (
+                        <>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          Traitement...
+                        </>
+                      ) : (
+                        'Paiement Espèces'
+                      )}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      fullWidth
+                      size="large"
+                      startIcon={<Typography variant="h6">💳</Typography>}
+                      onClick={async () => {
+                        setSelectedPaymentMethod('card');
+                        await handlePaymentConfirmation('card');
+                      }}
+                      disabled={isProcessingPayment || !iccid}
+                      sx={{
+                        py: 3,
+                        fontWeight: 'bold',
+                        fontSize: '1.2rem'
+                      }}
+                    >
+                      {isProcessingPayment && selectedPaymentMethod === 'card' ? (
+                        <>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          Traitement...
+                        </>
+                      ) : (
+                        'Paiement CB'
+                      )}
+                    </Button>
+                  </Stack>
                 </Box>
-
-                {/* Récapitulatif */}
-                {selectedPaymentMethod && paymentAmount && iccid && (
-                  <Alert severity="success">
-                    <AlertTitle>✅ Récapitulatif du paiement</AlertTitle>
-                    <Typography variant="body2">
-                      Carte SIM: <strong>{iccid}</strong>
-                    </Typography>
-                    <Typography variant="body2">
-                      Mode: <strong>{
-                        selectedPaymentMethod === 'cash' ? 'Espèces' :
-                        selectedPaymentMethod === 'card' ? 'Carte bancaire' :
-                        selectedPaymentMethod === 'bank_transfer' ? 'Virement bancaire' :
-                        selectedPaymentMethod === 'mobile_money' ? 'Mobile Money' :
-                        selectedPaymentMethod === 'check' ? 'Chèque' : selectedPaymentMethod
-                      }</strong>
-                    </Typography>
-                    <Typography variant="body2">
-                      Montant: <strong>{paymentAmount}€</strong>
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
-                      En confirmant, ce paiement sera enregistré et l'activation sera effectuée.
-                    </Typography>
-                  </Alert>
-                )}
               </>
             )}
           </Stack>
@@ -1811,23 +1964,15 @@ const ActivationInfo = ({ client }) => {
           <Button
             onClick={() => {
               setShowPaymentDialog(false);
-              setShowActivationDialog(true); // Retourner au modal d'activation
+              // ✅ CORRECTION: Si c'est une agence, simplement fermer le modal
+              // Si c'est un superviseur, retourner au modal d'activation
+              if (isSupervisor && activationDataPending?.iccid) {
+                setShowActivationDialog(true);
+              }
             }}
             disabled={isProcessingPayment}
           >
-            Retour
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handlePaymentConfirmation}
-            disabled={isProcessingPayment || !selectedPaymentMethod || !paymentAmount || !iccid}
-            startIcon={isProcessingPayment ? <CircularProgress size={20} /> : <PaymentIcon />}
-          >
-            {isProcessingPayment ? 'Confirmation...' :
-              isSupervisor ? 'Confirmer paiement et activer' :
-              'Confirmer paiement (encaissement)'
-            }
+            {isAgency ? 'Annuler' : 'Retour'}
           </Button>
         </DialogActions>
       </Dialog>

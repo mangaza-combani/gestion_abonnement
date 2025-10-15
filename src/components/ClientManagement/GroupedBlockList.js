@@ -146,7 +146,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                     </Typography>
                                     
                                     {/* Identifiants du compte RED - Masquer pour les agences */}
-                                    {group.lines[0]?.redAccount && !isAgency && (
+                                    {(group.lines[0]?.redAccount && !isAgency) ? (
                                         <Box sx={{
                                             mt: 2,
                                             p: 1.5,
@@ -248,7 +248,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                 </IconButton>
                                             </Box>
                                         </Box>
-                                    )}
+                                    ) : null}
                                 </Box>
 
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -299,12 +299,12 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                     {line.phoneNumber || 'Numéro en cours'}
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary">
-                                                    {line.user?.firstname} {line.user?.lastname}
+                                                    {(line.user?.firstname || '') + ' ' + (line.user?.lastname || '')}
                                                 </Typography>
                                             </Box>
 
                                             <Stack direction="row" spacing={1} alignItems="center">
-                                                {line.isPendingRequest && (
+                                                {line.isPendingRequest ? (
                                                     <Chip
                                                         icon={<ScheduleIcon />}
                                                         label="En attente"
@@ -312,7 +312,7 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                                         color="warning"
                                                         variant="outlined"
                                                     />
-                                                )}
+                                                ) : null}
                                                 
                                                 <Chip
                                                     label={line.blockReasonLabel}
@@ -325,20 +325,20 @@ const GroupedBlockList = ({ clients, selectedClient, onClientSelect }) => {
                                         </Stack>
 
                                         {/* Afficher les notes si présentes */}
-                                        {(line.pendingBlockNotes || line.blockedNotes) && (
-                                            <Typography 
-                                                variant="caption" 
-                                                sx={{ 
-                                                    display: 'block', 
-                                                    mt: 1, 
+                                        {(line.pendingBlockNotes || line.blockedNotes) ? (
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    display: 'block',
+                                                    mt: 1,
                                                     ml: 4,
                                                     fontStyle: 'italic',
-                                                    color: 'text.secondary' 
+                                                    color: 'text.secondary'
                                                 }}
                                             >
                                                 {line.pendingBlockNotes || line.blockedNotes}
                                             </Typography>
-                                        )}
+                                        ) : null}
 
                                     </Box>
                                 ))}

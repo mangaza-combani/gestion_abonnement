@@ -110,12 +110,38 @@ const ClientManagement = () => {
         const {
                 data: phonesToActivateData,
                 isLoading: phonesToActivateLoading,
+                error: phonesToActivateError,
                 refetch: refetchPhonesToActivate
         } = useGetPhonesToActivateQuery(undefined, {
-                // Pas de polling automatique pour éviter les erreurs refetch
-                // refetchOnFocus: true,
-                // refetchOnReconnect: true
+                pollingInterval: 60000, // Vérification toutes les 60 secondes
+                refetchOnFocus: true,   // Recalcul quand la fenêtre reprend le focus
+                refetchOnReconnect: true, // Recalcul lors de la reconnexion
+                refetchOnMount: true    // Recalcul au montage du composant
         })
+
+        // 🔍 DEBUG spécifique pour phonesToActivateData
+        React.useEffect(() => {
+                console.log('🔍 DEBUG phonesToActivateData changed:', {
+                        data: phonesToActivateData,
+                        isArray: Array.isArray(phonesToActivateData),
+                        length: phonesToActivateData?.length,
+                        isLoading: phonesToActivateLoading,
+                        hasError: !!phonesToActivateError,
+                        error: phonesToActivateError
+                });
+        }, [phonesToActivateData, phonesToActivateLoading, phonesToActivateError])
+
+        // 🔥 FORCER LE REFETCH AU MONTAGE DU COMPOSANT
+        React.useEffect(() => {
+                console.log('🔥 FORCER REFETCH phonesToActivate au montage');
+                if (refetchPhonesToActivate) {
+                        refetchPhonesToActivate().then(result => {
+                                console.log('✅ Refetch résultat:', result);
+                        }).catch(err => {
+                                console.error('❌ Refetch erreur:', err);
+                        });
+                }
+        }, []) // Tableau vide = une seule fois au montage
 
         // 🧪 MODE TEST - Hook pour récupérer toutes les lignes avec statut de paiement pour la LISTE
         const {
@@ -336,7 +362,14 @@ const ClientManagement = () => {
                                         break;
                                 case TAB_TYPES.TO_ACTIVATE:
                                         // Utiliser phonesToActivateData comme les autres onglets
-                                        filteredData = phonesToActivateData || [];
+                                        // Assurer que c'est bien un tableau
+                                        filteredData = Array.isArray(phonesToActivateData) ? phonesToActivateData : [];
+                                        console.log('🔍 DEBUG TO_ACTIVATE count:', {
+                                                phonesToActivateData,
+                                                isArray: Array.isArray(phonesToActivateData),
+                                                length: phonesToActivateData?.length,
+                                                filteredDataLength: filteredData.length
+                                        });
                                         break;
                                 case TAB_TYPES.TO_UNBLOCK:
                                         // Calculer manuellement pour TO_UNBLOCK

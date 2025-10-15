@@ -521,7 +521,7 @@ const ClientDetailsModal = ({ open, onClose, client }) => {
               {client.user?.firstname?.[0]}{client.user?.lastname?.[0]}
             </Avatar>
             <Typography variant="h6" gutterBottom>
-              {client.user?.firstname} {client.user?.lastname}
+              {(client.user?.firstname || '') + ' ' + (client.user?.lastname || '')}
             </Typography>
             <Chip
               label={client.phoneStatus}

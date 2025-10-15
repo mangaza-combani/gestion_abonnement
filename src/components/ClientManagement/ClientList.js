@@ -29,6 +29,14 @@ import SimReplacementReceivedButton from './SimReplacementReceivedButton';
 import OrderSimButton from './OrderSimButton'; // 🆕 BOUTON COMMANDER SIM
 import RequestActivationButton from './RequestActivationButton'; // 🆕 BOUTON DEMANDE ACTIVATION
 
+// ✅ Fonction utilitaire pour formater les noms de façon sûre
+const formatFullName = (user) => {
+  if (!user) return 'N/A';
+  const lastname = user.lastname || '';
+  const firstname = user.firstname || '';
+  return `${lastname} ${firstname}`.trim() || 'N/A';
+};
+
 // Fonction pour obtenir la couleur du statut de ligne
 const getPhoneStatusColor = (phoneStatus) => {
   switch (phoneStatus) {
@@ -205,16 +213,16 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                   <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                        {client?.user?.lastname} {client?.user?.firstname}
+                        {formatFullName(client?.user)}
                       </Typography>
                       {/* Marqueur pour remplacement SIM vol/perte */}
-                      {(client?.replacementReason === 'SIM_LOST_THEFT' || client?.trackingNotes?.includes('REMPLACEMENT SIM')) && (
+                      {(client?.replacementReason === 'SIM_LOST_THEFT' || client?.trackingNotes?.includes('REMPLACEMENT SIM')) ? (
                         <Tooltip title="Remplacement SIM - Vol/Perte">
                           <WarningIcon sx={{ color: 'error.main', fontSize: 16 }} />
                         </Tooltip>
-                      )}
+                      ) : null}
                       {/* 🆕 Marqueur pour portabilité RIO */}
-                      {client?.isPortability && (
+                      {client?.isPortability ? (
                         <Tooltip title={`Portabilité RIO${client?.rioCode ? ': ' + client.rioCode : ''}`}>
                           <Chip
                             icon={<SwapHorizIcon />}
@@ -231,20 +239,20 @@ const ClientList = ({ clients, selectedClient, onClientSelect, isOrderView = fal
                             }}
                           />
                         </Tooltip>
-                      )}
+                      ) : null}
                     </Box>
                     {/* Affichage du lineUser si défini */}
-                    {client?.lineUser && (
+                    {client?.lineUser ? (
                       <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.secondary', display: 'block' }}>
                         {client.lineUser}
                       </Typography>
-                    )}
+                    ) : null}
                     {/* 🆕 Affichage des infos RIO si portabilité */}
-                    {client?.isPortability && client?.rioCode && (
+                    {(client?.isPortability && client?.rioCode) ? (
                       <Typography variant="caption" sx={{ color: 'secondary.main', display: 'block', fontWeight: 'medium' }}>
                         📱 RIO: {client.rioCode}
                       </Typography>
-                    )}
+                    ) : null}
                   </Box>
                 </TableCell>
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
