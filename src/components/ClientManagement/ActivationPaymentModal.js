@@ -62,12 +62,32 @@ const ActivationPaymentModal = ({ open, onClose, client, onSuccess }) => {
 
     try {
       console.log('🔍 Vérification paiement pour client:', client.id);
-      const response = await checkPayment(client.id).unwrap();
+      const response = await checkPayment({ phoneId: client.id }).unwrap();
 
       console.log('📋 Réponse vérification paiement:', response);
-      setInvoiceData(response);
 
-      if (response.requiresPayment) {
+      // 🔥 FIX: Extraire les données correctement selon la structure de la réponse
+      let invoiceInfo = null;
+      if (response.data) {
+        // Structure: { success, canActivate, paymentRequired, data: { currentMonthInvoice, ... } }
+        const { currentMonthInvoice, totalAmountDue, billingMonth, prorataDetails } = response.data;
+
+        invoiceInfo = {
+          ...currentMonthInvoice,
+          totalAmount: totalAmountDue || currentMonthInvoice?.amount,
+          billingMonth: billingMonth,
+          prorataDetails: prorataDetails || currentMonthInvoice?.prorataDetails,
+          isNewInvoice: response.data.currentMonthStatus === 'INVOICE_GENERATED'
+        };
+      } else {
+        // Ancien format pour compatibilité
+        invoiceInfo = response;
+      }
+
+      setInvoiceData(invoiceInfo);
+      console.log('💰 Données facture extraites:', invoiceInfo);
+
+      if (response.paymentRequired || response.requiresPayment) {
         setCurrentStep(2); // Aller au paiement
       } else {
         // Déjà payé, peut activer directement
@@ -96,8 +116,8 @@ const ActivationPaymentModal = ({ open, onClose, client, onSuccess }) => {
         clientId: client.user?.id || client.client?.id,
         paymentMethod,
         reference: paymentReference || `ACTIVATION-${Date.now()}`,
-        amount: invoiceData?.totalAmount,
-        invoiceId: invoiceData?.invoiceId
+        amount: invoiceData?.totalAmount || invoiceData?.amount,
+        invoiceId: invoiceData?.invoiceId || invoiceData?.id
       };
 
       console.log('💳 Traitement paiement:', paymentData);
@@ -194,28 +214,94 @@ const ActivationPaymentModal = ({ open, onClose, client, onSuccess }) => {
             <ListItem sx={{ px: 0 }}>
               <ListItemText
                 primary="Période"
-                secondary={`${invoiceData.period || 'Mois courant'} (prorata inclus)`}
+                secondary={`${invoiceData.billingMonth || invoiceData.period || 'Mois courant'}`}
               />
             </ListItem>
-            <ListItem sx={{ px: 0 }}>
-              <ListItemText
-                primary="Montant forfait"
-                secondary={formatCurrency(invoiceData.subscriptionAmount)}
-              />
-            </ListItem>
-            {invoiceData.prorata && (
-              <ListItem sx={{ px: 0 }}>
+
+            {/* Affichage des détails selon le type de facturation */}
+            {invoiceData.prorataDetails ? (
+              <>
+                {/* 🆕 RÈGLE 10+: Si activation après le 10, montrer le mois complet + surplus */}
+                {invoiceData.prorataDetails.isRule10Applied ? (
+                  <>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText
+                        primary={<Typography variant="body2" color="success.main" fontWeight="bold">Règle 10+ appliquée</Typography>}
+                        secondary={`Activation le ${invoiceData.prorataDetails.activationDay} du mois → Mois complet facturé`}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText
+                        primary="Montant mensuel complet"
+                        secondary={formatCurrency(invoiceData.prorataDetails.monthlyAmount)}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0, bgcolor: 'success.50', borderRadius: 1 }}>
+                      <ListItemText
+                        primary={<Typography variant="body2" color="success.dark">Prorata réel ({invoiceData.prorataDetails.usedDays}/{invoiceData.prorataDetails.totalDays} jours)</Typography>}
+                        secondary={<Typography variant="caption" color="text.secondary">{formatCurrency(invoiceData.prorataDetails.prorataAmount)}</Typography>}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0, bgcolor: 'success.50', borderRadius: 1 }}>
+                      <ListItemText
+                        primary={<Typography variant="body2" color="success.dark" fontWeight="bold">Surplus crédité au solde ligne</Typography>}
+                        secondary={<Typography variant="caption" color="text.secondary">{formatCurrency(invoiceData.prorataDetails.surplusToBalance)} (sera déduit des prochaines factures)</Typography>}
+                      />
+                    </ListItem>
+                  </>
+                ) : (
+                  <>
+                    {/* Activation avant le 10: Prorata normal */}
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText
+                        primary="Montant forfait mensuel"
+                        secondary={formatCurrency(invoiceData.prorataDetails.monthlyAmount)}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText
+                        primary={`Prorata (${invoiceData.prorataDetails.usedDays}/${invoiceData.prorataDetails.totalDays} jours)`}
+                        secondary={formatCurrency(invoiceData.prorataDetails.prorataAmount)}
+                      />
+                    </ListItem>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Ancien format pour compatibilité */}
+                <ListItem sx={{ px: 0 }}>
+                  <ListItemText
+                    primary="Montant forfait"
+                    secondary={formatCurrency(invoiceData.subscriptionAmount || invoiceData.originalAmount)}
+                  />
+                </ListItem>
+                {invoiceData.prorata && (
+                  <ListItem sx={{ px: 0 }}>
+                    <ListItemText
+                      primary="Prorata"
+                      secondary={formatCurrency(invoiceData.prorata)}
+                    />
+                  </ListItem>
+                )}
+              </>
+            )}
+
+            {/* Déduction solde si applicable */}
+            {invoiceData.balanceDeducted > 0 && (
+              <ListItem sx={{ px: 0, bgcolor: 'info.50', borderRadius: 1 }}>
                 <ListItemText
-                  primary="Prorata"
-                  secondary={formatCurrency(invoiceData.prorata)}
+                  primary={<Typography variant="body2" color="info.dark">Solde ligne déduit</Typography>}
+                  secondary={<Typography variant="caption">-{formatCurrency(invoiceData.balanceDeducted)}</Typography>}
                 />
               </ListItem>
             )}
-            <Divider />
+
+            <Divider sx={{ my: 1 }} />
             <ListItem sx={{ px: 0 }}>
               <ListItemText
                 primary={<Typography variant="subtitle1" fontWeight="bold">Total à payer</Typography>}
-                secondary={<Typography variant="h6" color="primary">{formatCurrency(invoiceData.totalAmount)}</Typography>}
+                secondary={<Typography variant="h6" color="primary">{formatCurrency(invoiceData.totalAmount || invoiceData.amount)}</Typography>}
               />
             </ListItem>
           </List>

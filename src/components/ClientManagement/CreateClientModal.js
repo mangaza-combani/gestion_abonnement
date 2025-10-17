@@ -339,12 +339,12 @@ const  CreateClientModal = ({ open, onClose, onClientCreated, agencyMode = false
     skip: !autoSelectedAgencyId
   });
   
-  // Filtrer les cartes SIM disponibles (IN_STOCK et non réservées)
+  // Filtrer les cartes SIM disponibles (IN_STOCK et NON déjà assignées à un téléphone)
   const availableSimCards = React.useMemo(() => {
     if (!simCardsData?.sim_cards) return [];
-    return simCardsData.sim_cards.filter(card => 
-      card.status === 'IN_STOCK' && 
-      !card.isReserved &&
+    return simCardsData.sim_cards.filter(card =>
+      card.status === 'IN_STOCK' &&
+      !card.phoneId && // 🔥 FIX: Exclure les cartes déjà assignées à un téléphone (même en attente d'activation)
       card.iccid // Vérifier qu'il y a un ICCID
     ).map(card => ({
       id: card.id,
